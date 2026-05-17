@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v27 ★ PROTAGONIST + NAME</title>
+<title>NEON HOLDEM v28 ★ DAY CAMPAIGN + ABILITY TUTORIAL + PUB/VEGAS BGM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -1632,6 +1632,7 @@
   </div>
 
   <div id="storage-status"></div>
+  <div id="day-progress-banner"></div>
   <div id="beginner-luck-banner"></div>
 
   <div class="action-dock">
@@ -1678,10 +1679,12 @@
       <div class="venue-info">
         <span class="spade-icon">♠</span>
         <strong id="venue-name"></strong>
+        <span id="day-badge" style="display:inline-block;background:linear-gradient(135deg,var(--purple),var(--electric));color:white;font-size:10px;padding:2px 8px;border-radius:4px;margin-left:8px;letter-spacing:2px;font-weight:800;font-family:'Press Start 2P','Galmuri11',monospace;">DAY 1</span>
       </div>
       <div class="header-meta">
         <span>블라인드: <span id="blinds-display"></span></span>
         <span>핸드 #<span id="hand-num">0</span></span>
+        <span id="day-mini-progress" style="font-size:11px;color:var(--text-dim);"></span>
       </div>
     </div>
     <div class="header-pot">
@@ -2185,6 +2188,31 @@ function renderLobby() {
     }
   }
 
+  // Day campaign banner
+  const dpb = document.getElementById('day-progress-banner');
+  if (dpb) {
+    ensureCareer();
+    const prog = getDayProgress();
+    const cfg = prog.cfg;
+    const championBadge = cfg.champion && SPECIAL_ABILITIES[cfg.champion]
+      ? `<span style="font-size:11px;color:var(--gold-bright);">⚔️ ${SPECIAL_ABILITIES[cfg.champion].owner} 등장 가능</span>` : '';
+    dpb.innerHTML = `
+      <div style="background:linear-gradient(135deg,rgba(177,78,255,0.18),rgba(58,134,255,0.14));border:2px solid var(--purple);border-radius:8px;padding:12px 16px;margin:10px 0;box-shadow:0 0 20px rgba(177,78,255,0.2);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div>
+            <span style="font-size:11px;letter-spacing:3px;color:var(--purple);font-family:'Press Start 2P','Galmuri11',monospace;">DAY ${prog.day} / 10</span>
+            <span style="font-size:13px;color:var(--gold-bright);font-weight:700;margin-left:10px;">${cfg.title}</span>
+          </div>
+          ${championBadge}
+        </div>
+        <div style="background:var(--bg-darker);height:8px;border-radius:4px;overflow:hidden;margin-top:6px;">
+          <div style="background:linear-gradient(90deg,var(--purple),var(--gold-bright));height:100%;width:${prog.pct}%;transition:width 0.4s;"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:4px;text-align:right;">${prog.handInDay} / ${prog.totalInDay} 핸드 (${Math.round(prog.pct)}%)</div>
+      </div>
+    `;
+  }
+
   // Beginner's luck banner (first 30 hands)
   const blb = document.getElementById('beginner-luck-banner');
   if (blb) {
@@ -2458,6 +2486,7 @@ function newHand() {
   career.handsPlayed++;
   checkHandMilestone();
   checkBeginner30Milestone();
+  checkDayProgress();
   state.pot = 0;
   state.communityCards = [];
   state.deck = createDeck();
@@ -3362,15 +3391,11 @@ function renderPlayerCard(p, i) {
     }
   }
 
-  // Player avatar
+  // Player avatar — human uses protagonist image, AI uses personality emoji only
   let nameDisplay = p.name;
   let avatarHTML = '';
   if (p.isHuman) {
-    // Use protagonist image for human player
     avatarHTML = getProtagonistAvatarHTML(32, true);
-  } else if (career.character) {
-    const av = CHARACTER_AVATARS.find(a => a.id === career.character.avatar);
-    if (av) nameDisplay = `${av.icon} ${p.name}`;
   }
 
   const timerBar = isCurrent ? '<div class="timer-bar" style="animation-delay:0s;"></div>' : '';
@@ -3393,6 +3418,14 @@ function renderPlayerCard(p, i) {
 
 function render() {
   document.getElementById('hand-num').textContent = state.handNumber;
+  // Day badge + mini progress
+  const dayBadge = document.getElementById('day-badge');
+  const dayMini = document.getElementById('day-mini-progress');
+  if (dayBadge) {
+    const prog = getDayProgress();
+    dayBadge.textContent = `DAY ${prog.day}`;
+    if (dayMini) dayMini.textContent = `${prog.handInDay}/${prog.totalInDay > 99999 ? '∞' : prog.totalInDay} (${Math.round(prog.pct)}%)`;
+  }
   document.getElementById('pot-amount').textContent = state.pot.toLocaleString();
   document.getElementById('bankroll-game').textContent = career.bankroll.toLocaleString();
 
@@ -4192,6 +4225,8 @@ function toggleBGM() {
 // === BGM Tracks ===
 const BGM_TRACK_LIST = [
   { id: 'funky',   icon: '🎷', name: 'Funky Casino',   desc: '오션스 일레븐 무드 — 베이스 그루브 + Rhodes + 드럼' },
+  { id: 'pub',     icon: '🍺', name: '홀덤펍 어쿠스틱', desc: '동네 펍 무드 — 어쿠스틱 기타 + 부드러운 베이스 + 브러시' },
+  { id: 'vegas',   icon: '🎰', name: '라스베가스 디스코', desc: '70s 펑크 디스코 — 4-on-floor + 신스 스탭 + 슬롯 벨' },
   { id: 'lofi',    icon: '🌙', name: 'Lo-Fi Jazz',     desc: '비닐 크래클 + 워킹베이스 + 브러시 드럼' },
   { id: 'minimal', icon: '🎹', name: '미니멀 피아노',  desc: '집중 모드 — 부드러운 코드만 천천히' }
 ];
@@ -4283,6 +4318,8 @@ async function setupToneBGM() {
   await Tone.start();
   if (currentTrack === 'lofi') setupLofiTrack();
   else if (currentTrack === 'minimal') setupMinimalTrack();
+  else if (currentTrack === 'pub') setupPubTrack();
+  else if (currentTrack === 'vegas') setupVegasTrack();
   else setupFunkyTrack();
   Tone.Transport.start();
   toneSetupDone = true;
@@ -4555,6 +4592,231 @@ function setupMinimalTrack() {
     if (!bgmEnabled || currentTrack !== 'minimal') return;
     tonePiano.triggerAttackRelease(PROG[pIdx % PROG.length], '1n', time, 0.42);
     pIdx++;
+  }, '2m');
+}
+
+// ===================== 🍺 HOLDEM PUB ACOUSTIC =====================
+function setupPubTrack() {
+  // Warm intimate pub feel — acoustic guitar arpeggios, woody bass, brushed drums
+  const masterHP = new Tone.Filter({ frequency: 80, type: 'highpass' }).toDestination();
+  const masterLP = new Tone.Filter({ frequency: 7000, type: 'lowpass', Q: 0.4 }).connect(masterHP);
+  const pubVerb = new Tone.Reverb({ decay: 2.2, wet: 0.22 }).connect(masterLP);
+  bgmSynths.push(masterHP, masterLP, pubVerb);
+
+  // ACOUSTIC GUITAR (PluckSynth — sounds remarkably guitar-like)
+  tonePiano = new Tone.PolySynth(Tone.PluckSynth, {
+    attackNoise: 0.6,
+    dampening: 4200,
+    resonance: 0.85
+  }).connect(pubVerb);
+  tonePiano.volume.value = -8;
+  bgmSynths.push(tonePiano);
+
+  // WOODY UPRIGHT BASS
+  toneBass = new Tone.MonoSynth({
+    oscillator: { type: 'sine' },
+    envelope: { attack: 0.02, decay: 0.5, sustain: 0.4, release: 0.6 },
+    filter: { Q: 1.2, type: 'lowpass', rolloff: -24 },
+    filterEnvelope: { attack: 0.02, decay: 0.5, sustain: 0.3, release: 0.5, baseFrequency: 150, octaves: 2 }
+  }).connect(masterHP);
+  toneBass.volume.value = -8;
+  bgmSynths.push(toneBass);
+
+  // BRUSH SNARE (pink noise — softer than white)
+  toneDrum = new Tone.NoiseSynth({
+    noise: { type: 'pink' },
+    envelope: { attack: 0.005, decay: 0.14, sustain: 0 }
+  });
+  const brushBP = new Tone.Filter({ frequency: 3500, type: 'bandpass', Q: 1.2 });
+  toneDrum.chain(brushBP, masterLP);
+  toneDrum.volume.value = -20;
+  bgmSynths.push(toneDrum, brushBP);
+
+  // SOFT VIBE — light melody sparkle
+  toneSparkle = new Tone.FMSynth({
+    harmonicity: 2.5,
+    modulationIndex: 4,
+    oscillator: { type: 'sine' },
+    envelope: { attack: 0.01, decay: 0.7, sustain: 0.1, release: 1.2 }
+  }).connect(pubVerb);
+  toneSparkle.volume.value = -22;
+  bgmSynths.push(toneSparkle);
+
+  Tone.Transport.bpm.value = 92;
+
+  // Warm folk progression: C → Am → F → G (vi-IV-V in C major loops well in pub mood)
+  const PROG = [
+    { root: 'C', bass: ['C2','G2','E2','G2'], chord: ['E3','G3','C4','E4'], top: 'C5' },
+    { root: 'Am', bass: ['A1','E2','C2','E2'], chord: ['C3','E3','A3','C4'], top: 'A4' },
+    { root: 'F', bass: ['F1','C2','A1','C2'], chord: ['F3','A3','C4','F4'], top: 'F5' },
+    { root: 'G', bass: ['G1','D2','B1','D2'], chord: ['G3','B3','D4','G4'], top: 'G5' }
+  ];
+
+  let pubBar = 0;
+  let pubBeat = 0;
+
+  // GUITAR ARPEGGIO — pluck each chord tone in sequence (1-3-5-3 pattern, 8th notes)
+  Tone.Transport.scheduleRepeat((time) => {
+    if (!bgmEnabled || currentTrack !== 'pub') return;
+    const ch = PROG[pubBar % PROG.length].chord;
+    const pluckIdx = pubBeat % 8;
+    const pattern = [0, 2, 1, 3, 2, 1, 3, 2];
+    tonePiano.triggerAttackRelease(ch[pattern[pluckIdx] % ch.length], '8n', time, 0.55);
+    pubBeat++;
+    if (pubBeat % 8 === 0) pubBar++;
+  }, '8n');
+
+  // WALKING BASS — quarter notes (root, 5th, 3rd, 5th)
+  Tone.Transport.scheduleRepeat((time) => {
+    if (!bgmEnabled || currentTrack !== 'pub') return;
+    const ch = PROG[pubBar % PROG.length].bass;
+    toneBass.triggerAttackRelease(ch[Math.floor(pubBeat / 2) % 4], '4n', time, 0.7);
+  }, '4n');
+
+  // BRUSH on 2 and 4
+  Tone.Transport.scheduleRepeat((time) => {
+    if (!bgmEnabled || currentTrack !== 'pub') return;
+    toneDrum.triggerAttackRelease('16n', time, 0.5);
+  }, '2n', '4n');
+
+  // OCCASIONAL VIBE NOTE (sparse melody, 25%)
+  Tone.Transport.scheduleRepeat((time) => {
+    if (!bgmEnabled || currentTrack !== 'pub' || Math.random() > 0.25) return;
+    const notes = ['C5','E5','G5','A5','E5','G4','D5'];
+    toneSparkle.triggerAttackRelease(notes[Math.floor(Math.random() * notes.length)], '4n', time, 0.5);
+  }, '2n');
+}
+
+// ===================== 🎰 LAS VEGAS DISCO =====================
+function setupVegasTrack() {
+  // 70s disco funk — four-on-floor kick, syncopated bass, brassy stabs, slot bell
+  const masterHP = new Tone.Filter({ frequency: 65, type: 'highpass' }).toDestination();
+  const discoVerb = new Tone.Reverb({ decay: 1.0, wet: 0.13 }).connect(masterHP);
+  bgmSynths.push(masterHP, discoVerb);
+
+  // DISCO BASS — punchy sawtooth with envelope
+  toneBass = new Tone.MonoSynth({
+    oscillator: { type: 'sawtooth' },
+    envelope: { attack: 0.001, decay: 0.12, sustain: 0.3, release: 0.1 },
+    filter: { Q: 4, type: 'lowpass', rolloff: -24 },
+    filterEnvelope: { attack: 0.001, decay: 0.1, sustain: 0.3, release: 0.15, baseFrequency: 220, octaves: 3 }
+  }).connect(masterHP);
+  toneBass.volume.value = -6;
+  bgmSynths.push(toneBass);
+
+  // BRASSY STAB SYNTH (disco horn) — for the chord stabs
+  tonePiano = new Tone.PolySynth(Tone.AMSynth, {
+    harmonicity: 1.8,
+    oscillator: { type: 'sawtooth' },
+    modulation: { type: 'square' },
+    envelope: { attack: 0.01, decay: 0.18, sustain: 0.2, release: 0.25 },
+    modulationEnvelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.3 }
+  }).connect(discoVerb);
+  tonePiano.volume.value = -14;
+  bgmSynths.push(tonePiano);
+
+  // PUNCHY DISCO KICK
+  const discoKick = new Tone.MembraneSynth({
+    pitchDecay: 0.05,
+    octaves: 6,
+    envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.3 }
+  }).connect(masterHP);
+  discoKick.volume.value = -4;
+  bgmSynths.push(discoKick);
+
+  // OPEN HI-HAT (8th notes for disco)
+  const discoHat = new Tone.NoiseSynth({
+    noise: { type: 'white' },
+    envelope: { attack: 0.001, decay: 0.08, sustain: 0 }
+  });
+  const hatHP = new Tone.Filter({ frequency: 8000, type: 'highpass' });
+  discoHat.chain(hatHP, masterHP);
+  discoHat.volume.value = -20;
+  bgmSynths.push(discoHat, hatHP);
+
+  // SNARE — claps on 2 & 4
+  toneDrum = new Tone.NoiseSynth({
+    noise: { type: 'white' },
+    envelope: { attack: 0.001, decay: 0.12, sustain: 0 }
+  });
+  const snareBP = new Tone.Filter({ frequency: 2000, type: 'bandpass', Q: 1.5 });
+  toneDrum.chain(snareBP, masterHP);
+  toneDrum.volume.value = -12;
+  bgmSynths.push(toneDrum, snareBP);
+
+  // SLOT MACHINE BELL — for rare jackpot sparkle
+  toneSparkle = new Tone.FMSynth({
+    harmonicity: 8,
+    modulationIndex: 12,
+    oscillator: { type: 'sine' },
+    envelope: { attack: 0.001, decay: 0.3, sustain: 0, release: 0.4 }
+  }).connect(discoVerb);
+  toneSparkle.volume.value = -22;
+  bgmSynths.push(toneSparkle);
+
+  Tone.Transport.bpm.value = 122;
+
+  // Disco progression: i-VI-III-VII in A minor (Am - F - C - G) — classic 70s disco
+  const PROG = [
+    { bass: ['A1','A1','E2','A1','A1','C2','E2','A1'], chord: ['A3','C4','E4'] },
+    { bass: ['F1','F1','C2','F1','F1','A1','C2','F1'], chord: ['F3','A3','C4'] },
+    { bass: ['C2','C2','G2','C2','C2','E2','G2','C2'], chord: ['C4','E4','G4'] },
+    { bass: ['G1','G1','D2','G1','G1','B1','D2','G1'], chord: ['G3','B3','D4'] }
+  ];
+
+  let vegasBar = 0;
+  let vegas8th = 0;
+  let vegas16 = 0;
+
+  // KICK — four-on-floor (every beat)
+  Tone.Transport.scheduleRepeat((time) => {
+    if (!bgmEnabled || currentTrack !== 'vegas') return;
+    discoKick.triggerAttackRelease('C1', '8n', time, 0.95);
+  }, '4n');
+
+  // SNARE/CLAP — on 2 & 4
+  Tone.Transport.scheduleRepeat((time) => {
+    if (!bgmEnabled || currentTrack !== 'vegas') return;
+    toneDrum.triggerAttackRelease('16n', time, 0.6);
+  }, '2n', '4n');
+
+  // HI-HAT — open on offbeats (8th note offbeats)
+  Tone.Transport.scheduleRepeat((time) => {
+    if (!bgmEnabled || currentTrack !== 'vegas') return;
+    discoHat.triggerAttackRelease('16n', time, 0.55);
+  }, '4n', '8n');
+
+  // BASS — syncopated octave pattern
+  Tone.Transport.scheduleRepeat((time) => {
+    if (!bgmEnabled || currentTrack !== 'vegas') return;
+    const bar = PROG[vegasBar % PROG.length];
+    toneBass.triggerAttackRelease(bar.bass[vegas8th % 8], '16n', time, 0.8);
+    vegas8th++;
+    if (vegas8th % 8 === 0) vegasBar++;
+  }, '8n');
+
+  // BRASSY STAB — on the "and" of beats 1 and 3 (disco syncopation)
+  Tone.Transport.scheduleRepeat((time) => {
+    if (!bgmEnabled || currentTrack !== 'vegas') return;
+    const bar = PROG[vegasBar % PROG.length];
+    tonePiano.triggerAttackRelease(bar.chord, '16n', time, 0.65);
+  }, '2n', '8n');
+
+  // BRASSY STAB — on beat 3
+  Tone.Transport.scheduleRepeat((time) => {
+    if (!bgmEnabled || currentTrack !== 'vegas') return;
+    const bar = PROG[vegasBar % PROG.length];
+    tonePiano.triggerAttackRelease(bar.chord, '16n', time + 0.05, 0.45);
+  }, '1m', '2n');
+
+  // SLOT MACHINE BELL — random rare jackpot sparkle (~5% per bar)
+  Tone.Transport.scheduleRepeat((time) => {
+    if (!bgmEnabled || currentTrack !== 'vegas' || Math.random() > 0.18) return;
+    // Quick bell roll
+    const bellNotes = ['C6','E6','G6','C7'];
+    bellNotes.forEach((n, i) => {
+      try { toneSparkle.triggerAttackRelease(n, '32n', time + i * 0.06, 0.4); } catch (e) {}
+    });
   }, '2m');
 }
 
@@ -5282,6 +5544,329 @@ function checkBeginner30Milestone() {
   }, 400);
 }
 
+// ===================== DAY CAMPAIGN SYSTEM (v28) =====================
+// 10-Day RPG campaign tied to hands played. Each day unlocks story + ability boost + champion encounter.
+const DAY_CAMPAIGN = [
+  { day: 1,  handsTo: 30,  title: '첫 핸드, 손 떨림',          abilityBoost: 'insight',    abilityAmt: 1, bonus: 500,   champion: null,         storyTone: '시작' },
+  { day: 2,  handsTo: 60,  title: '동네 영웅, 강남 결심',      abilityBoost: 'patience',   abilityAmt: 1, bonus: 1000,  champion: null,         storyTone: '도전' },
+  { day: 3,  handsTo: 100, title: '강남, 첫 강자 만남',        abilityBoost: 'exploit',    abilityAmt: 1, bonus: 1500,  champion: 'yeonsu',     storyTone: '대결' },
+  { day: 4,  handsTo: 150, title: '슬럼프, 멘탈 흔들림',       abilityBoost: 'mental',     abilityAmt: 2, bonus: 2000,  champion: null,         storyTone: '시련' },
+  { day: 5,  handsTo: 220, title: '회복, 마카오 결심',         abilityBoost: 'bluff',      abilityAmt: 1, bonus: 3000,  champion: 'jaejeong',   storyTone: '회복' },
+  { day: 6,  handsTo: 300, title: '마카오, 아시아 강자',       abilityBoost: 'pressure',   abilityAmt: 1, bonus: 5000,  champion: 'antonius',   storyTone: '진출' },
+  { day: 7,  handsTo: 400, title: '벨라지오 입성',            abilityBoost: 'math',       abilityAmt: 1, bonus: 8000,  champion: 'ivey',       storyTone: '전설' },
+  { day: 8,  handsTo: 520, title: 'WSOP 도전',                abilityBoost: 'pokerFace',  abilityAmt: 1, bonus: 12000, champion: 'hellmuth',   storyTone: '월드클래스' },
+  { day: 9,  handsTo: 700, title: '트라이튼 입성',            abilityBoost: 'insight',    abilityAmt: 2, bonus: 20000, champion: 'chidwick',   storyTone: '하이스테이크' },
+  { day: 10, handsTo: 999999, title: '전설의 결승',           abilityBoost: 'all',        abilityAmt: 1, bonus: 50000, champion: 'brunson',    storyTone: '클라이맥스' }
+];
+
+const DAY_STORIES = {
+  1: [
+    { icon: '🍺', text: '동네 펍에 처음 발 들였다.<br>손이 떨렸다.<br><br>"운이 좋아야지..."' },
+    { icon: '👁️', text: '하지만 너는 알게 됐어.<br>이건 <b style="color:var(--gold-bright);">관찰의 게임</b>이라는 걸.<br><br>+1 통찰력' }
+  ],
+  2: [
+    { icon: '🏆', text: '동네 사람들이 너를 알아본다.<br>"저 친구 좀 하던데."<br><br>30핸드만에 동네 영웅.' },
+    { icon: '🌃', text: '하지만 너는 <b style="color:var(--gold-bright);">강남</b>을 본다.<br>진짜 선수들이 있는 곳.<br><br>+1 인내심' }
+  ],
+  3: [
+    { icon: '⚔️', text: '강남 홀덤바.<br>거기서 처음으로 <b style="color:var(--red);">진짜 강자</b>를 만났다.', champion: 'yeonsu' },
+    { icon: '🇰🇷', text: '<b style="color:var(--gold-bright);">김연수</b>.<br>한국 포커계의 전설.<br><br>"신참이군. 자네 손이 떨리는데?"' },
+    { icon: '🎯', text: '한 핸드 한 핸드가 <b>전쟁</b>이었다.<br>너는 그날 -$3000.<br>하지만 <b style="color:var(--gold-bright);">읽는 법</b>을 배웠다.<br><br>+1 익스플로잇' }
+  ],
+  4: [
+    { icon: '💔', text: '연속 5핸드 패배.<br>5BB 핸드도 안 들어왔다.<br><br>"이거... 내가 진짜 할 수 있는 거 맞나?"' },
+    { icon: '🧘', text: '하지만 너는 <b style="color:var(--gold-bright);">멈췄다</b>.<br>커피 한잔.<br>다시 의자에 앉았다.<br><br>+2 멘탈 (시련 보상)' }
+  ],
+  5: [
+    { icon: '🎯', text: '슬럼프를 넘었다.<br>그날 너는 <b style="color:var(--gold-bright);">박재정</b>을 만났다.', champion: 'jaejeong' },
+    { icon: '🥇', text: 'WSOP 한국인 첫 우승자.<br>"흠... 자네는 패턴을 외울 줄 알아.<br>좋은 자질이야."' },
+    { icon: '✈️', text: '다음 목표는 <b style="color:var(--gold-bright);">마카오</b>.<br>아시아 최대 캐쉬게임.<br><br>+1 블러프' }
+  ],
+  6: [
+    { icon: '🇲🇴', text: '마카오 베네시안 카지노.<br>200/$400 게임에 처음 앉았다.<br><br>모두 표정 없음.', champion: 'antonius' },
+    { icon: '❄️', text: '맞은편엔 <b style="color:var(--gold-bright);">Patrik Antonius</b>.<br>"북극의 침묵"이라 불리는 핀란드 전설.<br><br>"...."' },
+    { icon: '🔥', text: '너는 <b style="color:var(--gold-bright);">압박</b>을 배웠다.<br>큰 베팅 한 방의 무게.<br><br>+1 압박' }
+  ],
+  7: [
+    { icon: '🎰', text: '라스베가스 벨라지오.<br>세계 최고의 캐쉬게임 룸.<br>"Bobby\'s Room" 너머 라운지에 너의 자리.', champion: 'ivey' },
+    { icon: '👁️‍🗨️', text: '그리고 <b style="color:var(--gold-bright);">Phil Ivey</b>.<br>"신의 눈"을 가진 자.<br><br>"... 너 아는 사람 같은데?"' },
+    { icon: '📐', text: '그날 너는 <b>수학적으로 옳은 의사결정</b>이<br>왜 중요한지 깨달았다.<br><br>+1 수학' }
+  ],
+  8: [
+    { icon: '🏆', text: 'WSOP. World Series of Poker.<br>리오 호텔, 노란 자켓의 꿈.', champion: 'hellmuth' },
+    { icon: '😤', text: '맞은편엔 <b style="color:var(--gold-bright);">Phil Hellmuth</b>.<br>"포커 브래스 11회 우승."<br><br>"꼬마야, 이건 진짜 무대야."' },
+    { icon: '😐', text: '너는 <b style="color:var(--gold-bright);">감정을 봉인</b>하는 법을 배웠다.<br>승리도 패배도 표정에 안 드러내기.<br><br>+1 포커페이스' }
+  ],
+  9: [
+    { icon: '💎', text: '트라이튼 하이스테이크.<br>$2000/$5000 게임.<br>최소 바이인 $500,000.', champion: 'chidwick' },
+    { icon: '🧮', text: '<b style="color:var(--gold-bright);">Stephen Chidwick</b>이 GTO 솔버처럼 플레이한다.<br>"수학적으로... 너의 레인지는 30/30/40."' },
+    { icon: '🌟', text: '너는 더 이상 신참이 아니다.<br>이건 너의 <b>레벨</b>이다.<br><br>+2 통찰력' }
+  ],
+  10: [
+    { icon: '👑', text: '최종 라운드.<br>모든 전설이 한 테이블에 있다.', champion: 'brunson' },
+    { icon: '🤠', text: 'Doyle Brunson. <b style="color:var(--gold-bright);">Texas Dolly</b>.<br>포커의 신.<br><br>"꼬마야, 이제 너도 우리 중 하나야."' },
+    { icon: '💰', text: '빚 1억은 잊혀진지 오래.<br>너는 <b style="color:var(--gold-bright);">전설</b>이 됐다.<br><br>모든 능력 +1' }
+  ]
+};
+
+function getCurrentDay() {
+  ensureCareer();
+  const hands = career.handsPlayed || 0;
+  for (const d of DAY_CAMPAIGN) {
+    if (hands < d.handsTo) return d.day;
+  }
+  return 10;
+}
+
+function getDayConfig(day) {
+  return DAY_CAMPAIGN.find(d => d.day === day);
+}
+
+function getDayProgress() {
+  const day = getCurrentDay();
+  const cfg = getDayConfig(day);
+  const prevTo = day > 1 ? getDayConfig(day - 1).handsTo : 0;
+  const hands = career.handsPlayed || 0;
+  const handInDay = hands - prevTo;
+  const totalInDay = cfg.handsTo - prevTo;
+  return { day, cfg, handInDay, totalInDay, pct: Math.min(100, (handInDay / totalInDay) * 100) };
+}
+
+function ensureCareer() {
+  if (!career.day) career.day = 1;
+  if (!career.daysCompleted) career.daysCompleted = [];
+  if (!career.championsMet) career.championsMet = [];
+}
+
+function checkDayProgress() {
+  ensureCareer();
+  const cur = getCurrentDay();
+  if (cur <= career.day) {
+    career.day = cur;
+    return;
+  }
+  // Day advanced — trigger ceremony for each new day we just passed
+  while (career.day < cur) {
+    career.day++;
+    triggerDayComplete(career.day - 1, career.day); // completed prev, entering new
+  }
+  saveCareer();
+}
+
+function triggerDayComplete(completedDay, newDay) {
+  const completedCfg = getDayConfig(completedDay);
+  if (!completedCfg) return;
+  career.daysCompleted = career.daysCompleted || [];
+  if (!career.daysCompleted.includes(completedDay)) {
+    career.daysCompleted.push(completedDay);
+    // Cash bonus
+    career.bankroll += completedCfg.bonus;
+    // Ability boost
+    applyDayAbilityBoost(completedCfg.abilityBoost, completedCfg.abilityAmt);
+    // Champion unlock
+    if (completedCfg.champion && !career.championsMet.includes(completedCfg.champion)) {
+      career.championsMet.push(completedCfg.champion);
+    }
+  }
+  saveCareer();
+  // Show story cutscene
+  setTimeout(() => showDayStory(newDay), 800);
+}
+
+function applyDayAbilityBoost(stat, amt) {
+  ensureAbilities();
+  if (stat === 'all') {
+    for (const k of Object.keys(ABILITY_DEFS)) {
+      career.pokerAbilities[k].lv += amt;
+    }
+  } else if (career.pokerAbilities[stat]) {
+    career.pokerAbilities[stat].lv += amt;
+  }
+}
+
+let dayStorySlide = 0;
+function showDayStory(day) {
+  dayStorySlide = 0;
+  const story = DAY_STORIES[day];
+  if (!story || story.length === 0) return;
+  renderDayStorySlide(day, 0);
+}
+
+function renderDayStorySlide(day, idx) {
+  const story = DAY_STORIES[day];
+  const slide = story[idx];
+  const cfg = getDayConfig(day);
+  const prevCfg = day > 1 ? getDayConfig(day - 1) : null;
+  const isLast = idx === story.length - 1;
+  const isFirst = idx === 0;
+
+  // Champion intro card if this slide introduces one
+  let championCard = '';
+  if (slide.champion && SPECIAL_ABILITIES[slide.champion]) {
+    const ab = SPECIAL_ABILITIES[slide.champion];
+    const color = getRarityColor(ab.rarity);
+    championCard = `<div style="background:${color}22;border:2px solid ${color};border-radius:10px;padding:14px;margin:14px 0;text-align:center;">
+      <div style="font-size:48px;">${ab.icon}</div>
+      <div style="font-weight:800;font-size:16px;color:${color};margin-top:6px;">${ab.owner}</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-top:4px;letter-spacing:2px;text-transform:uppercase;">${ab.rarity} · 챔피언 등장</div>
+      <div style="font-size:11px;color:var(--text);margin-top:6px;">${ab.desc}</div>
+      <div style="font-size:10px;color:var(--gold-bright);margin-top:6px;">⚔️ 격파하면 능력 흡수 가능</div>
+    </div>`;
+  }
+
+  const dots = story.map((_, i) =>
+    `<span style="width:9px;height:9px;border-radius:50%;background:${i === idx ? 'var(--gold-bright)' : 'var(--border-light)'};display:inline-block;margin:0 3px;"></span>`
+  ).join('');
+
+  const html = `<div style="text-align:center;padding:20px 14px;">
+    <div style="font-size:11px;color:var(--text-dim);letter-spacing:3px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:6px;">DAY ${day}</div>
+    <h2 style="color:var(--gold-bright);font-size:18px;letter-spacing:2px;font-family:'Press Start 2P','Galmuri11',monospace;margin-top:4px;">${cfg.title}</h2>
+    <div style="font-size:60px;margin:20px 0 10px;">${slide.icon}</div>
+    <div style="font-size:14px;line-height:1.9;color:var(--text);min-height:80px;">${slide.text}</div>
+    ${championCard}
+    ${isLast ? `<div style="background:linear-gradient(135deg,rgba(255,217,61,0.15),rgba(212,175,55,0.08));border:2px solid var(--gold-foil);border-radius:8px;padding:12px;margin:14px 0;">
+      <div style="font-size:11px;letter-spacing:2px;color:var(--gold-bright);font-family:'Press Start 2P','Galmuri11',monospace;">DAY ${day-1} CLEAR</div>
+      <div style="font-size:13px;color:var(--text);margin-top:8px;line-height:1.6;">
+        💰 <b style="color:var(--gold-bright);">+$${(prevCfg?.bonus || 0).toLocaleString()}</b><br>
+        ${prevCfg?.abilityBoost === 'all' ? '✨ <b>모든 능력</b> +' + prevCfg.abilityAmt : `${ABILITY_DEFS[prevCfg?.abilityBoost]?.icon || '✨'} <b>${ABILITY_DEFS[prevCfg?.abilityBoost]?.name || ''}</b> +${prevCfg?.abilityAmt || 1}`}
+      </div>
+    </div>` : ''}
+    <div style="margin:14px 0;">${dots}</div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:18px;">
+      ${isFirst ? '<button onclick="closeModal()" style="font-size:11px;padding:8px 14px;color:var(--text-dim);">건너뛰기</button>' : `<button onclick="renderDayStorySlide(${day}, ${idx-1})" style="font-size:12px;">← 이전</button>`}
+      ${isLast ? `<button class="btn-success" onclick="closeDayStory(${day})" style="padding:12px 24px;font-size:14px;font-weight:700;">Day ${day} 시작 ▶</button>` : `<button class="btn-primary" onclick="renderDayStorySlide(${day}, ${idx+1})" style="padding:10px 22px;font-size:13px;">다음 →</button>`}
+    </div>
+  </div>`;
+  showModal(html);
+}
+
+function closeDayStory(day) {
+  closeModal();
+  triggerGoldRain(40);
+  sfxLevelUp();
+  // Refresh game UI to show new day
+  if (state) render();
+  else renderLobby();
+}
+
+function getRarityColor(rarity) {
+  return RARITY_INFO[rarity]?.color || '#888';
+}
+
+// ===================== DAY CAMPAIGN MENU =====================
+function openDayCampaign() {
+  ensureCareer();
+  const prog = getDayProgress();
+  let listHtml = '';
+  for (const d of DAY_CAMPAIGN) {
+    const completed = career.daysCompleted?.includes(d.day);
+    const current = d.day === prog.day;
+    const locked = d.day > prog.day;
+    const champ = d.champion && SPECIAL_ABILITIES[d.champion] ? SPECIAL_ABILITIES[d.champion] : null;
+    const champColor = champ ? getRarityColor(champ.rarity) : 'var(--text-dim)';
+    const statusBg = completed ? 'rgba(110,208,126,0.12)' : current ? 'rgba(255,217,61,0.12)' : 'var(--bg-card-2)';
+    const statusBorder = completed ? 'var(--green)' : current ? 'var(--gold-bright)' : 'var(--border)';
+    const statusIcon = completed ? '✅' : current ? '▶️' : '🔒';
+    const handsRange = d.day === 1 ? `1~${d.handsTo}` : `${getDayConfig(d.day-1).handsTo + 1}~${d.handsTo === 999999 ? '∞' : d.handsTo}`;
+    listHtml += `<div style="background:${statusBg};border:2px solid ${statusBorder};border-radius:8px;padding:12px;margin:8px 0;${locked ? 'opacity:0.55;filter:grayscale(0.4);' : ''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="flex:1;">
+          <div style="font-size:11px;color:var(--text-dim);letter-spacing:2px;font-family:'Press Start 2P','Galmuri11',monospace;">${statusIcon} DAY ${d.day}</div>
+          <div style="font-weight:700;font-size:14px;color:${completed?'var(--green)':current?'var(--gold-bright)':'var(--text)'};margin-top:4px;">${d.title}</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${handsRange} 핸드</div>
+        </div>
+        <div style="text-align:right;font-size:11px;">
+          <div style="color:var(--gold-bright);font-weight:700;">+$${d.bonus.toLocaleString()}</div>
+          <div style="color:${champColor};margin-top:2px;">${d.abilityBoost === 'all' ? '모든능력' : ABILITY_DEFS[d.abilityBoost]?.icon || ''} +${d.abilityAmt}</div>
+        </div>
+      </div>
+      ${champ ? `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;display:flex;align-items:center;gap:8px;">
+        <span style="font-size:24px;${locked ? 'filter:grayscale(1);' : ''}">${champ.icon}</span>
+        <div>
+          <span style="color:${champColor};font-weight:700;">${locked ? '???' : champ.owner}</span>
+          <span style="color:var(--text-dim);margin-left:6px;">${locked ? '미해금' : '챔피언 등장'}</span>
+        </div>
+      </div>` : ''}
+    </div>`;
+  }
+  const html = `<h3>📅 Day 캠페인 — 10일 RPG</h3>
+  <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">핸드 수에 따라 자동 진행. 각 Day마다 스토리 + 능력치 보상 + 챔피언 등장.</p>
+  <div style="background:linear-gradient(135deg,rgba(177,78,255,0.15),rgba(58,134,255,0.1));border:2px solid var(--purple);border-radius:8px;padding:14px;text-align:center;margin-bottom:14px;">
+    <div style="font-size:11px;letter-spacing:3px;color:var(--purple);font-family:'Press Start 2P','Galmuri11',monospace;">현재 DAY ${prog.day}</div>
+    <div style="font-weight:700;font-size:15px;color:var(--gold-bright);margin-top:6px;">${prog.cfg.title}</div>
+    <div style="background:var(--bg-darker);height:10px;border-radius:5px;overflow:hidden;margin-top:10px;">
+      <div style="background:linear-gradient(90deg,var(--purple),var(--gold-bright));height:100%;width:${prog.pct}%;transition:width 0.4s;"></div>
+    </div>
+    <div style="font-size:11px;color:var(--text-dim);margin-top:6px;">${prog.handInDay} / ${prog.totalInDay} 핸드</div>
+  </div>
+  ${listHtml}
+  <div style="text-align:center;margin-top:16px;"><button onclick="closeModal()">닫기</button></div>`;
+  showModal(html);
+}
+
+// ===================== CHAMPION CODEX =====================
+function openChampionCodex() {
+  ensureCareer();
+  ensureAbilities();
+  const met = career.championsMet || [];
+  const collected = career.specialAbilities?.collected || [];
+  const activeKey = career.specialAbilities?.active;
+
+  let html = `<h3>⚔️ 챔피언 도감</h3>
+  <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">Day 진행에 따라 챔피언이 자리에 나타납니다. 격파(스택 0)하면 능력을 흡수할 수 있습니다.</p>
+  <div style="display:flex;justify-content:space-around;text-align:center;background:var(--bg-card-2);border-radius:8px;padding:10px;margin-bottom:14px;">
+    <div><div style="font-size:11px;color:var(--text-dim);">만난 챔피언</div><div style="font-weight:800;color:var(--gold-bright);font-size:18px;">${met.length} / ${DAY_CAMPAIGN.filter(d=>d.champion).length}</div></div>
+    <div><div style="font-size:11px;color:var(--text-dim);">격파 흡수</div><div style="font-weight:800;color:var(--gold-bright);font-size:18px;">${collected.length} / ${Object.keys(SPECIAL_ABILITIES).length}</div></div>
+  </div>`;
+  // Day-linked champions
+  html += `<h4 style="color:var(--gold-bright);margin-top:14px;font-size:13px;">📅 Day 캠페인 챔피언</h4>`;
+  for (const d of DAY_CAMPAIGN) {
+    if (!d.champion) continue;
+    const ab = SPECIAL_ABILITIES[d.champion];
+    if (!ab) continue;
+    const isMet = met.includes(d.champion);
+    const isCollected = collected.includes(d.champion);
+    const isActive = activeKey === d.champion;
+    const color = getRarityColor(ab.rarity);
+    html += `<div style="background:${isMet ? color+'22' : 'var(--bg-card-2)'};border:2px solid ${isMet ? color : 'var(--border)'};border-radius:8px;padding:12px;margin:8px 0;${!isMet ? 'opacity:0.55;filter:grayscale(0.6);' : ''}">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="font-size:36px;">${isMet ? ab.icon : '❓'}</div>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:13px;color:${isMet ? color : 'var(--text-dim)'};">${isMet ? ab.owner : '???'}</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">DAY ${d.day} · ${ab.rarity.toUpperCase()}</div>
+          ${isMet ? `<div style="font-size:11px;color:var(--text);margin-top:4px;line-height:1.4;">${ab.desc}</div>` : `<div style="font-size:11px;color:var(--text-dim);margin-top:4px;">DAY ${d.day} 도달 시 등장</div>`}
+        </div>
+        <div style="text-align:right;font-size:10px;">
+          ${isCollected ? '<div style="color:var(--green);font-weight:700;">✅ 흡수</div>' : isMet ? '<div style="color:var(--gold-bright);">⚔️ 격파 필요</div>' : '<div style="color:var(--text-dim);">🔒 잠김</div>'}
+          ${isActive ? '<div style="color:var(--purple);margin-top:2px;">★ 장착중</div>' : ''}
+        </div>
+      </div>
+    </div>`;
+  }
+  // Other special abilities (not day-linked)
+  const dayChamps = new Set(DAY_CAMPAIGN.map(d => d.champion).filter(Boolean));
+  const others = Object.entries(SPECIAL_ABILITIES).filter(([k]) => !dayChamps.has(k));
+  if (others.length > 0) {
+    html += `<h4 style="color:var(--gold-bright);margin-top:18px;font-size:13px;">🎲 추가 챔피언 (랜덤 등장)</h4>`;
+    html += `<p style="font-size:11px;color:var(--text-dim);margin-bottom:8px;">베뉴에 가끔 출몰. 격파 시 흡수 가능.</p>`;
+    html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;">`;
+    for (const [k, ab] of others) {
+      const isCollected = collected.includes(k);
+      const isActive = activeKey === k;
+      const color = getRarityColor(ab.rarity);
+      html += `<div style="background:${isCollected ? color+'22' : 'var(--bg-card-2)'};border:2px solid ${isCollected ? color : 'var(--border)'};border-radius:8px;padding:10px;text-align:center;${!isCollected ? 'opacity:0.7;filter:grayscale(0.4);' : ''}">
+        <div style="font-size:28px;">${ab.icon}</div>
+        <div style="font-weight:700;font-size:11px;color:${isCollected ? color : 'var(--text-dim)'};margin-top:4px;">${isCollected ? ab.owner : '???'}</div>
+        <div style="font-size:9px;color:var(--text-dim);margin-top:2px;">${ab.rarity}</div>
+        ${isActive ? '<div style="font-size:9px;color:var(--purple);margin-top:4px;">★ 장착중</div>' : ''}
+      </div>`;
+    }
+    html += `</div>`;
+  }
+  html += `<div style="text-align:center;margin-top:16px;"><button onclick="closeModal()">닫기</button></div>`;
+  showModal(html);
+}
+
 // ===================== UNIFIED MAIN MENU + GAME GUIDE =====================
 function openMainMenu() {
   ensureDailyChallenges();
@@ -5308,9 +5893,11 @@ function openMainMenu() {
     {
       title: '🎮 캐릭터 & 진행', color: 'var(--gold-bright)',
       items: [
-        { icon: '🎮', label: '포커 능력 (RPG)', desc: '8 기본 + 15 특수 능력', action: 'openAbilityMenu()' },
-        { icon: '🎒', label: '인벤토리 & 상점', desc: '41 아이템, 12 슬롯, 5 카드뒷면', action: 'openInventoryMenu()' },
-        { icon: '🎯', label: `일일 챌린지${chReady > 0 ? ` (${chReady} 보상 가능!)` : ''}`, desc: '매일 3개, 자정 갱신', action: 'openChallengesMenu()', highlight: chReady > 0 }
+        { icon: '🎮', label: '포커 능력 (RPG)', desc: '8 기본 + 15 특수 능력 — 클릭하여 상세 설명', action: 'openAbilityMenu()' },
+        { icon: '🃏', label: '인벤토리 & 상점', desc: '41 아이템, 5 카드뒷면', action: 'openInventoryMenu()' },
+        { icon: '🎯', label: `일일 챌린지${chReady > 0 ? ` (${chReady} 보상 가능!)` : ''}`, desc: '매일 3개, 자정 갱신', action: 'openChallengesMenu()', highlight: chReady > 0 },
+        { icon: '📅', label: 'Day 캠페인 진행도', desc: '10일 RPG 스토리 + 챔피언 만남', action: 'openDayCampaign()' },
+        { icon: '⚔️', label: '챔피언 도감', desc: '만난 전설 + 흡수 가능 능력', action: 'openChampionCodex()' }
       ]
     },
     {
@@ -5686,9 +6273,10 @@ function getSlotInfo(idx) {
     return {
       bankroll: c.bankroll || 0,
       handsPlayed: c.handsPlayed || 0,
-      avatar: c.character?.avatar || 'cowboy',
+      playerName: c.playerName || '',
       maxVenue: getMaxVenueUnlocked(c),
-      lastPlayed: c._lastSaved || 0
+      lastPlayed: c._lastSaved || 0,
+      day: c.day || 1
     };
   } catch (e) { return null; }
 }
@@ -5735,12 +6323,12 @@ function openSlotPicker() {
     const info = getSlotInfo(i);
     const isActive = i === currentSlot;
     const venue = VENUES.find(v => v.id === (info?.maxVenue || 'pub'));
-    const avatarObj = CHARACTER_AVATARS.find(a => a.id === info?.avatar) || CHARACTER_AVATARS[0];
+    const slotName = info?.playerName || '빈 슬롯';
     html += `<div style="background:${isActive?'rgba(255,217,61,0.12)':'var(--bg-card-2)'};border:2px solid ${isActive?'var(--gold-bright)':'var(--border)'};border-radius:8px;padding:14px;">
       <div style="display:flex;align-items:center;gap:12px;">
-        <div style="font-size:36px;">${avatarObj.icon}</div>
+        <div>${info ? (typeof getProtagonistAvatarHTML === 'function' ? getProtagonistAvatarHTML(44, true) : '<span style="font-size:36px;">🧑‍💻</span>') : '<span style="font-size:36px;opacity:0.5;">💾</span>'}</div>
         <div style="flex:1;">
-          <div style="font-weight:700;font-size:14px;">슬롯 ${i}${isActive?' (활성)':''}</div>
+          <div style="font-weight:700;font-size:14px;">슬롯 ${i}${isActive?' (활성)':''}${info ? ` — ${slotName}` : ''}</div>
           ${info ? `
             <div style="font-size:12px;color:var(--text);margin-top:4px;">
               자금 <b style="color:var(--gold-bright);">$${info.bankroll.toLocaleString()}</b> ·
@@ -6468,7 +7056,7 @@ function openInventoryMenu(tab) {
     { id: 'equipment', label: '🎽 장착' },
     { id: 'bag',       label: '🎒 가방' },
     { id: 'shop',      label: '🛒 상점' },
-    { id: 'avatar',    label: '😎 캐릭터' }
+    { id: 'avatar',    label: '🃏 카드 뒷면' }
   ];
   let tabsHtml = '<div style="display:flex;gap:4px;margin-bottom:14px;border-bottom:2px solid var(--border);">';
   for (const t of tabs) {
@@ -6489,10 +7077,10 @@ function openInventoryMenu(tab) {
 
 function renderEquipmentTab() {
   const equipped = career.inventory.equipped || {};
-  const avatar = CHARACTER_AVATARS.find(a => a.id === career.character.avatar) || CHARACTER_AVATARS[0];
+  const playerName = career.playerName || career.character?.name || '플레이어';
   let html = `<div style="text-align:center;padding:14px;background:var(--bg-card-2);border-radius:8px;margin-bottom:14px;">
-    <div style="font-size:54px;">${avatar.icon}</div>
-    <div style="font-weight:700;margin-top:4px;">${career.character.name} <span style="color:var(--text-dim);font-size:12px;">(${avatar.name})</span></div>
+    <div style="margin:0 auto;display:flex;justify-content:center;">${typeof getProtagonistAvatarHTML === 'function' ? getProtagonistAvatarHTML(72, true) : '<span style="font-size:54px;">🧑‍💻</span>'}</div>
+    <div style="font-weight:700;margin-top:8px;color:var(--gold-bright);">${playerName}</div>
   </div>`;
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:8px;">';
   for (const [slotId, slot] of Object.entries(ITEM_SLOTS)) {
@@ -6603,32 +7191,22 @@ function renderShopTab() {
 }
 
 function renderAvatarTab() {
-  let html = '<p style="color:var(--text-dim);font-size:12px;margin-bottom:14px;">캐릭터 외형 선택</p>';
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(100px, 1fr));gap:8px;">';
-  for (const av of CHARACTER_AVATARS) {
-    const selected = career.character.avatar === av.id;
-    html += `<div onclick="setAvatar('${av.id}')" style="background:${selected ? 'rgba(255,217,61,0.2)' : 'var(--bg-card-2)'};border:2px solid ${selected ? 'var(--gold-bright)' : 'var(--border)'};border-radius:8px;padding:12px;cursor:pointer;text-align:center;">
-      <div style="font-size:42px;">${av.icon}</div>
-      <div style="font-weight:700;font-size:11px;color:${selected ? 'var(--gold-bright)' : 'var(--text)'};margin-top:4px;">${av.name}</div>
-      <div style="font-size:9px;color:var(--text-dim);margin-top:2px;">${av.desc}</div>
-    </div>`;
-  }
-  html += '</div>';
-  // Card back picker
-  html += '<h4 style="margin-top:18px;color:var(--gold-bright);">🃏 카드 뒷면</h4>';
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(90px, 1fr));gap:6px;">';
+  // 카드 뒷면 선택만 (아바타 12종 선택은 v28부터 폐지 — 주인공 김민준 통일)
+  let html = '<p style="color:var(--text-dim);font-size:12px;margin-bottom:14px;">게임 중 내 카드 뒷면 디자인 선택</p>';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(100px, 1fr));gap:10px;">';
   const unlocked = career.unlockedCardBacks || ['basic'];
   for (const [id, cb] of Object.entries(CARD_BACKS)) {
     const isUnlocked = unlocked.includes(id) || id === 'basic';
     const selected = career.cardBack === id;
     const bg = cardBackPreview(id);
-    html += `<div onclick="${isUnlocked ? `setCardBack('${id}')` : ''}" style="text-align:center;cursor:${isUnlocked ? 'pointer':'not-allowed'};opacity:${isUnlocked ? 1 : 0.4};">
-      <div style="width:60px;height:84px;margin:0 auto;border-radius:6px;border:2px solid ${selected ? 'var(--gold-bright)' : '#1a1a1a'};${bg};box-shadow:${selected ? '0 0 16px var(--gold-bright)' : '0 2px 6px rgba(0,0,0,0.5)'};"></div>
-      <div style="font-size:10px;color:${selected ? 'var(--gold-bright)' : isUnlocked ? 'var(--text)' : 'var(--text-dim)'};margin-top:4px;">${cb.name}${selected ? ' ✓' : ''}</div>
-      ${!isUnlocked ? '<div style="font-size:9px;color:var(--text-dim);">🔒 잠김</div>' : ''}
+    html += `<div onclick="${isUnlocked ? `setCardBack('${id}')` : ''}" style="text-align:center;cursor:${isUnlocked ? 'pointer':'not-allowed'};opacity:${isUnlocked ? 1 : 0.4};padding:8px;border-radius:8px;${selected ? 'background:rgba(255,217,61,0.08);' : ''}">
+      <div style="width:74px;height:104px;margin:0 auto;border-radius:8px;border:2px solid ${selected ? 'var(--gold-bright)' : '#1a1a1a'};${bg};box-shadow:${selected ? '0 0 20px var(--gold-bright)' : '0 2px 8px rgba(0,0,0,0.5)'};"></div>
+      <div style="font-size:11px;color:${selected ? 'var(--gold-bright)' : isUnlocked ? 'var(--text)' : 'var(--text-dim)'};margin-top:6px;font-weight:${selected ? '700' : '400'};">${cb.name}${selected ? ' ✓' : ''}</div>
+      ${!isUnlocked ? '<div style="font-size:9px;color:var(--text-dim);margin-top:2px;">🔒 잠김</div>' : ''}
     </div>`;
   }
   html += '</div>';
+  html += '<p style="text-align:center;color:var(--text-dim);font-size:11px;margin-top:18px;">카드 뒷면은 아이템(카드 덱)을 장착하거나 보스 격파로 해금됩니다.</p>';
   return html;
 }
 
@@ -7015,7 +7593,7 @@ function openAbilityMenu() {
   const activeAb = activeKey ? SPECIAL_ABILITIES[activeKey] : null;
   const eff = getActiveEffects();
 
-  // 8 ability bars
+  // 8 ability bars — each row clickable to show detail tutorial
   let abilityRows = '';
   for (const [stat, def] of Object.entries(ABILITY_DEFS)) {
     const a = abilities[stat];
@@ -7024,12 +7602,13 @@ function openAbilityMenu() {
     const needXp = xpForNextLevel(a.lv);
     const pctXp = Math.min(100, (a.xp / needXp) * 100);
     const typeColor = { attack: '#ff5b5b', defense: '#5fb8d4', utility: '#a8ff7a' }[def.type];
-    abilityRows += `<div style="background:var(--bg-card-2);padding:10px 12px;border-radius:6px;margin-bottom:6px;">
+    abilityRows += `<div onclick="showAbilityDetail('${stat}')" style="background:var(--bg-card-2);padding:10px 12px;border-radius:6px;margin-bottom:6px;cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='var(--bg-accent)'" onmouseout="this.style.background='var(--bg-card-2)'">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:20px;">${def.icon}</span>
           <span style="font-weight:700;font-size:13px;">${def.name}</span>
           <span style="font-size:10px;background:${typeColor}33;color:${typeColor};padding:1px 6px;border-radius:3px;text-transform:uppercase;">${def.type}</span>
+          <span style="font-size:10px;color:var(--gold-bright);margin-left:auto;">📖 자세히 →</span>
         </div>
         <div style="font-family:'Press Start 2P','Galmuri11',monospace;font-size:13px;color:var(--gold-bright);">
           Lv ${a.lv}${bonus > 0 ? `<span style="color:${typeColor};font-size:11px;"> +${bonus}</span>` : ''}
@@ -7092,7 +7671,7 @@ function openAbilityMenu() {
 
   const collected = career.specialAbilities.collected.length;
   const html = `<h3>🎮 포커 능력 시스템</h3>
-  <p style="font-size:12px;color:var(--text-dim);">싱글플레이 도중 액션과 결과로 능력 XP 누적. 유명 플레이어 격파 시 그들의 시그니처 능력 흡수 가능.</p>
+  <p style="font-size:12px;color:var(--text-dim);">싱글플레이 도중 액션과 결과로 능력 XP 누적. 유명 플레이어 격파 시 그들의 시그니처 능력 흡수 가능. <b style="color:var(--gold-bright);">각 능력 카드 클릭 시 상세 설명 →</b></p>
 
   <h4 style="color:var(--gold-bright);margin-top:14px;">★ 활성 특수 능력</h4>
   ${activeSlotHtml}
@@ -7105,6 +7684,174 @@ function openAbilityMenu() {
   ${collectionHtml}
 
   <div style="text-align:center;margin-top:18px;"><button onclick="closeModal()">닫기</button></div>`;
+  showModal(html);
+}
+
+// ===================== ABILITY DETAIL TUTORIAL =====================
+const ABILITY_TUTORIALS = {
+  insight: {
+    title: '👁️ 통찰력 (Insight)',
+    what: '상대의 베팅 패턴, 액션 타이밍, 평소 스타일을 종합해서 그가 들고 있을 만한 핸드를 추측하는 능력.',
+    high: [
+      'Lv 10+: 게임 화면에 상대 핸드 추측 말풍선 표시 (🔍 "강한 핸드 같음")',
+      'Lv 20+: 추측 정확도 ↑, 폴드 vs 콜 결정에 큰 도움',
+      'Lv 30+: "🎯 매우 높은 확신" 표시 — 거의 확정 read'
+    ],
+    train: [
+      '✅ 쇼다운 승리: +5 XP',
+      '✅ 챌린지 완료: +5~15 XP',
+      '✅ 큰 콜 적중 (상대 블러프 캐치)',
+      '🎁 박재정 흡수: +10 영구 보너스'
+    ]
+  },
+  pokerFace: {
+    title: '😐 포커페이스 (Poker Face)',
+    what: '내 핸드 강도를 상대가 못 알아채게 하는 능력. 상대의 통찰력을 무력화함.',
+    high: [
+      'Lv 10+: AI 통찰력이 내 핸드 read 못 함 (강한 핸드인데 약한 척 가능)',
+      'Lv 20+: 큰 베팅해도 AI가 폴드 안 함 (콜 받기 쉬움)',
+      'Lv 30+: 거의 모든 AI의 read 무효화'
+    ],
+    train: [
+      '✅ 큰 핸드로 콜 받기 (밸류 추출)',
+      '✅ 블러프 콜 받기 (잘 안 들킴)',
+      '🎁 Patrik Antonius 흡수: +30 영구 보너스'
+    ]
+  },
+  bluff: {
+    title: '🃏 블러프 (Bluff)',
+    what: '약한 핸드로 큰 베팅하여 상대를 폴드시키는 능력. AI의 폴드 빈도 직접 증가.',
+    high: [
+      'Lv 10+: 블러프 성공률 ↑ (AI 폴드 +5%)',
+      'Lv 20+: AI 폴드 +15%, 큰 폿에서도 통함',
+      'Lv 30+: AI 폴드 +25%, 거의 무자비'
+    ],
+    train: [
+      '✅ 폴드로 이기기: +8 XP (블러프 성공)',
+      '✅ 큰 베팅으로 압박 성공',
+      '🎁 Tom Dwan 흡수: +30 영구 보너스'
+    ]
+  },
+  exploit: {
+    title: '🎯 익스플로잇 (Exploit)',
+    what: '상대의 약점(누수, leak)을 자동으로 감지해서 활용. 콜링스테이션엔 밸류, 너트만 사람한텐 폴드.',
+    high: [
+      'Lv 10+: AI 성격 정보 자동 표시',
+      'Lv 20+: 상대별 최적 베팅 사이즈 제안',
+      'Lv 30+: 모든 AI 누수 자동 활용'
+    ],
+    train: [
+      '✅ 쇼다운 승리: +3 XP (밸류 추출 성공)',
+      '✅ 콜링스테이션에게 밸류 베팅',
+      '🎁 Stephen Chidwick 흡수: +20 영구 보너스'
+    ]
+  },
+  mental: {
+    title: '🧘 멘탈 (Mental)',
+    what: '큰 손실 후에도 평정심을 유지. 틸트 (감정적 플레이) 저항력.',
+    high: [
+      'Lv 10+: 틸트 회복 속도 ↑',
+      'Lv 20+: 큰 손실 후에도 정상 의사결정',
+      'Lv 30+: 거의 틸트 면역'
+    ],
+    train: [
+      '✅ 손실 후 안정 플레이: +3 XP',
+      '✅ 쇼다운 패배 후 회복: +4 XP',
+      '🎁 김도균 흡수: +25 영구 보너스'
+    ]
+  },
+  patience: {
+    title: '⏳ 인내심 (Patience)',
+    what: '약한 핸드를 잘 폴드하는 능력. 손해 보는 콜을 줄임. EV가 마이너스인 상황을 인식.',
+    high: [
+      'Lv 10+: 약한 핸드 자동 폴드 추천',
+      'Lv 20+: 손해 콜 -30%',
+      'Lv 30+: 거의 완벽한 폴드 판단'
+    ],
+    train: [
+      '✅ 약한 핸드 폴드: +3 XP',
+      '✅ 폴드로 멘탈 회복: +2 XP',
+      '🎁 정명원 흡수: +30 영구 보너스'
+    ]
+  },
+  math: {
+    title: '📐 수학 (Math)',
+    what: '팟 오즈, 이퀴티, EV 계산. 콜할지 폴드할지 수학적으로 옳은 판단.',
+    high: [
+      'Lv 10+: 팟 오즈 자동 표시',
+      'Lv 20+: 이퀴티 % 표시',
+      'Lv 30+: 정확한 EV 계산 + 추천'
+    ],
+    train: [
+      '✅ GTO 퀴즈 정답: +5 XP',
+      '✅ 수학적으로 옳은 콜: 자동 부여',
+      '🎁 Stephen Chidwick 흡수: +15 영구 보너스'
+    ]
+  },
+  pressure: {
+    title: '🔥 압박 (Pressure)',
+    what: '큰 베팅 사이즈로 상대를 폴드 강요. Fold equity 증가.',
+    high: [
+      'Lv 10+: 큰 베팅 시 AI 폴드 +5%',
+      'Lv 20+: AI 폴드 +15%, 콜드콜 압박',
+      'Lv 30+: 베팅만 해도 절반 이상 폴드'
+    ],
+    train: [
+      '✅ 압박 성공 (큰 베팅으로 폴드 유도): +5 XP',
+      '✅ 올인 후 콜 받기',
+      '🎁 Tom Dwan 흡수: +20 (fold equity 보너스)'
+    ]
+  }
+};
+
+function showAbilityDetail(stat) {
+  ensureAbilities();
+  const def = ABILITY_DEFS[stat];
+  const tut = ABILITY_TUTORIALS[stat];
+  if (!def || !tut) return;
+  const a = career.pokerAbilities[stat];
+  const eff = getActiveEffects();
+  const bonus = (eff[stat] || 0) + (eff.all || 0);
+  const effective = a.lv + bonus;
+  const needXp = xpForNextLevel(a.lv);
+  const pctXp = Math.min(100, (a.xp / needXp) * 100);
+  const typeColor = { attack: '#ff5b5b', defense: '#5fb8d4', utility: '#a8ff7a' }[def.type];
+  const typeLabel = { attack: '공격', defense: '방어', utility: '유틸리티' }[def.type];
+  const counterLabel = def.counter ? ABILITY_DEFS[def.counter]?.name : null;
+
+  const highList = tut.high.map(h => `<li style="margin:6px 0;line-height:1.6;">${h}</li>`).join('');
+  const trainList = tut.train.map(t => `<li style="margin:6px 0;line-height:1.6;">${t}</li>`).join('');
+
+  const html = `<div style="padding:8px 4px;">
+    <h3 style="color:${typeColor};letter-spacing:1px;">${tut.title}</h3>
+    <div style="display:inline-block;font-size:11px;background:${typeColor}22;color:${typeColor};padding:3px 10px;border-radius:4px;letter-spacing:2px;text-transform:uppercase;font-weight:700;">${typeLabel}</div>
+    ${counterLabel ? `<span style="font-size:11px;color:var(--text-dim);margin-left:8px;">⚔️ 카운터: ${counterLabel}</span>` : ''}
+
+    <div style="background:var(--bg-card-2);border-radius:8px;padding:12px;margin:14px 0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:13px;color:var(--text-dim);">현재 레벨</span>
+        <span style="font-family:'Press Start 2P','Galmuri11',monospace;font-size:18px;color:var(--gold-bright);">Lv ${a.lv}${bonus > 0 ? ` <span style="color:${typeColor};font-size:14px;">+${bonus}</span> <span style="color:var(--text-dim);font-size:13px;">= ${effective}</span>` : ''}</span>
+      </div>
+      <div style="background:var(--bg-darker);height:10px;border-radius:5px;overflow:hidden;margin:8px 0 4px;">
+        <div style="background:linear-gradient(90deg, ${typeColor} 0%, ${typeColor}aa 100%);height:100%;width:${pctXp}%;transition:width 0.3s;"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-dim);text-align:right;">${a.xp} / ${needXp} XP (다음 레벨까지 ${needXp - a.xp} XP)</div>
+    </div>
+
+    <h4 style="color:var(--gold-bright);margin-top:14px;font-size:14px;">📖 이 능력은 뭐야?</h4>
+    <p style="font-size:13px;line-height:1.7;color:var(--text);">${tut.what}</p>
+
+    <h4 style="color:var(--gold-bright);margin-top:18px;font-size:14px;">📈 높았을 때 효과</h4>
+    <ul style="font-size:12px;color:var(--text);padding-left:20px;">${highList}</ul>
+
+    <h4 style="color:var(--gold-bright);margin-top:18px;font-size:14px;">🎯 어떻게 훈련해?</h4>
+    <ul style="font-size:12px;color:var(--text);padding-left:20px;">${trainList}</ul>
+
+    <div style="text-align:center;margin-top:20px;display:flex;gap:8px;justify-content:center;">
+      <button onclick="openAbilityMenu()" style="padding:10px 18px;font-size:12px;">← 능력 목록</button>
+      <button class="btn-primary" onclick="closeModal()" style="padding:10px 18px;font-size:12px;">닫기</button>
+    </div>
+  </div>`;
   showModal(html);
 }
 
