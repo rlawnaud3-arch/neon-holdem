@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v24 ★ PREMIUM FUNKY PIXEL</title>
+<title>NEON HOLDEM v27 ★ PROTAGONIST + NAME</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -836,6 +836,63 @@
     100% { transform: translate(-50%, -100px); opacity: 0; }
   }
 
+  /* ===== IMPACT MOMENTS (big pot, full house, screen shake) ===== */
+  @keyframes screen-shake {
+    0%, 100% { transform: translate(0, 0) rotate(0); }
+    10% { transform: translate(-4px, -2px) rotate(-0.3deg); }
+    20% { transform: translate(5px, 1px) rotate(0.4deg); }
+    30% { transform: translate(-3px, 3px) rotate(-0.2deg); }
+    40% { transform: translate(4px, -3px) rotate(0.3deg); }
+    50% { transform: translate(-5px, 2px) rotate(-0.4deg); }
+    60% { transform: translate(3px, 1px) rotate(0.2deg); }
+    70% { transform: translate(-2px, -1px) rotate(-0.1deg); }
+    80% { transform: translate(2px, 2px) rotate(0.1deg); }
+    90% { transform: translate(-1px, -1px) rotate(0); }
+  }
+  body.screen-shake {
+    animation: screen-shake 0.6s ease-in-out;
+  }
+
+  .gold-rain-container {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 800;
+    overflow: hidden;
+  }
+  .gold-particle {
+    position: absolute;
+    top: -20px;
+    width: 8px; height: 14px;
+    background: var(--gold-bright);
+    box-shadow: 0 0 10px var(--gold-bright), 0 0 4px white;
+    border-radius: 2px;
+    animation: gold-fall 2s linear forwards;
+    will-change: transform, opacity;
+  }
+  @keyframes gold-fall {
+    0% { transform: translateY(-20px) rotate(0); opacity: 1; }
+    100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+  }
+
+  .sparkle-container {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 800;
+  }
+  .sparkle-particle {
+    position: absolute;
+    font-size: 26px;
+    animation: sparkle-fade 2s ease-out forwards;
+    will-change: transform, opacity;
+    filter: drop-shadow(0 0 8px var(--gold-bright));
+  }
+  @keyframes sparkle-fade {
+    0% { transform: scale(0) rotate(0); opacity: 0; }
+    40% { transform: scale(1.3) rotate(180deg); opacity: 1; }
+    70% { transform: scale(1) rotate(270deg); opacity: 1; }
+    100% { transform: scale(0.4) rotate(360deg); opacity: 0; }
+  }
+
   /* ===== Chat bubble ===== */
   .chat-bubble {
     position: absolute;
@@ -1385,6 +1442,170 @@
     .game-header { grid-template-columns: 1fr; text-align: center; }
     .header-right { justify-content: center; }
   }
+
+  /* ========== MOBILE (≤600px) ========== */
+  @media (max-width: 600px) {
+    body {
+      padding: 6px;
+      font-size: 13px;
+    }
+    h1 { font-size: 22px !important; letter-spacing: 2px !important; }
+    h2 { font-size: 16px !important; }
+    h3 { font-size: 14px !important; }
+
+    /* Bigger tap targets — Apple's HIG min is 44px */
+    button, .btn-primary, .btn-success, .btn-danger {
+      min-height: 44px;
+      padding: 10px 14px;
+      font-size: 13px;
+    }
+
+    /* Lobby — compact dock */
+    .action-dock {
+      display: grid !important;
+      grid-template-columns: repeat(3, 1fr) !important;
+      gap: 6px !important;
+    }
+    .dock-btn { padding: 10px 6px !important; }
+    .dock-icon { font-size: 22px !important; }
+    .dock-label { font-size: 10px !important; }
+
+    /* Bankroll banner shrink */
+    .bankroll-banner {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 12px !important;
+    }
+    .bankroll-amount { font-size: 22px !important; }
+
+    /* Venue cards full-width */
+    .venue-grid {
+      grid-template-columns: 1fr !important;
+      gap: 10px !important;
+    }
+    .venue-card { padding: 14px !important; }
+    .venue-card .icon { font-size: 36px !important; }
+
+    /* Game board — 2-column tighter */
+    .game-board {
+      grid-template-columns: 1fr 1fr !important;
+      gap: 6px !important;
+    }
+    .seats-bottom {
+      grid-template-columns: repeat(2, 1fr) !important;
+      gap: 6px !important;
+    }
+    .seat, [class^="seat-"] {
+      padding: 6px !important;
+      font-size: 11px !important;
+      min-height: 70px;
+    }
+    .seat .name, .seat-name { font-size: 11px !important; }
+    .seat .stack, .seat-stack { font-size: 12px !important; }
+
+    /* Cards bigger on mobile so they're readable */
+    .card, .community-card, .hole-card {
+      font-size: 16px !important;
+    }
+    .community-cards {
+      gap: 4px !important;
+      flex-wrap: wrap;
+    }
+
+    /* Pot display compact */
+    .header-pot { padding: 8px !important; }
+    .pot-amount { font-size: 18px !important; }
+
+    /* Game header stacked */
+    .game-header {
+      grid-template-columns: 1fr !important;
+      gap: 6px !important;
+      padding: 8px !important;
+    }
+    .header-left, .header-right {
+      flex-direction: row;
+      justify-content: space-between;
+      width: 100%;
+    }
+    .leave-btn { font-size: 11px !important; padding: 6px 10px !important; }
+
+    /* Sticky action bar at bottom — always reachable */
+    .action-bar {
+      position: sticky;
+      bottom: 0;
+      z-index: 100;
+      background: rgba(10,8,23,0.96);
+      backdrop-filter: blur(8px);
+      padding: 8px !important;
+      border-top: 2px solid var(--gold-foil);
+      box-shadow: 0 -8px 24px rgba(0,0,0,0.6);
+    }
+    .action-bar button {
+      min-height: 52px !important;
+      font-size: 14px !important;
+      flex: 1;
+    }
+
+    /* Modal — full screen on mobile */
+    .modal-content {
+      width: 96vw !important;
+      max-width: 96vw !important;
+      max-height: 88vh !important;
+      padding: 14px !important;
+      font-size: 13px !important;
+    }
+    .modal-content h2, .modal-content h3 {
+      font-size: 16px !important;
+    }
+
+    /* Intro story — fits small screens */
+    .modal-content div[style*="font-size:72px"] {
+      font-size: 56px !important;
+    }
+    .modal-content div[style*="font-size:15px"] {
+      font-size: 13px !important;
+      line-height: 1.7 !important;
+    }
+
+    /* Story slide buttons stacked + wider */
+    .modal-content div[style*="display:flex"][style*="justify-content:center"] button {
+      min-height: 48px !important;
+      padding: 12px 16px !important;
+      font-size: 13px !important;
+    }
+
+    /* Streak toast — narrower, doesn't overflow */
+    .stat-card, .ability-card, .item-card {
+      padding: 10px !important;
+      font-size: 12px !important;
+    }
+
+    /* Hide some decorative elements */
+    .table-spade { display: none; }
+
+    /* Chat bubble smaller */
+    .chat-bubble { font-size: 11px !important; padding: 4px 8px !important; }
+
+    /* Famous announcement */
+    .famous-announcement {
+      width: 90vw !important;
+      padding: 12px !important;
+    }
+    .famous-announcement .name { font-size: 15px !important; }
+
+    /* Bottom action dock spacing */
+    .action-dock { margin-bottom: 12px !important; }
+  }
+
+  /* ========== TINY MOBILE (≤380px) ========== */
+  @media (max-width: 380px) {
+    h1 { font-size: 18px !important; }
+    .dock-icon { font-size: 18px !important; }
+    .dock-label { font-size: 9px !important; }
+    .action-bar button { font-size: 12px !important; }
+    .pot-amount { font-size: 16px !important; }
+  }
 </style>
 </head>
 <body>
@@ -1394,18 +1615,24 @@
   <h1>★ NEON HOLDEM ★</h1>
   <p style="margin-top:-8px;margin-bottom:20px;color:var(--neon-cyan);font-size:14px;letter-spacing:2px;text-shadow:0 0 4px var(--neon-cyan);">PUB &gt; SEOUL &gt; MACAU &gt; VEGAS &gt; WSOP &gt; TRITON</p>
   <div class="bankroll-banner">
-    <div>
-      <div style="font-size:14px;font-weight:600;">내 자금</div>
-      <div class="bankroll-amount">$<span id="bankroll-display">500</span></div>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <div id="lobby-avatar" style="flex-shrink:0;"></div>
+      <div>
+        <div id="lobby-player-name" style="font-size:13px;font-weight:700;color:var(--gold-bright);letter-spacing:1px;margin-bottom:2px;"></div>
+        <div style="font-size:13px;font-weight:600;color:var(--text-dim);">내 자금</div>
+        <div class="bankroll-amount">$<span id="bankroll-display">500</span></div>
+      </div>
     </div>
     <div style="text-align:right;">
       <div style="font-size:13px;">플레이 핸드: <span id="hands-played">0</span></div>
       <div style="font-size:13px;">최대 승리: $<span id="biggest-win">0</span></div>
+      <button onclick="showNameInputModal()" style="margin-top:6px;padding:4px 8px;font-size:11px;">✏️ 이름</button>
       <button onclick="resetCareer()" style="margin-top:6px;padding:4px 10px;font-size:12px;">처음부터</button>
     </div>
   </div>
 
   <div id="storage-status"></div>
+  <div id="beginner-luck-banner"></div>
 
   <div class="action-dock">
     <button onclick="openMainMenu()" class="dock-btn dock-main" title="모든 메뉴 보기">
@@ -1917,11 +2144,27 @@ function renderLobby() {
   ensureDailyChallenges();
   ensureInventory();
   ensureAbilities();
-  // First-time tutorial
-  checkTutorial('lobby_first');
+  ensureStreak();
+  // Name input → Story intro flow for first-time players
+  career.tutorial = career.tutorial || {};
+  if (!career.tutorial.intro_seen) {
+    if (!career.playerName) {
+      setTimeout(() => showNameInputModal(), 400);
+    } else {
+      setTimeout(() => showIntroStory(0), 400);
+    }
+  } else {
+    // First-time lobby tutorial (only after intro is seen)
+    checkTutorial('lobby_first');
+  }
   document.getElementById('bankroll-display').textContent = career.bankroll.toLocaleString();
   document.getElementById('hands-played').textContent = career.handsPlayed;
   document.getElementById('biggest-win').textContent = career.biggestWin.toLocaleString();
+  // Lobby avatar + name
+  const lavEl = document.getElementById('lobby-avatar');
+  if (lavEl) lavEl.innerHTML = getProtagonistAvatarHTML(64);
+  const lnameEl = document.getElementById('lobby-player-name');
+  if (lnameEl) lnameEl.textContent = getPlayerNameDisplay();
   // Slot number
   const slotEl = document.getElementById('slot-num');
   if (slotEl) slotEl.textContent = currentSlot;
@@ -1939,6 +2182,28 @@ function renderLobby() {
       ss.innerHTML = `<div class="storage-warning">⚠️ 브라우저 자동 저장 사용 불가 — 진행 보존하려면 위 <b>"진행 저장"</b> 버튼으로 JSON 백업해두세요.</div>`;
     } else {
       ss.innerHTML = '';
+    }
+  }
+
+  // Beginner's luck banner (first 30 hands)
+  const blb = document.getElementById('beginner-luck-banner');
+  if (blb) {
+    const remaining = BEGINNER_HANDS - (career.handsPlayed || 0);
+    if (remaining > 0) {
+      const luck = getBeginnerLuck();
+      const tierLabel = luck.tier === 1 ? '강한 럭' : luck.tier === 2 ? '보통 럭' : '약한 럭';
+      const pct = Math.round(luck.boost * 100);
+      blb.innerHTML = `
+        <div style="background:linear-gradient(135deg,rgba(255,217,61,0.18),rgba(255,46,146,0.15));border:2px solid var(--gold-foil);border-radius:8px;padding:12px 16px;margin:10px 0;text-align:center;box-shadow:0 0 20px rgba(212,175,55,0.25);">
+          <div style="font-size:11px;letter-spacing:3px;color:var(--gold-bright);font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:6px;">★ BEGINNER'S LUCK ACTIVE ★</div>
+          <div style="font-size:13px;color:var(--text);">
+            🎓 처음 30핸드 — 좋은 패 자주 등장 (<b style="color:var(--gold-bright);">${tierLabel} +${pct}%</b>)<br>
+            <span style="font-size:11px;color:var(--text-dim);">남은 핸드: <b style="color:var(--gold-bright);">${remaining}</b> · 클리어 시 <b style="color:var(--gold-bright);">$500 + 레어 아이템</b></span>
+          </div>
+        </div>
+      `;
+    } else {
+      blb.innerHTML = '';
     }
   }
   // Cloud sync status
@@ -2028,7 +2293,7 @@ function enterVenue(venueId) {
   saveCareer();
 
   const you = {
-    name: '나', isHuman: true,
+    name: career.playerName || '나', isHuman: true,
     personalityType: 'HUMAN', skill: 1, tilt: 0,
     stack: venue.buyIn, buyInsTotal: venue.buyIn,
     cards: [], folded: false, allIn: false,
@@ -2191,6 +2456,8 @@ function newHand() {
 
   state.handNumber++;
   career.handsPlayed++;
+  checkHandMilestone();
+  checkBeginner30Milestone();
   state.pot = 0;
   state.communityCards = [];
   state.deck = createDeck();
@@ -2260,6 +2527,9 @@ function newHand() {
       idx = nextActiveIdx(idx);
     }
   }
+
+  // Beginner's luck — first 30 hands get boosted starting-hand frequency
+  applyBeginnerLuck();
 
   state.street = 'preflop';
   state.currentPlayerIdx = firstActIdx;
@@ -2623,7 +2893,19 @@ function endHandByFold(winner) {
   showWinnerAnnouncement(state.winners, true);
   if (winner.isHuman) { sfxWin(); duckBGM(2000); }
   else sfxLose();
-  setTimeout(autoNextHand, 4500);
+
+  // === STREAK + IMPACT MOMENTS ===
+  const me0 = state.players[0];
+  if (me0 && !me0.busted) {
+    const humanWon = winner === me0;
+    updateStreak(humanWon);
+    // Big pot impact: >= 50BB
+    if (humanWon && won >= (state.bb || 10) * 50) {
+      triggerBigPotImpact(won, true);
+    }
+  }
+
+  setTimeout(autoNextHand, 2500);
 }
 
 function showdown() {
@@ -2722,7 +3004,22 @@ function showdown() {
   showWinnerAnnouncement(state.winners, false);
   if (meWonShowdown) { sfxWin(); duckBGM(2500); }
   else if (me && !me.folded && !me.busted) sfxLose();
-  setTimeout(autoNextHand, 6000);
+
+  // === STREAK + IMPACT MOMENTS (showdown) ===
+  if (me && !me.busted && !me.folded) {
+    updateStreak(meWonShowdown);
+    const myWinAmt = state.winners.filter(w => w.player === me).reduce((s, w) => s + w.amount, 0);
+    // Big pot: >= 50BB
+    if (meWonShowdown && myWinAmt >= (state.bb || 10) * 50) {
+      triggerBigPotImpact(myWinAmt, true);
+    }
+    // Full house or better: sparkles
+    if (meWonShowdown && me.handResult && me.handResult[0] >= 7) {
+      triggerFullHouseImpact();
+    }
+  }
+
+  setTimeout(autoNextHand, 4000);
 }
 
 function calculatePots() {
@@ -2775,7 +3072,10 @@ function autoNextHand() {
 function aiDecide(p) {
   const personality = PERSONALITIES[p.personalityType];
   const tilt = p.tilt;
-  const skill = p.skill;
+
+  // Beginner's luck: weaken AI slightly during first 30 hands
+  const luck = getBeginnerLuck();
+  const skill = Math.max(0.1, p.skill - luck.aiSkillPenalty);
 
   let strength;
   if (state.street === 'preflop') {
@@ -2806,8 +3106,9 @@ function aiDecide(p) {
   const potOdds = toCall > 0 ? toCall / (state.pot + toCall) : 0;
   const goodPotOdds = potOdds > 0 && potOdds < 0.22;
 
-  // Bluff?
-  const bluffMaybe = Math.random() < (personality.bluffFreq + tilt * 0.25);
+  // Bluff? (reduced during beginner period to make play more predictable)
+  const bluffFreq = personality.bluffFreq * (1 - luck.aiBluffPenalty);
+  const bluffMaybe = Math.random() < (bluffFreq + tilt * 0.25);
   const isBluff = bluffMaybe && effStrength < 35 && state.street !== 'preflop';
 
   // Decision branches
@@ -2905,9 +3206,9 @@ function scheduleNextAction() {
   const p = state.players[state.currentPlayerIdx];
   if (p.isHuman) return;
   const personality = PERSONALITIES[p.personalityType];
-  // Thinking time: aggressive=quick, tight=slow
-  const baseTime = 600 + (1 - personality.aggression) * 1200;
-  const thinkTime = baseTime + Math.random() * 800;
+  // Faster thinking: 300-1000ms (was 600-2600ms)
+  const baseTime = 300 + (1 - personality.aggression) * 500;
+  const thinkTime = baseTime + Math.random() * 300;
   aiThinkingTimer = setTimeout(() => { aiDecide(p); }, thinkTime);
 }
 
@@ -3061,9 +3362,13 @@ function renderPlayerCard(p, i) {
     }
   }
 
-  // Player avatar (human only — AI uses personality emoji)
+  // Player avatar
   let nameDisplay = p.name;
-  if (p.isHuman && career.character) {
+  let avatarHTML = '';
+  if (p.isHuman) {
+    // Use protagonist image for human player
+    avatarHTML = getProtagonistAvatarHTML(32, true);
+  } else if (career.character) {
     const av = CHARACTER_AVATARS.find(a => a.id === career.character.avatar);
     if (av) nameDisplay = `${av.icon} ${p.name}`;
   }
@@ -3072,7 +3377,8 @@ function renderPlayerCard(p, i) {
 
   return `<div class="player-card ${isCurrent?'current':''} ${p.folded&&!p.busted?'folded':''} ${p.busted?'busted':''} ${p.isHuman?'you':''} ${p.isFamous?'famous':''} ${isShowdownWinner?'showdown-winner':''}" style="position:relative;">
     ${timerBar}
-    <div class="player-name">
+    <div class="player-name" style="${p.isHuman ? 'display:flex;align-items:center;gap:8px;' : ''}">
+      ${avatarHTML}
       <span>${nameDisplay}${getPositionTag(i)}</span>
       ${getStatusTag(p, i)}
     </div>
@@ -3701,8 +4007,8 @@ function showWinnerAnnouncement(winners, byFold) {
   // Play winner sound
   sfxFanfare();
 
-  // Auto-remove
-  const duration = byFold ? 3200 : 4500;
+  // Auto-remove (synced with autoNextHand timing — slightly shorter than next-hand timeout)
+  const duration = byFold ? 2100 : 3500;
   setTimeout(() => {
     overlay.style.transition = 'opacity 0.4s';
     overlay.style.opacity = '0';
@@ -4618,6 +4924,364 @@ function showChatBubble(playerIdx, message) {
   setTimeout(() => bubble.remove(), 3500);
 }
 
+// ===================== PROTAGONIST IMAGE =====================
+// 이미지 경로: 같은 폴더 또는 img/ 폴더에 protagonist.png 저장
+const PROTAGONIST_IMG = 'protagonist.png';
+let _protagonistImgExists = null; // lazy check
+
+function getProtagonistAvatarHTML(size = 40, withBorder = true) {
+  const border = withBorder ? `border:2px solid var(--gold-foil);box-shadow:0 0 12px rgba(212,175,55,0.4);` : '';
+  // Use an <img> with onerror fallback to emoji
+  return `<span class="protagonist-avatar" style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#0a0817,#221f3d);${border}vertical-align:middle;flex-shrink:0;">
+    <img src="${PROTAGONIST_IMG}" alt="player" style="width:100%;height:100%;object-fit:cover;image-rendering:pixelated;" onerror="this.style.display='none';this.parentElement.insertAdjacentHTML('beforeend','<span style=&quot;font-size:${Math.floor(size*0.6)}px;&quot;>🧑‍💻</span>');this.remove();">
+  </span>`;
+}
+
+function getProtagonistBigHTML(maxHeight = 220) {
+  return `<div class="protagonist-big" style="display:flex;justify-content:center;margin:0 auto 12px;">
+    <img src="${PROTAGONIST_IMG}" alt="protagonist" style="max-height:${maxHeight}px;max-width:90%;border-radius:12px;border:3px solid var(--gold-foil);box-shadow:0 0 32px rgba(255,217,61,0.45),0 8px 24px rgba(0,0,0,0.6);image-rendering:pixelated;" onerror="this.parentElement.innerHTML='<div style=&quot;font-size:72px;margin-bottom:8px;&quot;>📈</div>';">
+  </div>`;
+}
+
+// ===================== PLAYER NAME INPUT =====================
+function showNameInputModal() {
+  const existingName = career.playerName || '';
+  const html = `<div style="text-align:center;padding:24px 16px;">
+    ${getProtagonistBigHTML(180)}
+    <h3 style="color:var(--gold-bright);font-family:'Press Start 2P','Galmuri11',monospace;font-size:16px;letter-spacing:2px;margin:14px 0 8px;">PLAYER NAME</h3>
+    <p style="font-size:13px;color:var(--text-dim);margin-bottom:18px;">너는 누구인가?<br><span style="font-size:11px;">(영문/한글 모두 가능, 12자 이내)</span></p>
+    <input type="text" id="player-name-input" maxlength="12" placeholder="이름 입력..." value="${existingName.replace(/"/g,'&quot;')}" style="width:80%;padding:12px 14px;font-size:16px;text-align:center;background:var(--bg-card-2);border:2px solid var(--gold-foil);border-radius:8px;color:var(--gold-bright);font-family:inherit;font-weight:700;letter-spacing:1px;">
+    <div style="margin-top:20px;display:flex;gap:10px;justify-content:center;">
+      <button class="btn-primary" onclick="confirmPlayerName()" style="padding:12px 28px;font-size:14px;font-weight:700;">확정 ▶</button>
+    </div>
+    <p style="font-size:10px;color:var(--text-dim);margin-top:14px;">언제든 메인 메뉴 → 설정에서 변경 가능</p>
+  </div>`;
+  showModal(html);
+  setTimeout(() => {
+    const inp = document.getElementById('player-name-input');
+    if (inp) {
+      inp.focus();
+      inp.select();
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmPlayerName(); });
+    }
+  }, 100);
+}
+
+function confirmPlayerName() {
+  const inp = document.getElementById('player-name-input');
+  if (!inp) return;
+  const name = (inp.value || '').trim().slice(0, 12);
+  if (!name) {
+    inp.style.borderColor = 'var(--red)';
+    inp.placeholder = '이름을 입력하세요!';
+    return;
+  }
+  career.playerName = name;
+  saveCareer();
+  closeModal();
+  // After naming, show intro
+  setTimeout(() => showIntroStory(0), 250);
+}
+
+// ===================== STORY INTRO (코인 트레이더) =====================
+function getPlayerNameDisplay() {
+  return career.playerName || '김민준';
+}
+
+function getIntroStorySlides() {
+  const n = getPlayerNameDisplay();
+  return [
+    {
+      icon: '📈', title: '2024년 봄', useProtagonist: true,
+      text: `<b style="color:var(--gold-bright);">${n} (27세)</b>, 평범한 직장인.<br>퇴근 후 매일 비트코인 차트만 봤다.<br><br>"이거 진짜 인생 역전이다."<br><br>200만원으로 시작했다.`
+    },
+    {
+      icon: '💥', title: '청산',
+      text: '50배 레버리지. <b style="color:var(--red);">3번 청산.</b><br><br>전세금도, 적금도, 다 사라졌다.<br><br><b style="color:var(--red);font-size:24px;">빚 1억.</b>'
+    },
+    {
+      icon: '🍺', title: '회계사 친구',
+      text: 'KPMG 다니는 친구가 술자리에서 말했다.<br><br>"코인은 그냥 도박이야.<br>진짜 EV+ 게임은 따로 있어."<br><br>"뭔데?"<br><br><b style="color:var(--gold-bright);">"포커."</b>'
+    },
+    {
+      icon: '🃏', title: '첫 핸드',
+      text: '친구 손에 끌려간 동네 홀덤펍.<br><br>처음 받은 핸드는 <b>A♠ K♠</b>.<br>플랍 A♥ K♥ Q♦ — 탑투페어.<br>리버에 <b style="color:var(--gold-bright);">A♣</b> — <b>풀하우스!</b><br><br>그날 +$200.'
+    },
+    {
+      icon: '🎰', title: '캐리어 시작', useProtagonist: true,
+      text: `"이건 운이 아니라 <b style="color:var(--gold-bright);">실력</b>이다."<br><br><b style="color:var(--gold-bright);">${n}</b>은 동네 펍에서 다시 시작한다.<br>목표는 <b style="color:var(--gold-bright);">트라이튼 하이스테이크</b>.<br><br>그리고, <b>빚 청산.</b>`
+    }
+  ];
+}
+const INTRO_STORY = []; // legacy reference kept for save compatibility
+
+let introSlideIdx = 0;
+
+function showIntroStory(idx) {
+  introSlideIdx = idx ?? 0;
+  const slides = getIntroStorySlides();
+  const slide = slides[introSlideIdx];
+  const isLast = introSlideIdx === slides.length - 1;
+  const isFirst = introSlideIdx === 0;
+  const dots = slides.map((_, i) =>
+    `<span style="width:10px;height:10px;border-radius:50%;background:${i === introSlideIdx ? 'var(--gold-bright)' : 'var(--border-light)'};display:inline-block;margin:0 3px;"></span>`
+  ).join('');
+
+  // Build hero visual — protagonist image on certain slides, big emoji otherwise
+  const heroVisual = slide.useProtagonist
+    ? getProtagonistBigHTML(180)
+    : `<div style="font-size:72px;margin-bottom:16px;">${slide.icon}</div>`;
+
+  // For non-protagonist slides, add a tiny protagonist avatar at top corner so the character feels present throughout
+  const cornerAvatar = !slide.useProtagonist
+    ? `<div style="position:absolute;top:10px;left:14px;display:flex;align-items:center;gap:8px;opacity:0.85;">
+         ${getProtagonistAvatarHTML(36)}
+         <span style="font-size:11px;color:var(--text-dim);letter-spacing:1px;">${getPlayerNameDisplay()}</span>
+       </div>`
+    : '';
+
+  const html = `<div style="text-align:center;padding:24px 16px;position:relative;">
+    ${cornerAvatar}
+    ${heroVisual}
+    <h3 style="color:var(--gold-bright);font-size:20px;letter-spacing:3px;font-family:'Press Start 2P','Galmuri11',monospace;">${slide.title}</h3>
+    <div style="font-size:15px;line-height:2;color:var(--text);margin:24px 0;min-height:140px;">${slide.text}</div>
+    <div style="margin:18px 0;">${dots}</div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">
+      ${isFirst ? '<button onclick="skipIntro()" style="font-size:11px;padding:8px 16px;color:var(--text-dim);">건너뛰기</button>' : `<button onclick="showIntroStory(${introSlideIdx-1})" style="font-size:12px;">← 이전</button>`}
+      ${isLast ? '<button class="btn-success" onclick="finishIntro()" style="font-size:14px;padding:12px 28px;font-weight:700;">캐리어 시작 ▶</button>' : `<button class="btn-primary" onclick="showIntroStory(${introSlideIdx+1})" style="font-size:14px;padding:12px 24px;">다음 →</button>`}
+    </div>
+  </div>`;
+  showModal(html);
+}
+
+function skipIntro() {
+  career.tutorial = career.tutorial || {};
+  career.tutorial.intro_seen = true;
+  career.tutorial.lobby_first = true;
+  saveCareer();
+  closeModal();
+}
+
+function finishIntro() {
+  career.tutorial = career.tutorial || {};
+  career.tutorial.intro_seen = true;
+  career.tutorial.lobby_first = true;
+  saveCareer();
+  closeModal();
+  sfxFanfare();
+}
+
+function replayIntro() {
+  closeModal();
+  setTimeout(() => showIntroStory(0), 200);
+}
+
+// ===================== STREAK / COMBO =====================
+function ensureStreak() {
+  if (!career.streak) career.streak = { current: 0, best: 0 };
+}
+
+function updateStreak(won) {
+  ensureStreak();
+  if (won) {
+    career.streak.current++;
+    if (career.streak.current > career.streak.best) career.streak.best = career.streak.current;
+    const c = career.streak.current;
+    if (c === 3) showStreakToast('🔥 3연승!');
+    else if (c === 5) { career.bankroll += 500; showStreakToast('✨ 5연승! +$500 보너스'); }
+    else if (c === 7) { career.bankroll += 1500; showStreakToast('⚡ 7연승! +$1,500'); }
+    else if (c === 10) { career.bankroll += 5000; showStreakToast('🌟 10연승!!! MASTER +$5,000'); }
+  } else {
+    career.streak.current = 0;
+  }
+  saveCareer();
+}
+
+function showStreakToast(text) {
+  const toast = document.createElement('div');
+  toast.style.cssText = `position:fixed;top:120px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--gold),var(--gold-bright));color:var(--bg-deep);padding:14px 24px;border-radius:8px;font-weight:800;font-size:16px;box-shadow:0 0 30px rgba(255,217,61,0.7);z-index:2000;animation:announce-slide 3s ease-out forwards;`;
+  toast.textContent = text;
+  document.body.appendChild(toast);
+  sfxLevelUp();
+  setTimeout(() => toast.remove(), 3000);
+}
+
+function checkHandMilestone() {
+  if (!career.lastMilestoneHand) career.lastMilestoneHand = 0;
+  const since = career.handsPlayed - career.lastMilestoneHand;
+  if (since >= 10) {
+    career.lastMilestoneHand = career.handsPlayed;
+    const bonus = (state?.venue?.bb || 10) * 3;
+    career.bankroll += bonus;
+    showStreakToast(`📊 ${career.handsPlayed}핸드 달성! +$${bonus.toLocaleString()}`);
+    saveCareer();
+  }
+}
+
+// ===================== IMPACT MOMENTS =====================
+function triggerScreenShake() {
+  document.body.classList.add('screen-shake');
+  setTimeout(() => document.body.classList.remove('screen-shake'), 600);
+}
+
+function triggerGoldRain(intensity = 30) {
+  const container = document.createElement('div');
+  container.className = 'gold-rain-container';
+  document.body.appendChild(container);
+  for (let i = 0; i < intensity; i++) {
+    const p = document.createElement('div');
+    p.className = 'gold-particle';
+    p.style.left = (Math.random() * 100) + 'vw';
+    p.style.animationDelay = (Math.random() * 0.6) + 's';
+    p.style.animationDuration = (1.5 + Math.random() * 1) + 's';
+    if (Math.random() < 0.5) p.style.background = 'var(--gold-foil)';
+    container.appendChild(p);
+  }
+  setTimeout(() => container.remove(), 3500);
+}
+
+function triggerSparkles(intensity = 20) {
+  const container = document.createElement('div');
+  container.className = 'sparkle-container';
+  document.body.appendChild(container);
+  for (let i = 0; i < intensity; i++) {
+    const s = document.createElement('div');
+    s.className = 'sparkle-particle';
+    s.style.left = (10 + Math.random() * 80) + 'vw';
+    s.style.top = (20 + Math.random() * 60) + 'vh';
+    s.style.animationDelay = (Math.random() * 1) + 's';
+    s.textContent = ['✨','⭐','🌟','💫'][Math.floor(Math.random() * 4)];
+    container.appendChild(s);
+  }
+  setTimeout(() => container.remove(), 2500);
+}
+
+function triggerBigPotImpact(amount, isHumanWinner) {
+  if (!isHumanWinner) return;
+  triggerScreenShake();
+  triggerGoldRain(40);
+  duckBGM(2500);
+}
+
+function triggerFullHouseImpact() {
+  triggerSparkles(25);
+}
+
+// ===================== BEGINNER'S LUCK (first 30 hands retention) =====================
+const BEGINNER_HANDS = 30;
+
+function getBeginnerLuck() {
+  const played = career.handsPlayed || 0;
+  if (played >= BEGINNER_HANDS) return { boost: 0, aiSkillPenalty: 0, aiBluffPenalty: 0, tier: 0 };
+  if (played < 10) return { boost: 0.38, aiSkillPenalty: 0.15, aiBluffPenalty: 0.55, tier: 1 };
+  if (played < 20) return { boost: 0.22, aiSkillPenalty: 0.08, aiBluffPenalty: 0.30, tier: 2 };
+  return { boost: 0.10, aiSkillPenalty: 0.04, aiBluffPenalty: 0.15, tier: 3 };
+}
+
+function rankValue(r) {
+  // RANKS: '2'~'10','J','Q','K','A'
+  if (r === 'A') return 14;
+  if (r === 'K') return 13;
+  if (r === 'Q') return 12;
+  if (r === 'J') return 11;
+  if (r === '10') return 10;
+  return parseInt(r);
+}
+
+function isStrongStartHand(c1, c2) {
+  if (!c1 || !c2) return false;
+  const v1 = rankValue(c1.rank), v2 = rankValue(c2.rank);
+  if (v1 === v2 && v1 >= 7) return true; // 77+ pair
+  const hi = Math.max(v1, v2), lo = Math.min(v1, v2);
+  // Broadway combos: AK, AQ, AJ, AT, KQ, KJ, QJ, JT
+  if (hi >= 11 && lo >= 10) return true;
+  // Suited Ace
+  if (c1.suit === c2.suit && hi === 14) return true;
+  // Suited Broadway (KQs, KJs, QJs, JTs, T9s already covered if applicable)
+  if (c1.suit === c2.suit && hi >= 12 && lo >= 9) return true;
+  // Suited connectors 89+ (gives drawing power)
+  if (c1.suit === c2.suit && hi - lo === 1 && lo >= 8) return true;
+  return false;
+}
+
+function applyBeginnerLuck() {
+  const luck = getBeginnerLuck();
+  if (luck.boost <= 0) return;
+  const me = state?.players?.[0];
+  if (!me || me.busted || !me.cards || me.cards.length < 2) return;
+  if (isStrongStartHand(me.cards[0], me.cards[1])) return; // already strong — leave alone
+  if (Math.random() >= luck.boost) return; // probability gate
+
+  const deck = state.deck;
+  if (!deck || deck.length < 2) return;
+
+  // Find a strong combo in the remaining deck
+  for (let i = 0; i < deck.length; i++) {
+    for (let j = i + 1; j < deck.length; j++) {
+      if (isStrongStartHand(deck[i], deck[j])) {
+        const orig1 = me.cards[0], orig2 = me.cards[1];
+        const newCards = [deck[i], deck[j]];
+        // Splice the higher index first so the lower index stays valid
+        deck.splice(j, 1);
+        deck.splice(i, 1);
+        me.cards = newCards;
+        // Return originals into the deck at random positions
+        deck.splice(Math.floor(Math.random() * (deck.length + 1)), 0, orig1);
+        deck.splice(Math.floor(Math.random() * (deck.length + 1)), 0, orig2);
+        return;
+      }
+    }
+  }
+}
+
+function checkBeginner30Milestone() {
+  career.tutorial = career.tutorial || {};
+  if (career.tutorial.first30_done) return;
+  if ((career.handsPlayed || 0) < 30) return;
+  career.tutorial.first30_done = true;
+  career.bankroll += 500;
+
+  // Force a rare-tier item drop as graduation gift
+  let itemDropMsg = '';
+  try {
+    const dropId = rollItemDrop(40); // big luck boost = likely rare+
+    if (dropId && typeof showItemDrop === 'function') {
+      // Delay slightly so the modal shows first
+      setTimeout(() => showItemDrop(dropId), 1200);
+      const item = ITEMS[dropId];
+      if (item) {
+        const rname = RARITY_INFO[item.rarity]?.name || item.rarity;
+        itemDropMsg = `<br>🎁 ${rname} 아이템: <b>${item.icon} ${item.name}</b>`;
+      }
+    }
+  } catch (e) { /* ignore */ }
+
+  saveCareer();
+
+  setTimeout(() => {
+    showModal(`
+      <div style="text-align:center;padding:24px 16px;">
+        <div style="font-size:72px;margin-bottom:8px;">🎓</div>
+        <h2 style="color:var(--gold-bright);font-family:'Press Start 2P','Galmuri11',monospace;font-size:18px;letter-spacing:2px;">초보자 졸업!</h2>
+        <div style="font-size:14px;line-height:1.9;color:var(--text);margin:20px 0;">
+          <b>30핸드</b> 플레이 달성!<br><br>
+          여기까지 운빨이 좀 따라줬어.<br>
+          이제부턴 <b style="color:var(--gold-bright);">실력 게임</b>이야.<br><br>
+          <span style="color:var(--gold-bright);font-size:18px;font-weight:800;">💰 +$500 보너스</span>
+          ${itemDropMsg}
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:14px;line-height:1.6;">
+          처음 30핸드는 좋은 패가 더 자주 나오도록 설계됐어.<br>
+          이제 진짜 핸드 강도로 승부할 시간.
+        </div>
+        <button class="btn-primary" onclick="closeModal()" style="margin-top:18px;padding:12px 28px;font-size:14px;">계속 →</button>
+      </div>
+    `);
+    sfxLevelUp();
+    triggerGoldRain(50);
+  }, 400);
+}
+
 // ===================== UNIFIED MAIN MENU + GAME GUIDE =====================
 function openMainMenu() {
   ensureDailyChallenges();
@@ -4637,7 +5301,8 @@ function openMainMenu() {
       items: [
         { icon: '🎓', label: 'GTO 공부 (퀴즈)', desc: '42문제 4 카테고리', action: 'openGTOQuiz()' },
         { icon: '🎯', label: 'GTO 핸드 매트릭스', desc: '13×13 차트, 5 포지션', action: 'openGTOMatrix()' },
-        { icon: '📚', label: '게임 가이드', desc: '시스템 설명 + 용어 사전', action: 'openGameGuide()' }
+        { icon: '📚', label: '게임 가이드', desc: '시스템 설명 + 용어 사전', action: 'openGameGuide()' },
+        { icon: '🎬', label: '오프닝 스토리 다시 보기', desc: '김민준 캐리어 인트로 5컷', action: 'replayIntro()' }
       ]
     },
     {
