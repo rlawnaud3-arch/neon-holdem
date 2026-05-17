@@ -108,4 +108,4 @@ All game logic, AI personalities, and famous player names are used for tribute/e
 ---
 
 *제작: 김주명 ([@your-username](https://github.com/your-username))*
-*KPMG Korea CPA × 포커 enthusiast*
+*포커 enthusiast*
