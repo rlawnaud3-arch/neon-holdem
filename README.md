@@ -2,7 +2,7 @@
 
 > 인디 텍사스 홀덤 RPG 캐리어 게임. 동네 펍에서 트라이튼 하이스테이크까지.
 
-[**🎮 게임 플레이하기 →**](https://[YOUR-USERNAME].github.io/neon-holdem/)
+[**🎮 게임 플레이하기 →**](https://rlawnaud3-arch.github.io/neon-holdem/)
 
 ---
 
