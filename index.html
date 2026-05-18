@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v37 ★ AI DIALOGUES + WEAKNESS ANALYSIS</title>
+<title>NEON HOLDEM v38 ★ CARD UI REDESIGN (PROPER PIPS + JQK FIGURES)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -418,6 +418,53 @@
   .card .corner-tl { font-size: 9px; line-height: 1; }
   .card .corner-br { font-size: 9px; line-height: 1; transform: rotate(180deg); align-self: flex-end; }
   .card .center-suit { text-align: center; font-size: 16px; line-height: 1; }
+
+  /* === Card face pip patterns (v38 — proper card UI) === */
+  .card .pip-grid {
+    flex: 1;
+    position: relative;
+    width: 100%;
+    margin: 1px 0;
+  }
+  .card .pip-grid .pip {
+    position: absolute;
+    font-size: 11px;
+    line-height: 1;
+    transform-origin: center;
+    transform: translate(-50%, -50%);
+  }
+  /* Bottom pips rotated 180° via inline style */
+  .card .pip-grid .pip[style*="rotate(180deg)"] {
+    transform: translate(-50%, -50%) rotate(180deg);
+  }
+
+  /* Larger pips for community cards */
+  .community-cards .card .pip-grid .pip { font-size: 16px; }
+
+  /* Mini pips for showdown reveals */
+  .showdown-hand-mini .card .pip-grid .pip { font-size: 8px; }
+
+  /* Ace — big single center suit with glow */
+  .card .card-ace {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    line-height: 1;
+    text-shadow: 0 0 8px currentColor;
+  }
+  .community-cards .card .card-ace { font-size: 44px; }
+  .showdown-hand-mini .card .card-ace { font-size: 16px; }
+
+  /* J/Q/K SVG figures */
+  .card .card-figure {
+    flex: 1;
+    width: 100%;
+    max-height: 100%;
+  }
+  .community-cards .card .card-figure { /* inherits flex */ }
+  .showdown-hand-mini .card .card-figure { /* inherits */ }
   .card-mini {
     width: 26px; height: 36px;
     background: linear-gradient(135deg, #4a2b7a 0%, #2a1a4a 100%);
@@ -3636,6 +3683,136 @@ function scheduleNextAction() {
 }
 
 // ===================== Rendering =====================
+// Pip layouts for number cards 2-10 (rows of pips, like real French cards)
+// Each row is a string of dots: '.' = empty, 'P' = pip, 'p' = small pip (for middle filler)
+const PIP_LAYOUTS = {
+  '2':  [['P','.','P'], ['.','.','.'], ['.','.','.'], ['.','.','.'], ['P','.','P']],  // top, bottom (inverted)
+  '3':  [['P','.','P'], ['.','.','.'], ['.','P','.'], ['.','.','.'], ['P','.','P']],
+  '4':  [['P','.','P'], ['.','.','.'], ['.','.','.'], ['.','.','.'], ['P','.','P'], ['P','.','P']],  // not used, see below
+  // Use position-based layout instead (more flexible). 5x3 grid:
+};
+
+// Pip positions in 5×3 grid (top, mid-top, mid, mid-bot, bot) × (L, C, R)
+// Each layout = array of [row, col] coordinates (1-indexed inside 5-row grid for clarity)
+const PIP_POSITIONS = {
+  '2':  [[1,2],[5,2]],
+  '3':  [[1,2],[3,2],[5,2]],
+  '4':  [[1,1],[1,3],[5,1],[5,3]],
+  '5':  [[1,1],[1,3],[3,2],[5,1],[5,3]],
+  '6':  [[1,1],[1,3],[3,1],[3,3],[5,1],[5,3]],
+  '7':  [[1,1],[1,3],[2,2],[3,1],[3,3],[5,1],[5,3]],
+  '8':  [[1,1],[1,3],[2,2],[3,1],[3,3],[4,2],[5,1],[5,3]],
+  '9':  [[1,1],[1,3],[2,1],[2,3],[3,2],[4,1],[4,3],[5,1],[5,3]],
+  '10': [[1,1],[1,3],[2,1],[2,3],[2.5,2],[3.5,2],[4,1],[4,3],[5,1],[5,3]]
+};
+
+function renderPipFace(rank, suit, color) {
+  const positions = PIP_POSITIONS[rank];
+  if (!positions) return '';
+  let pips = '';
+  for (const [row, col] of positions) {
+    const top = ((row - 1) / 4) * 100;
+    const left = ((col - 1) / 2) * 100;
+    // Bottom half pips rotate 180° (traditional card design)
+    const rotate = row > 3 ? 'transform:rotate(180deg);' : '';
+    pips += `<span class="pip" style="top:${top}%;left:${left}%;${rotate}">${suit}</span>`;
+  }
+  return `<div class="pip-grid">${pips}</div>`;
+}
+
+// J/Q/K figures (simple SVG pixel-art silhouettes)
+function renderFigureFace(rank, suit, color) {
+  const accent = color === 'red' ? '#d63030' : '#1a1a1a';
+  const robe = color === 'red' ? '#a82020' : '#2a2a2a';
+  const skin = '#f5d4a8';
+
+  let figureSvg = '';
+  if (rank === 'K') {
+    // King — crown with cross + bearded face + robe
+    figureSvg = `
+      <!-- Crown -->
+      <rect x="20" y="14" width="60" height="14" fill="${accent}"/>
+      <polygon points="20,14 28,4 36,14" fill="${accent}"/>
+      <polygon points="36,14 50,2 64,14" fill="${accent}"/>
+      <polygon points="64,14 72,4 80,14" fill="${accent}"/>
+      <circle cx="28" cy="6" r="2.5" fill="${color === 'red' ? '#ffd93d' : '#888'}"/>
+      <circle cx="50" cy="4" r="2.5" fill="${color === 'red' ? '#ffd93d' : '#888'}"/>
+      <circle cx="72" cy="6" r="2.5" fill="${color === 'red' ? '#ffd93d' : '#888'}"/>
+      <!-- Cross on top -->
+      <rect x="48" y="-2" width="4" height="6" fill="${accent}"/>
+      <rect x="46" y="0" width="8" height="2" fill="${accent}"/>
+      <!-- Face -->
+      <rect x="30" y="28" width="40" height="32" fill="${skin}"/>
+      <!-- Eyes -->
+      <rect x="38" y="36" width="3" height="3" fill="${accent}"/>
+      <rect x="59" y="36" width="3" height="3" fill="${accent}"/>
+      <!-- Beard -->
+      <rect x="32" y="48" width="36" height="10" fill="${accent}"/>
+      <rect x="36" y="56" width="28" height="8" fill="${accent}"/>
+      <!-- Mustache details -->
+      <rect x="38" y="46" width="6" height="2" fill="${accent}"/>
+      <rect x="56" y="46" width="6" height="2" fill="${accent}"/>
+      <!-- Robe -->
+      <polygon points="20,60 80,60 90,110 10,110" fill="${robe}"/>
+      <rect x="46" y="60" width="8" height="50" fill="${accent}"/>
+      <!-- Small suit on robe -->
+      <text x="50" y="92" text-anchor="middle" font-size="18" fill="${color === 'red' ? '#ffd93d' : '#888'}">${suit}</text>
+    `;
+  } else if (rank === 'Q') {
+    // Queen — softer crown with curves + long hair + smaller face
+    figureSvg = `
+      <!-- Tiara -->
+      <rect x="26" y="18" width="48" height="8" fill="${accent}"/>
+      <polygon points="26,18 34,8 42,18" fill="${accent}"/>
+      <polygon points="42,18 50,4 58,18" fill="${accent}"/>
+      <polygon points="58,18 66,8 74,18" fill="${accent}"/>
+      <circle cx="50" cy="6" r="3" fill="${color === 'red' ? '#ffd93d' : '#aaa'}"/>
+      <!-- Hair sides -->
+      <rect x="22" y="26" width="6" height="38" fill="${accent}"/>
+      <rect x="72" y="26" width="6" height="38" fill="${accent}"/>
+      <!-- Face -->
+      <rect x="32" y="26" width="36" height="32" fill="${skin}"/>
+      <!-- Eyes (smaller, more graceful) -->
+      <rect x="39" y="36" width="2.5" height="3" fill="${accent}"/>
+      <rect x="58" y="36" width="2.5" height="3" fill="${accent}"/>
+      <!-- Lips -->
+      <rect x="44" y="48" width="12" height="2" fill="${accent}"/>
+      <!-- Neck -->
+      <rect x="42" y="58" width="16" height="6" fill="${skin}"/>
+      <!-- Robe / dress -->
+      <polygon points="20,64 80,64 90,110 10,110" fill="${robe}"/>
+      <polygon points="35,64 65,64 70,80 30,80" fill="${accent}"/>
+      <!-- Small suit on dress -->
+      <text x="50" y="96" text-anchor="middle" font-size="18" fill="${color === 'red' ? '#ffd93d' : '#888'}">${suit}</text>
+    `;
+  } else if (rank === 'J') {
+    // Jack — feathered hat + younger clean face
+    figureSvg = `
+      <!-- Hat -->
+      <rect x="22" y="16" width="56" height="12" fill="${accent}"/>
+      <ellipse cx="50" cy="16" rx="28" ry="6" fill="${accent}"/>
+      <!-- Feather -->
+      <polygon points="70,16 84,4 80,20" fill="${color === 'red' ? '#ffd93d' : '#999'}"/>
+      <rect x="74" y="14" width="2" height="6" fill="${accent}"/>
+      <!-- Hair bangs -->
+      <rect x="32" y="26" width="36" height="6" fill="${accent}"/>
+      <!-- Face -->
+      <rect x="32" y="30" width="36" height="28" fill="${skin}"/>
+      <!-- Eyes (sharp) -->
+      <rect x="38" y="38" width="3" height="3" fill="${accent}"/>
+      <rect x="59" y="38" width="3" height="3" fill="${accent}"/>
+      <!-- Cheek smirk -->
+      <rect x="44" y="50" width="10" height="2" fill="${accent}"/>
+      <!-- Collar / robe -->
+      <polygon points="22,58 78,58 88,110 12,110" fill="${robe}"/>
+      <polygon points="44,58 56,58 56,72 44,72" fill="${accent}"/>
+      <!-- Small suit -->
+      <text x="50" y="96" text-anchor="middle" font-size="18" fill="${color === 'red' ? '#ffd93d' : '#888'}">${suit}</text>
+    `;
+  }
+  return `<svg class="card-figure" viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">${figureSvg}</svg>`;
+}
+
 function cardHTML(card, hidden = false, isPlayerCard = false) {
   if (!card) return '<div class="card placeholder"></div>';
   if (hidden) {
@@ -3646,9 +3823,24 @@ function cardHTML(card, hidden = false, isPlayerCard = false) {
     return '<div class="card back"></div>';
   }
   const colorClass = card.color === 'red' ? 'red' : '';
+  const color = card.color === 'red' ? 'red' : 'black';
+
+  // Face content varies by rank
+  let face;
+  if (card.rank === 'A') {
+    // Ace — large central suit with subtle glow
+    face = `<div class="card-ace">${card.suit}</div>`;
+  } else if (card.rank === 'K' || card.rank === 'Q' || card.rank === 'J') {
+    // Picture cards — SVG figure
+    face = renderFigureFace(card.rank, card.suit, color);
+  } else {
+    // Number cards 2-10 — pip pattern
+    face = renderPipFace(card.rank, card.suit, color);
+  }
+
   return `<div class="card ${colorClass}">
     <div class="corner-tl">${card.rank}<br>${card.suit}</div>
-    <div class="center-suit">${card.suit}</div>
+    ${face}
     <div class="corner-br">${card.rank}<br>${card.suit}</div>
   </div>`;
 }
