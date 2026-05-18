@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v41.1 ★ CARD PIP FIX (CSS GRID)</title>
+<title>NEON HOLDEM v41.2 ★ CARD SIZE-AWARE PIPS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -496,40 +496,67 @@
   .card .corner-br { font-size: 9px; line-height: 1; transform: rotate(180deg); align-self: flex-end; }
   .card .center-suit { text-align: center; font-size: 16px; line-height: 1; }
 
-  /* === Card face pip grid (v41.1 — CSS Grid 정통 포커 카드) === */
+  /* === Card face pip system (v41.2 — 사이즈별 분리) ===
+     기본 (손 카드 52×72): 가운데 큰 무늬 1개만 — pip 모두 숨김
+     커뮤니티 카드 (78×110): 정통 5행×3열 grid pip 패턴 */
   .card .pip-grid {
     flex: 1;
     width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  /* 손 카드 — pip 모두 숨기고 가운데 큰 무늬 가짜 표시 */
+  .card .pip-grid .pip { display: none; }
+  .card .pip-grid::after {
+    content: attr(data-suit);
+    font-size: 26px;
+    line-height: 1;
+    opacity: 0.85;
+    text-shadow: 0 0 4px currentColor;
+  }
+
+  /* === 커뮤니티 카드 (78×110) — 정통 pip 패턴 === */
+  .community-cards .card .pip-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     grid-template-rows: repeat(5, 1fr);
     align-items: center;
     justify-items: center;
-    padding: 2px 4px;
-    box-sizing: border-box;
-    min-height: 36px;
+    padding: 4px 6px;
+    min-height: 76px;
   }
-  .card .pip-grid .pip {
-    font-size: 9px;
-    line-height: 1;
-    user-select: none;
+  .community-cards .card .pip-grid::after { display: none; }
+  .community-cards .card .pip-grid .pip {
     display: flex;
     align-items: center;
     justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1;
+    user-select: none;
   }
-  .card .pip-grid .pip.flip {
-    transform: rotate(180deg);
+  .community-cards .card .pip-grid .pip.flip { transform: rotate(180deg); }
+
+  /* Winner reveal cards (큰 카드) — 정통 pip */
+  .winner-cards-row .card .pip-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: repeat(5, 1fr);
+    align-items: center;
+    justify-items: center;
+    padding: 4px 6px;
   }
+  .winner-cards-row .card .pip-grid::after { display: none; }
+  .winner-cards-row .card .pip-grid .pip {
+    display: flex; font-size: 17px; font-weight: 700;
+  }
+  .winner-cards-row .card .pip-grid .pip.flip { transform: rotate(180deg); }
 
-  /* Larger pips for community cards (78×110) */
-  .community-cards .card .pip-grid { min-height: 76px; padding: 4px 6px; }
-  .community-cards .card .pip-grid .pip { font-size: 15px; font-weight: 700; }
-
-  /* Winner reveal cards (큰 카드) */
-  .winner-cards-row .card .pip-grid .pip { font-size: 17px; font-weight: 700; }
-
-  /* Mini pips for showdown reveals */
-  .showdown-hand-mini .card .pip-grid .pip { font-size: 7px; }
+  /* Mini cards (쇼다운 작은) — 손 카드와 동일 단순 표시 */
+  .showdown-hand-mini .card .pip-grid::after { font-size: 16px; }
 
   /* Ace — big single center suit with glow */
   .card .card-ace {
@@ -4277,7 +4304,8 @@ function renderPipFace(rank, suit, color) {
       }
     }
   }
-  return `<div class="pip-grid">${cells}</div>`;
+  // data-suit + data-rank — 손 카드(작음)는 CSS로 가운데 큰 무늬만 표시
+  return `<div class="pip-grid" data-suit="${suit}" data-rank="${rank}">${cells}</div>`;
 }
 
 // J/Q/K figures (simple SVG pixel-art silhouettes)
