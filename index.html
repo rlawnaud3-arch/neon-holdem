@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v34.1 ★ CINEMATIC PREVIEW MENU</title>
+<title>NEON HOLDEM v35 ★ KIM MINJUN INTERNAL MONOLOGUE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -1041,6 +1041,49 @@
     background: rgba(0,0,0,0.4);
   }
   .cinematic-skip:hover { color: var(--gold-bright); border-color: var(--gold-bright); }
+
+  /* ===== 김민준 모놀로그 말풍선 (v35) ===== */
+  .monologue-bubble {
+    position: fixed;
+    bottom: 130px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, rgba(20,18,42,0.95), rgba(34,31,61,0.95));
+    border: 2px solid var(--cyan);
+    border-radius: 18px;
+    padding: 14px 24px;
+    font-size: 14px;
+    color: var(--text);
+    max-width: 480px;
+    box-shadow: 0 0 30px rgba(62,232,255,0.35), 0 8px 24px rgba(0,0,0,0.7);
+    z-index: 950;
+    pointer-events: none;
+    animation: monologue-in 0.5s cubic-bezier(0.34,1.56,0.64,1);
+    text-shadow: 0 0 8px rgba(62,232,255,0.3);
+    font-style: italic;
+    letter-spacing: 0.3px;
+    line-height: 1.5;
+  }
+  .monologue-bubble.fade-out {
+    animation: monologue-out 0.6s ease-out forwards;
+  }
+  @keyframes monologue-in {
+    0% { transform: translate(-50%, 40px); opacity: 0; }
+    100% { transform: translate(-50%, 0); opacity: 1; }
+  }
+  @keyframes monologue-out {
+    0% { transform: translate(-50%, 0); opacity: 1; }
+    100% { transform: translate(-50%, -20px); opacity: 0; }
+  }
+  /* Mobile: bottom positioning adjusted */
+  @media (max-width: 600px) {
+    .monologue-bubble {
+      bottom: 100px;
+      max-width: 92vw;
+      font-size: 13px;
+      padding: 12px 18px;
+    }
+  }
 
   /* ===== Chat bubble ===== */
   .chat-bubble {
@@ -2748,6 +2791,27 @@ function newHand() {
   log(`<b>핸드 #${state.handNumber}</b> — 딜러: ${state.players[state.dealerIdx].name}`, true);
   saveCareer();
   render();
+
+  // 김민준 모놀로그 — 핸드 시작 시 prelfop 코멘트 (50% 확률)
+  resetMonologueCount();
+  if (Math.random() < 0.55) {
+    setTimeout(() => {
+      const me = state.players[0];
+      if (me && !me.busted && me.cards.length === 2) {
+        triggerMonologue(classifyPreflopHand(me.cards));
+      }
+    }, 1100);
+  } else if (Math.random() < 0.25) {
+    // 가끔 포지션 모놀로그
+    setTimeout(() => {
+      const cat = classifyPosition();
+      if (cat) triggerMonologue(cat);
+    }, 1100);
+  } else if (Math.random() < 0.10) {
+    // 베뉴 분위기 모놀로그 (드물게)
+    setTimeout(() => triggerMonologue(venueMonologueCategory()), 1100);
+  }
+
   scheduleNextAction();
 }
 
@@ -3030,6 +3094,14 @@ function advanceStreet() {
     state.communityCards.push(state.deck.pop(), state.deck.pop(), state.deck.pop());
     state.street = 'flop';
     log('--- 플랍 ---', true);
+    // 김민준 모놀로그 — 플랍 분석 (40% 확률)
+    const me = state.players[0];
+    if (me && !me.folded && !me.busted && me.cards.length === 2 && Math.random() < 0.4) {
+      setTimeout(() => {
+        const cat = classifyFlop(me.cards, state.communityCards);
+        if (cat) triggerMonologue(cat);
+      }, 900);
+    }
   } else if (state.street === 'flop') {
     state.deck.pop();
     state.communityCards.push(state.deck.pop());
@@ -3113,6 +3185,19 @@ function endHandByFold(winner) {
     // Big pot impact: >= 50BB
     if (humanWon && won >= (state.bb || 10) * 50) {
       triggerBigPotImpact(won, true);
+    }
+    // === 김민준 회고 모놀로그 ===
+    if (humanWon && me0.folded === false && me0.totalBet > 0 && won >= state.bb * 10) {
+      // Won by fold = likely a bluff that worked
+      const myStrengthApprox = me0.cards && me0.cards.length === 2 && state.communityCards.length >= 3
+        ? (typeof postflopStrength === 'function' ? postflopStrength(me0.cards, state.communityCards) : 50)
+        : 50;
+      if (myStrengthApprox < 40) {
+        setTimeout(() => triggerMonologue('after_bluff_success', { force: true }), 1400);
+      }
+    } else if (!humanWon && me0.folded && me0.totalBet >= state.bb * 5) {
+      // Folded after putting money in — fold regret/good fold
+      setTimeout(() => triggerMonologue(Math.random() < 0.5 ? 'after_good_fold' : 'after_bad_call', { force: true }), 1400);
     }
     // === TROPHY + SUB-EVENT STATS — FOLD WIN ===
     ensureTrophies();
@@ -3258,9 +3343,17 @@ function showdown() {
     if (meWonShowdown && myWinAmt >= (state.bb || 10) * 50) {
       triggerBigPotImpact(myWinAmt, true);
     }
-    // Full house or better: sparkles
+    // Full house or better: sparkles + monologue
     if (meWonShowdown && me.handResult && me.handResult[0] >= 7) {
       triggerFullHouseImpact();
+      setTimeout(() => triggerMonologue('after_fullhouse', { force: true }), 1400);
+    }
+    // === 김민준 회고 모놀로그 ===
+    const myContribForMono = (me.totalBet || 0);
+    if (meWonShowdown && myWinAmt >= (state.bb || 10) * 50) {
+      setTimeout(() => triggerMonologue('after_big_win', { force: true }), 1600);
+    } else if (!meWonShowdown && myContribForMono >= (state.bb || 10) * 30) {
+      setTimeout(() => triggerMonologue('after_big_loss', { force: true }), 1600);
     }
 
     // === TROPHY + SUB-EVENT STATS — SHOWDOWN ===
@@ -4343,6 +4436,15 @@ function showFamousAnnouncement(fp) {
   document.body.appendChild(banner);
   sfxFanfare();
   setTimeout(() => banner.remove(), 5000);
+
+  // 김민준 챔피언 인식 모놀로그
+  let abilityKey = null;
+  for (const [key, ab] of Object.entries(SPECIAL_ABILITIES || {})) {
+    if (ab.owner === fp.name) { abilityKey = key; break; }
+  }
+  if (abilityKey) {
+    setTimeout(() => triggerMonologue('champ_' + abilityKey, { force: true, duration: 4500 }), 2000);
+  }
 }
 
 // ===================== AUDIO SYSTEM =====================
@@ -4426,6 +4528,15 @@ function openSettings() {
       <div style="font-size:11px;color:var(--text);line-height:1.7;">
         F = 폴드 · C = 콜/체크 · R = 레이즈 · A = 올인
       </div>
+    </div>
+    <div style="padding:12px;background:var(--bg-card-2);border-radius:8px;">
+      <label style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
+        <div>
+          <div style="font-weight:700;font-size:14px;">💭 김민준 모놀로그</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">핸드 중 김민준이 속으로 한 마디 (몰입감 + 학습)</div>
+        </div>
+        <input type="checkbox" id="mono-toggle" ${_monologueEnabled ? 'checked' : ''} onchange="toggleMonologue();">
+      </label>
     </div>
   </div>
   <div style="text-align:center;margin-top:18px;"><button onclick="closeModal()">닫기</button></div>`;
@@ -5866,6 +5977,329 @@ function triggerDayTransitionCinematic(newVenueId, newDay) {
   duckBGM(4500);
 }
 
+// ===================== 김민준 인터널 모놀로그 (v35) =====================
+// 핸드 중 김민준이 속으로 한 마디씩 — 몰입감 + 학습 가치
+const MONOLOGUES = {
+  // 프리플랍 — 핸드 강도별
+  preflop_premium: [
+    '💭 포켓 에이스! 천천히 가자... 슬로우플레이?',
+    '💭 AA. 이거 풀폿이다',
+    '💭 에이스 에이스. 침착하자 — 너무 빨리 가면 들킨다'
+  ],
+  preflop_kings: [
+    '💭 킹스. 에이스만 안 떨어지면 좋겠는데...',
+    '💭 KK. 베가스 강자가 AA 있으면 어쩌지?',
+    '💭 카우보이 둘. 자신 있게 가자'
+  ],
+  preflop_queens: [
+    '💭 QQ. 미들 페어 위험 — AK/AQ 콜 받으면 좀 무서워',
+    '💭 퀸스. 좋은 핸드지만 오버카드 조심'
+  ],
+  preflop_aks: [
+    '💭 Big Slick suited. 풀폿 ㄱㄱ',
+    '💭 AK 수티드. 닭잡 만남'
+  ],
+  preflop_ako: [
+    '💭 AK offsuit. 콜인지 레이즈인지...',
+    '💭 빅 슬릭. 베팅으로 정보 얻자'
+  ],
+  preflop_aq_at: [
+    '💭 에이스 그림. 포지션 좋으면 ㄱㄱ',
+    '💭 도미네이트 조심하자. AK 콜 받으면 죽음'
+  ],
+  preflop_midpair: [
+    '💭 미드 페어. 셋 노릴까 밸류 노릴까',
+    '💭 JJ. 좋은 핸드인데 무섭다'
+  ],
+  preflop_smallpair: [
+    '💭 작은 페어. 셋 떨어져라 ㅠㅠ',
+    '💭 셋 노리고 싸게 들어가자',
+    '💭 22 같은 거. 셋 안 떨어지면 폴드'
+  ],
+  preflop_suited_conn: [
+    '💭 수티드 커넥터. 액션 많아질 핸드',
+    '💭 76s. 플랍 잘 맞으면 큰 거',
+    '💭 89s. 멀티웨이 좋아하는 핸드'
+  ],
+  preflop_weak: [
+    '💭 이걸로... 폴드 일순위',
+    '💭 쓰레기. 안전하게 폴드',
+    '💭 K9o 같은 거. 폴드해야지...',
+    '💭 별로다. 다음 핸드 기다리자'
+  ],
+  preflop_random: [
+    '💭 새 핸드. 집중하자',
+    '💭 이번엔 뭐가 나올까',
+    '💭 흐름을 만들어보자'
+  ],
+
+  // 포지션 인식
+  position_btn: [
+    '💭 버튼! 최고 포지션. 활용해보자',
+    '💭 BTN. 정보 다 보고 결정 가능'
+  ],
+  position_sb: [
+    '💭 SB. 최악 포지션. 타이트하게',
+    '💭 스몰 블라인드. 폴드 빈도 ↑'
+  ],
+  position_bb: [
+    '💭 빅 블라인드. 체크 옵션 있으니까',
+    '💭 BB 방어. 콜링 레인지 넓혀도 됨'
+  ],
+  position_utg: [
+    '💭 얼리 포지션. 강한 핸드만',
+    '💭 UTG. 다 보고 들어와야'
+  ],
+
+  // 플랍 분석
+  flop_set: [
+    '💭 셋!!! 슬로우 플레이로 베팅 끌어내자',
+    '💭 트립스. 베팅 사이즈로 정보 받자',
+    '💭 셋. 누가 톱페어로 들어오면 끝장'
+  ],
+  flop_toppair: [
+    '💭 톱페어. 베팅으로 정보 얻자',
+    '💭 톱페어 + 좋은 키커. 밸류 베팅'
+  ],
+  flop_overpair: [
+    '💭 오버페어. 좋은 위치 — 베팅 ㄱㄱ',
+    '💭 페어가 보드 위에 있어. 밸류'
+  ],
+  flop_drawing: [
+    '💭 드로우 — semi-bluff 좋은 상황',
+    '💭 플러시 드로우. EV+ 콜',
+    '💭 OESD + 백도어. 자료 충분'
+  ],
+  flop_nutdraw: [
+    '💭 너트 플러시 드로우. 큰 콜 가능',
+    '💭 너트 드로우. 풀폿 ㄱㄱ',
+  ],
+  flop_miss: [
+    '💭 완전 미스. 폴드 일순위',
+    '💭 보드 안 맞음. 무리하지 말자',
+    '💭 에어. 블러프 한 번 해볼까'
+  ],
+  flop_monotone: [
+    '💭 모노톤 플랍. 플러시 조심',
+    '💭 같은 무늬 셋. 플러시 의식'
+  ],
+  flop_paired: [
+    '💭 페어 보드. 풀하우스 가능성',
+    '💭 페어드 플랍. 트립스 조심해야'
+  ],
+
+  // 상대 액션 분석
+  opp_bigbet: [
+    '💭 큰 베팅. 이 사람 너트 있을 수도...',
+    '💭 오버베트. 의미있는 베팅이야',
+    '💭 풀폿+. 강한 핸드 시그널'
+  ],
+  opp_minbet: [
+    '💭 미니멈 베팅. 블록 베팅? 셋 잡았을 수도',
+    '💭 작은 베팅. 의도 파악 어려움'
+  ],
+  opp_3bet: [
+    '💭 3-bet 받음. 진심 핸드 70% 이상',
+    '💭 삼벳. AA/KK/QQ/AK 레인지'
+  ],
+  opp_check_donate: [
+    '💭 체크 → 도네이션 베팅. 패턴 의심',
+    '💭 도네이션 베팅 = 미들 페어 가능성 ↑'
+  ],
+  opp_passive_call: [
+    '💭 콜만 함. 수동적 — 미드 페어 가능',
+    '💭 패시브 콜. 강한 핸드보단 드로우?'
+  ],
+  opp_allin: [
+    '💭 올인. 콜 폴드 결정의 시간',
+    '💭 올인이라... 내 핸드 충분한가?'
+  ],
+
+  // 결과 회고
+  after_good_fold: [
+    '💭 맞는 폴드. EV+',
+    '💭 폴드 잘했어. 자금 보호'
+  ],
+  after_bad_call: [
+    '💭 ...콜 안 했어야 했나',
+    '💭 그 콜이 잘못이었어',
+    '💭 다음엔 폴드'
+  ],
+  after_bluff_success: [
+    '💭 블러프 통했다!!!',
+    '💭 폴드 유도 성공. 압박 통함'
+  ],
+  after_bluff_fail: [
+    '💭 이건 안 통하는 거 알았어야 했어',
+    '💭 블러프 실패. 적응 필요'
+  ],
+  after_big_win: [
+    '💭 야 이거 진짜 큰 거 잡았다',
+    '💭 인생 핸드... 침착하자',
+    '💭 카타르시스 ㅋㅋ'
+  ],
+  after_big_loss: [
+    '💭 ...............',
+    '💭 멘탈... 흔들리지 말자',
+    '💭 한 핸드. 게임 끝 아냐'
+  ],
+  after_fullhouse: [
+    '💭 풀하우스! 슈가',
+    '💭 풀하우스 메이드. 베팅으로 끌어내자'
+  ],
+
+  // 베뉴별 분위기
+  venue_pub: [
+    '💭 동네 펍이라 편하다',
+    '💭 여기 초보 많네'
+  ],
+  venue_seoul: [
+    '💭 강남. 이 사람들 진짜다',
+    '💭 한국 그라인더들 강하다'
+  ],
+  venue_macau: [
+    '💭 마카오. 침묵의 무게...',
+    '💭 아시아 강자들이야'
+  ],
+  venue_bellagio: [
+    '💭 베가스. 다른 차원',
+    '💭 벨라지오. 정신 차리자'
+  ],
+  venue_wsop: [
+    '💭 WSOP. 노란 자켓 가까이...',
+    '💭 World Series. 꿈의 무대'
+  ],
+  venue_triton: [
+    '💭 트라이튼. 한 핸드 = $100K',
+    '💭 최고의 자리. 자금 무서워'
+  ],
+
+  // 챔피언 등장
+  champ_ivey: ['💭 Phil Ivey... 신의 눈. 내 핸드 read 당하고 있어'],
+  champ_hellmuth: ['💭 Hellmuth. 꼬마라고? 두고 보자'],
+  champ_brunson: ['💭 Doyle Brunson... 포커의 신과 한 테이블이라니'],
+  champ_yeonsu: ['💭 김연수... 드디어 만났네'],
+  champ_jaejeong: ['💭 박재정 선배... 잘 부탁드립니다'],
+  champ_antonius: ['💭 Antonius. 침묵 — 그 자체가 무기'],
+  champ_chidwick: ['💭 Chidwick. GTO 솔버... 수학으로 이겨야 한다']
+};
+
+// 카테고리 → 컨텍스트 선택
+function pickMonologue(category) {
+  const pool = MONOLOGUES[category];
+  if (!pool || pool.length === 0) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+// === 프리플랍 카테고리 자동 분류 ===
+function classifyPreflopHand(cards) {
+  if (!cards || cards.length < 2) return 'preflop_random';
+  const ranks = '23456789TJQKA';
+  const r1 = ranks.indexOf(cards[0].rank === '10' ? 'T' : cards[0].rank);
+  const r2 = ranks.indexOf(cards[1].rank === '10' ? 'T' : cards[1].rank);
+  const hi = Math.max(r1, r2), lo = Math.min(r1, r2);
+  const suited = cards[0].suit === cards[1].suit;
+  if (r1 === r2) {
+    if (r1 === 12) return 'preflop_premium';     // AA
+    if (r1 === 11) return 'preflop_kings';       // KK
+    if (r1 === 10) return 'preflop_queens';      // QQ
+    if (r1 >= 8)   return 'preflop_midpair';     // 99-JJ
+    return 'preflop_smallpair';                  // 22-88
+  }
+  if (hi === 12 && lo === 11) return suited ? 'preflop_aks' : 'preflop_ako'; // AK
+  if (hi === 12 && lo >= 8) return 'preflop_aq_at'; // AQ-AT
+  if (suited && hi - lo === 1 && lo >= 5) return 'preflop_suited_conn'; // 76s+
+  if (hi <= 10 && lo <= 7) return 'preflop_weak';
+  return 'preflop_random';
+}
+
+// 포지션 카테고리
+function classifyPosition() {
+  if (!state || state.dealerIdx === undefined) return null;
+  const myIdx = 0;
+  const active = state.players.filter(p => !p.busted);
+  const totalActive = active.length;
+  let dist = (myIdx - state.dealerIdx + state.players.length) % state.players.length;
+  if (myIdx === state.dealerIdx) return 'position_btn';
+  if (myIdx === state.sbIdx) return 'position_sb';
+  if (myIdx === state.bbIdx) return 'position_bb';
+  // Early position
+  if (dist <= totalActive / 3) return 'position_utg';
+  return null;
+}
+
+// 플랍 카테고리 (board analysis)
+function classifyFlop(myCards, board) {
+  if (!myCards || !board || board.length < 3) return null;
+  // Get card ranks/suits
+  const flopSuits = board.slice(0, 3).map(c => c.suit);
+  const flopRanks = board.slice(0, 3).map(c => c.rank);
+  const monotone = new Set(flopSuits).size === 1;
+  const paired = new Set(flopRanks).size < 3;
+  // Use postflopStrength if available
+  let strength = 0;
+  if (typeof postflopStrength === 'function') {
+    strength = postflopStrength(myCards, board);
+  }
+  if (monotone) return 'flop_monotone';
+  if (paired) return 'flop_paired';
+  if (strength >= 85) return 'flop_set';
+  if (strength >= 70) return 'flop_toppair';
+  if (strength >= 55) return 'flop_overpair';
+  if (strength >= 40) return 'flop_drawing';
+  if (strength >= 25) return Math.random() < 0.3 ? 'flop_nutdraw' : 'flop_drawing';
+  return 'flop_miss';
+}
+
+// 베뉴별
+function venueMonologueCategory() {
+  if (!state || !state.venue) return null;
+  return 'venue_' + state.venue.id;
+}
+
+// === Display ===
+let _monologueShownThisHand = 0;
+const MONOLOGUE_MAX_PER_HAND = 3;
+let _monologueEnabled = true;
+try {
+  const stored = localStorage.getItem('holdem-monologue');
+  if (stored === '0') _monologueEnabled = false;
+} catch (e) {}
+
+function showMonologue(text, opts = {}) {
+  if (!_monologueEnabled) return;
+  if (!text) return;
+  if (_monologueShownThisHand >= MONOLOGUE_MAX_PER_HAND && !opts.force) return;
+  _monologueShownThisHand++;
+
+  // Remove any existing monologue bubble
+  const existing = document.querySelector('.monologue-bubble');
+  if (existing) existing.remove();
+
+  const bubble = document.createElement('div');
+  bubble.className = 'monologue-bubble';
+  bubble.innerHTML = text;
+  document.body.appendChild(bubble);
+  setTimeout(() => {
+    bubble.classList.add('fade-out');
+    setTimeout(() => bubble.remove(), 600);
+  }, opts.duration || 3500);
+}
+
+function resetMonologueCount() { _monologueShownThisHand = 0; }
+
+function toggleMonologue() {
+  _monologueEnabled = !_monologueEnabled;
+  try { localStorage.setItem('holdem-monologue', _monologueEnabled ? '1' : '0'); } catch (e) {}
+  return _monologueEnabled;
+}
+
+// 카테고리 픽 + 표시 단일 함수
+function triggerMonologue(category, opts) {
+  const text = pickMonologue(category);
+  if (text) showMonologue(text, opts);
+}
+
 // ===================== BEGINNER'S LUCK (first 30 hands retention) =====================
 const BEGINNER_HANDS = 30;
 
@@ -7166,6 +7600,34 @@ function openCinematicPreview() {
       action: 'renderDayStorySlide(10, 3)',
       tag: 'EPIC',
       color: 'var(--gold-bright)'
+    },
+    {
+      title: '💭 김민준 모놀로그 — AA',
+      desc: '"포켓 에이스! 천천히 가자..."',
+      action: "triggerMonologue('preflop_premium', {force:true})",
+      tag: 'MONOLOGUE',
+      color: 'var(--cyan)'
+    },
+    {
+      title: '💭 김민준 모놀로그 — 셋 떨어짐',
+      desc: '"셋!!! 슬로우 플레이로 베팅 끌어내자"',
+      action: "triggerMonologue('flop_set', {force:true})",
+      tag: 'MONOLOGUE',
+      color: 'var(--cyan)'
+    },
+    {
+      title: '💭 김민준 모놀로그 — Ivey 등장',
+      desc: '"Phil Ivey... 신의 눈. read 당하고 있어"',
+      action: "triggerMonologue('champ_ivey', {force:true, duration:4500})",
+      tag: 'MONOLOGUE',
+      color: 'var(--cyan)'
+    },
+    {
+      title: '💭 김민준 모놀로그 — 빅팟 승리',
+      desc: '"야 이거 진짜 큰 거 잡았다"',
+      action: "triggerMonologue('after_big_win', {force:true})",
+      tag: 'MONOLOGUE',
+      color: 'var(--cyan)'
     }
   ];
 
@@ -7182,7 +7644,8 @@ function openCinematicPreview() {
     INTRO:     '📖 인트로 컷씬',
     MILESTONE: '🎯 마일스톤 컷씬',
     TROPHY:    '🏆 트로피 시상식',
-    EPIC:      '👑 엔딩 컷씬'
+    EPIC:      '👑 엔딩 컷씬',
+    MONOLOGUE: '💭 김민준 모놀로그 (v35 신규)'
   };
 
   let html = `<h3>🎬 시네마틱 미리보기</h3>
