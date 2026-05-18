@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v28 ★ DAY CAMPAIGN + ABILITY TUTORIAL + PUB/VEGAS BGM</title>
+<title>NEON HOLDEM v30 ★ STORY ARCS + REBUY FIX + CHARACTERS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -891,6 +891,12 @@
     40% { transform: scale(1.3) rotate(180deg); opacity: 1; }
     70% { transform: scale(1) rotate(270deg); opacity: 1; }
     100% { transform: scale(0.4) rotate(360deg); opacity: 0; }
+  }
+  @keyframes trophy-pop {
+    0% { transform: scale(0) rotate(-30deg); opacity: 0; }
+    40% { transform: scale(1.35) rotate(8deg); opacity: 1; }
+    65% { transform: scale(0.92) rotate(-4deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
   }
 
   /* ===== Chat bubble ===== */
@@ -2237,16 +2243,25 @@ function renderLobby() {
   // Cloud sync status
   if (typeof updateCloudStatus === 'function') updateCloudStatus();
 
+  ensureTrophies();
   let html = '';
   for (const v of VENUES) {
     const unlocked = isVenueUnlocked(v);
     const canAfford = career.bankroll >= v.requiredBankroll;
     const playable = unlocked && canAfford;
+    // Trophy badges (🥉🥈🥇 - earned shown bright, unearned dim)
+    const tro = career.trophies?.[v.id] || {};
+    const trophyBadges = `<div style="display:flex;gap:6px;margin-top:8px;justify-content:center;font-size:18px;">
+      <span style="${tro.bronze ? 'filter:drop-shadow(0 0 6px #cd7f32);' : 'opacity:0.25;filter:grayscale(1);'}">🥉</span>
+      <span style="${tro.silver ? 'filter:drop-shadow(0 0 6px #c0c0c0);' : 'opacity:0.25;filter:grayscale(1);'}">🥈</span>
+      <span style="${tro.gold ? 'filter:drop-shadow(0 0 8px #ffd93d);' : 'opacity:0.25;filter:grayscale(1);'}">🥇</span>
+    </div>`;
     html += `<div class="venue-card ${!playable ? 'locked' : ''}" ${playable ? `onclick="enterVenue('${v.id}')"` : ''}>
       <div class="icon">${v.emoji}</div>
       <h3>${v.name.replace(v.emoji, '').trim()}</h3>
       <div class="stakes">$${v.sb}/$${v.bb} • 100BB 바이인 $${v.buyIn.toLocaleString()}</div>
       <div class="desc">${v.desc}</div>
+      ${trophyBadges}
       <div class="req">
         ${!unlocked ? `🔒 해금 조건: 자금 $${v.unlockBankroll.toLocaleString()} 도달` :
           !canAfford ? `❌ 바이인 부족 (필요 $${v.requiredBankroll.toLocaleString()})` :
@@ -2416,6 +2431,11 @@ function newHand() {
   // Tilted players (high tilt) more likely to leave (new player comes in)
   for (let i = 1; i < state.players.length; i++) {
     const p = state.players[i];
+    // Defensive: any AI with $0 stack should be treated as busted (catches edge cases)
+    if (p.stack <= 0 && !p.busted) {
+      p.busted = true;
+      p.allIn = false;
+    }
     if (!p.busted) continue;
 
     // Famous players never rebuy (they "leave on a loss")
@@ -2487,6 +2507,10 @@ function newHand() {
   checkHandMilestone();
   checkBeginner30Milestone();
   checkDayProgress();
+  // Track venue stat: hand count
+  ensureTrophies();
+  recordVenueStat('hands', 1);
+  checkTrophyProgress();
   state.pot = 0;
   state.communityCards = [];
   state.deck = createDeck();
@@ -2932,6 +2956,26 @@ function endHandByFold(winner) {
     if (humanWon && won >= (state.bb || 10) * 50) {
       triggerBigPotImpact(won, true);
     }
+    // === TROPHY STATS — FOLD WIN ===
+    ensureTrophies();
+    if (state.venue) {
+      const vs = career.venueStats[state.venue.id];
+      if (vs) {
+        // Profit (fold win = whole pot to player minus their contribution; use won - my contribution)
+        const myContribution = (me0.totalBet || 0);
+        if (humanWon) {
+          vs.profit = (vs.profit || 0) + (won - myContribution);
+          vs.currentStreak = (vs.currentStreak || 0) + 1;
+          if (vs.currentStreak > (vs.maxWinStreak || 0)) vs.maxWinStreak = vs.currentStreak;
+          if (won >= (state.bb || 10) * 30) vs.bigPots = (vs.bigPots || 0) + 1;
+        } else {
+          vs.profit = (vs.profit || 0) - myContribution;
+          vs.currentStreak = 0;
+        }
+        saveCareer();
+        checkTrophyProgress();
+      }
+    }
   }
 
   setTimeout(autoNextHand, 2500);
@@ -3046,6 +3090,30 @@ function showdown() {
     if (meWonShowdown && me.handResult && me.handResult[0] >= 7) {
       triggerFullHouseImpact();
     }
+
+    // === TROPHY STATS — SHOWDOWN ===
+    ensureTrophies();
+    if (state.venue) {
+      const vs = career.venueStats[state.venue.id];
+      if (vs) {
+        const myContribution = (me.totalBet || 0);
+        if (meWonShowdown) {
+          vs.profit = (vs.profit || 0) + (myWinAmt - myContribution);
+          vs.currentStreak = (vs.currentStreak || 0) + 1;
+          if (vs.currentStreak > (vs.maxWinStreak || 0)) vs.maxWinStreak = vs.currentStreak;
+          if (myWinAmt >= (state.bb || 10) * 30) vs.bigPots = (vs.bigPots || 0) + 1;
+          // Full house or better tracker (for trophy)
+          if (me.handResult && me.handResult[0] >= 7) {
+            vs.fullhouses = (vs.fullhouses || 0) + 1;
+          }
+        } else {
+          vs.profit = (vs.profit || 0) - myContribution;
+          vs.currentStreak = 0;
+        }
+        saveCareer();
+        checkTrophyProgress();
+      }
+    }
   }
 
   setTimeout(autoNextHand, 4000);
@@ -3085,9 +3153,10 @@ function applyTiltEffects() {
     }
     p.lastWonAmount = 0;
   }
-  // Mark busted AI
+  // Mark busted players — anyone with $0 stack after a hand is busted
+  // (was previously gated by !p.allIn which incorrectly skipped all-in losers)
   for (const p of state.players) {
-    if (p.stack === 0 && !p.allIn) p.busted = true;
+    if (p.stack === 0) p.busted = true;
   }
 }
 
@@ -5559,53 +5628,91 @@ const DAY_CAMPAIGN = [
   { day: 10, handsTo: 999999, title: '전설의 결승',           abilityBoost: 'all',        abilityAmt: 1, bonus: 50000, champion: 'brunson',    storyTone: '클라이맥스' }
 ];
 
+// === 인물 데이터 (Day 스토리에서 참조) ===
+const STORY_CHARS = {
+  joonyoung: { name: '박준영', role: 'KPMG 친구, 멘토', emoji: '👔', relationship: '대학 친구' },
+  yeonsu:    { name: '김연수', role: '한국 레전드', emoji: '🇰🇷', relationship: '라이벌 → 형제' },
+  jaejeong:  { name: '박재정', role: 'WSOP 한국인 첫 우승', emoji: '🥇', relationship: '진짜 멘토' },
+  seoyeon:   { name: '이서연', role: '마카오 한국인 프로', emoji: '🌸', relationship: '동료' },
+  chulho:    { name: '신철호', role: '옛 코인 동료', emoji: '📉', relationship: '거울/경고' },
+  pubowner:  { name: '김 사장', role: '동네 펍 주인', emoji: '🍺', relationship: '응원자' },
+  ivey:      { name: 'Phil Ivey', role: '신의 눈', emoji: '👁️‍🗨️', relationship: '거인 → 인정' },
+  hellmuth:  { name: 'Phil Hellmuth', role: '브래슬릿 11회', emoji: '😤', relationship: '자존심 충돌' },
+  antonius:  { name: 'Patrik Antonius', role: '북극의 침묵', emoji: '❄️', relationship: '말 없는 존경' },
+  chidwick:  { name: 'Stephen Chidwick', role: 'GTO 솔버', emoji: '🧮', relationship: '수학 라이벌' },
+  brunson:   { name: 'Doyle Brunson', role: '포커의 신', emoji: '🤠', relationship: '영혼의 스승' }
+};
+
 const DAY_STORIES = {
+  // ===== 1막: 추락과 부활 (Day 1~3) =====
   1: [
-    { icon: '🍺', text: '동네 펍에 처음 발 들였다.<br>손이 떨렸다.<br><br>"운이 좋아야지..."' },
-    { icon: '👁️', text: '하지만 너는 알게 됐어.<br>이건 <b style="color:var(--gold-bright);">관찰의 게임</b>이라는 걸.<br><br>+1 통찰력' }
+    { icon: '🍺', char: 'joonyoung', text: '<b style="color:var(--cyan);">박준영</b> — 너의 대학 친구, KPMG 회계사.<br>그가 너를 동네 펍으로 끌고 갔다.<br><br>"코인은 진짜 도박이지만,<br>포커는 <b>EV+</b>야. 한번 해봐."' },
+    { icon: '🍻', char: 'pubowner', text: '<b style="color:var(--cyan);">김 사장</b>이 환영했다.<br>"처음이야? 천천히 해.<br>나도 처음엔 다 잃었어. 하지만 재미있지."<br><br>너는 의자에 앉았다.' },
+    { icon: '🃏', text: '첫 핸드 — <b>A♠ K♠</b>.<br>플랍 A♥ K♥ Q♦.<br>리버 <b style="color:var(--gold-bright);">A♣</b> — <b>풀하우스!</b><br><br>그날 +$200.<br>박준영: "거봐. 너 손이 좋다니까."' },
+    { icon: '👁️', text: '집에 가는 길.<br>너는 알게 됐어.<br>이건 <b style="color:var(--gold-bright);">관찰의 게임</b>이라는 걸.<br>그리고 박준영이 평생 친구가 될 거라는 걸.<br><br>+1 통찰력' }
   ],
+  // ===== Day 2: 동네 영웅 =====
   2: [
-    { icon: '🏆', text: '동네 사람들이 너를 알아본다.<br>"저 친구 좀 하던데."<br><br>30핸드만에 동네 영웅.' },
-    { icon: '🌃', text: '하지만 너는 <b style="color:var(--gold-bright);">강남</b>을 본다.<br>진짜 선수들이 있는 곳.<br><br>+1 인내심' }
+    { icon: '🏆', char: 'pubowner', text: '30핸드 후 — 김 사장이 너를 알아본다.<br>"저기 청년, 좀 하더라구. 우리 단골들도 너 무서워해."<br><br>너는 동네 영웅이 됐다.' },
+    { icon: '👔', char: 'joonyoung', text: '박준영의 카톡:<br><br>"형, 강남 한 번 가볼래?<br>거기 <b style="color:var(--gold-bright);">진짜 선수</b>들 있어.<br>저번에 한 명 봤는데... 차원이 다르더라."' },
+    { icon: '🌃', text: '너는 결심한다.<br>이대로 동네에 머물 순 없어.<br>내가 진짜 잘하나, 시험해보자.<br><br><b style="color:var(--gold-bright);">강남으로 간다.</b><br><br>+1 인내심' }
   ],
+  // ===== Day 3: 라이벌의 등장 =====
   3: [
-    { icon: '⚔️', text: '강남 홀덤바.<br>거기서 처음으로 <b style="color:var(--red);">진짜 강자</b>를 만났다.', champion: 'yeonsu' },
-    { icon: '🇰🇷', text: '<b style="color:var(--gold-bright);">김연수</b>.<br>한국 포커계의 전설.<br><br>"신참이군. 자네 손이 떨리는데?"' },
-    { icon: '🎯', text: '한 핸드 한 핸드가 <b>전쟁</b>이었다.<br>너는 그날 -$3000.<br>하지만 <b style="color:var(--gold-bright);">읽는 법</b>을 배웠다.<br><br>+1 익스플로잇' }
+    { icon: '🌃', char: 'joonyoung', text: '강남 홀덤바.<br>박준영이 속삭였다.<br>"저기 끝자리, 검은 후드 입은 사람.<br>저 사람이 <b style="color:var(--gold-bright);">한국 레전드</b>야.<br>이름은 김연수."', champion: 'yeonsu' },
+    { icon: '🇰🇷', char: 'yeonsu', text: '<b style="color:var(--gold-bright);">김연수</b>가 너를 본다.<br>표정 없이 한 마디.<br><br>"신참이군. 자리 비었으니 앉아."<br><br>너의 손이 살짝 떨렸다.' },
+    { icon: '⚔️', text: '결정적 핸드 — 너는 A♠ A♣.<br>김연수는 76s.<br>플랍 8 9 J. 김연수: 스트레이트 드로우.<br>턴 5. 너 올인. 그가 콜.<br>리버 <b style="color:var(--red);">T</b> — <b>김연수 스트레이트</b>.' },
+    { icon: '🎯', char: 'yeonsu', text: '-$3,000. 너는 모든 걸 잃었다.<br><br>김연수가 잠시 너를 본다.<br>"잘했어. 넌 <b style="color:var(--gold-bright);">봤어</b>.<br>보는 눈이 있어. 다음에 또 봐."<br><br>+1 익스플로잇 · 김연수 (라이벌)' }
   ],
+  // ===== 2막: 시련과 성장 (Day 4~7) =====
+  // Day 4: 옛 그림자
   4: [
-    { icon: '💔', text: '연속 5핸드 패배.<br>5BB 핸드도 안 들어왔다.<br><br>"이거... 내가 진짜 할 수 있는 거 맞나?"' },
-    { icon: '🧘', text: '하지만 너는 <b style="color:var(--gold-bright);">멈췄다</b>.<br>커피 한잔.<br>다시 의자에 앉았다.<br><br>+2 멘탈 (시련 보상)' }
+    { icon: '💔', text: '강남에서의 5연패.<br>5BB 핸드도 안 들어왔다.<br>너의 손은 더 이상 떨리지 않았다 — <b>마비됐다.</b><br><br>"이거... 내가 진짜 할 수 있는 거 맞나?"' },
+    { icon: '📉', char: 'chulho', text: '편의점에서 우연히 마주친 <b style="color:var(--red);">신철호</b>.<br>옛 코인 트레이딩 동료. 같이 청산당한 사이.<br><br>"민준아... 너 요즘 포커한다며?<br>결국 너도 <b>도박꾼</b>이야. 인정해."' },
+    { icon: '👔', char: 'joonyoung', text: '박준영의 카톡:<br><br>"형, 괜찮아?<br>5번 졌다고 끝난 거 아니야.<br>이건 핸드 한 판이 아니라 <b>인생 한 판</b>이야.<br>형 거기서 기다릴게."' },
+    { icon: '🧘', text: '너는 커피 한잔을 마셨다.<br>창밖을 봤다.<br>그리고 다시 의자에 앉았다.<br><br>이건 시작이지, 끝이 아니야.<br><br>+2 멘탈 (시련 보상)' }
   ],
+  // Day 5: 진짜 멘토
   5: [
-    { icon: '🎯', text: '슬럼프를 넘었다.<br>그날 너는 <b style="color:var(--gold-bright);">박재정</b>을 만났다.', champion: 'jaejeong' },
-    { icon: '🥇', text: 'WSOP 한국인 첫 우승자.<br>"흠... 자네는 패턴을 외울 줄 알아.<br>좋은 자질이야."' },
-    { icon: '✈️', text: '다음 목표는 <b style="color:var(--gold-bright);">마카오</b>.<br>아시아 최대 캐쉬게임.<br><br>+1 블러프' }
+    { icon: '🥇', char: 'jaejeong', text: '강남에서 다시 마주친 김연수.<br>그가 너를 어떤 남자에게 소개했다.<br><br>"이 친구가 <b style="color:var(--gold-bright);">박재정</b>이야. <br>WSOP 한국인 첫 우승자."', champion: 'jaejeong' },
+    { icon: '🎯', char: 'jaejeong', text: '<b style="color:var(--gold-bright);">박재정</b>이 너를 보며 웃었다.<br>"흠... 자네 패턴을 외울 줄 알지?<br>김연수가 그러더라.<br><br>좋은 자질이야. <b>아주 좋아.</b>"' },
+    { icon: '✈️', char: 'jaejeong', text: '"내가 <b style="color:var(--gold-bright);">마카오</b> 데려갈게.<br>진짜 무대를 보여줄게.<br>거긴 한국과 다르다."<br><br>박준영이 환송해줬다.<br>"형, 잘 다녀와. 빚 갚으러 가는 거 잊지 말고."<br><br>+1 블러프 · 박재정 (멘토)' }
   ],
+  // Day 6: 마카오, 새로운 만남
   6: [
-    { icon: '🇲🇴', text: '마카오 베네시안 카지노.<br>200/$400 게임에 처음 앉았다.<br><br>모두 표정 없음.', champion: 'antonius' },
-    { icon: '❄️', text: '맞은편엔 <b style="color:var(--gold-bright);">Patrik Antonius</b>.<br>"북극의 침묵"이라 불리는 핀란드 전설.<br><br>"...."' },
-    { icon: '🔥', text: '너는 <b style="color:var(--gold-bright);">압박</b>을 배웠다.<br>큰 베팅 한 방의 무게.<br><br>+1 압박' }
+    { icon: '🇲🇴', char: 'seoyeon', text: '마카오 베네시안 카지노.<br>박재정이 너를 데리고 들어갔다.<br>$200/$400 캐쉬게임 룸.<br><br>옆자리에 <b style="color:var(--pink);">한국인 여성</b>이 있다.', champion: 'antonius' },
+    { icon: '🌸', char: 'seoyeon', text: '<b style="color:var(--gold-bright);">이서연</b>.<br>"한국 사람이세요? 반가워요.<br>여기 한국 사람 별로 없거든요.<br>저는 6년 됐어요. 잘 부탁해요."<br><br>그녀의 칩 스택은 산처럼 쌓여있다.' },
+    { icon: '❄️', char: 'antonius', text: '맞은편엔 <b style="color:var(--gold-bright);">Patrik Antonius</b>.<br>"북극의 침묵" — 핀란드 전설.<br><br>너와 결정적 핸드.<br>너는 큰 베팅으로 압박. 그가 폴드.<br>그가 너를 본다. <b>작게 끄덕인다.</b>' },
+    { icon: '🔥', text: '이서연: "방금... Antonius가 끄덕였어요.<br>저 사람이 인정하는 건 처음 봐요."<br><br>너는 <b style="color:var(--gold-bright);">압박</b>을 배웠다.<br>그리고 첫 동료를 얻었다.<br><br>+1 압박 · 이서연 (동료)' }
   ],
+  // Day 7: 거인을 마주하다
   7: [
-    { icon: '🎰', text: '라스베가스 벨라지오.<br>세계 최고의 캐쉬게임 룸.<br>"Bobby\'s Room" 너머 라운지에 너의 자리.', champion: 'ivey' },
-    { icon: '👁️‍🗨️', text: '그리고 <b style="color:var(--gold-bright);">Phil Ivey</b>.<br>"신의 눈"을 가진 자.<br><br>"... 너 아는 사람 같은데?"' },
-    { icon: '📐', text: '그날 너는 <b>수학적으로 옳은 의사결정</b>이<br>왜 중요한지 깨달았다.<br><br>+1 수학' }
+    { icon: '🎰', text: '라스베가스 벨라지오.<br>박재정이 너를 "Bobby\'s Room" 옆 라운지로 안내했다.<br>최소 바이인 $100,000.<br><br>맞은편엔 <b style="color:var(--gold-bright);">전설</b>이 앉아있다.', champion: 'ivey' },
+    { icon: '👁️‍🗨️', char: 'ivey', text: '<b style="color:var(--gold-bright);">Phil Ivey</b>.<br>"신의 눈"을 가진 자.<br>그는 너를 무관심하게 봤다.<br>"...새 얼굴이군."<br><br>그게 다였다.' },
+    { icon: '🎯', text: '결정적 핸드.<br>너 QQ. Ivey 99 (set).<br>플랍 K72. 너 베팅. Ivey 콜.<br>턴 Q (너 set!). 너 베팅. Ivey 콜.<br>리버 5. 너 올인. <b>Ivey 폴드.</b>' },
+    { icon: '😦', char: 'ivey', text: 'Ivey가 너를 본다.<br>아주 잠깐. 처음으로.<br><br>"...너 누구지?<br>다음 주에도 여기 올 거야?"<br><br>그게 그의 인정이었다.<br><br>+1 수학 · Ivey (관심)' }
   ],
+  // ===== 3막: 절정과 전설 (Day 8~10) =====
+  // Day 8: 자존심의 충돌
   8: [
-    { icon: '🏆', text: 'WSOP. World Series of Poker.<br>리오 호텔, 노란 자켓의 꿈.', champion: 'hellmuth' },
-    { icon: '😤', text: '맞은편엔 <b style="color:var(--gold-bright);">Phil Hellmuth</b>.<br>"포커 브래스 11회 우승."<br><br>"꼬마야, 이건 진짜 무대야."' },
-    { icon: '😐', text: '너는 <b style="color:var(--gold-bright);">감정을 봉인</b>하는 법을 배웠다.<br>승리도 패배도 표정에 안 드러내기.<br><br>+1 포커페이스' }
+    { icon: '🏆', char: 'hellmuth', text: 'WSOP. 리오 호텔. 노란 자켓의 꿈.<br><br>맞은편 <b style="color:var(--red);">Phil Hellmuth</b>이 너를 보며 비웃었다.<br>"꼬마야, 이건 진짜 무대야.<br>내가 11번 브래슬릿 땄을 때<br>너는 학교 다녔겠지."', champion: 'hellmuth' },
+    { icon: '🇰🇷', char: 'yeonsu', text: '갑자기 뒤에서 익숙한 목소리.<br><br>"형제."<br><br>김연수다.<br>"널 응원하러 왔어. <b>다 보여줘.</b>"<br><br>옛 라이벌이 친구가 됐다.' },
+    { icon: '😐', char: 'hellmuth', text: 'Hellmuth와 결정적 핸드.<br>너 AKo. Hellmuth JJ.<br>플랍 A52. 너 베팅. Hellmuth 콜.<br>턴 K (너 투페어). 너 올인. Hellmuth 콜.<br>리버 7. <b>너 승리.</b>' },
+    { icon: '🥶', char: 'hellmuth', text: 'Hellmuth는 한참 말이 없었다.<br>그리고 작게:<br>"...자네 이름이 뭐였지?"<br><br>너는 감정을 봉인하는 법을 배웠다.<br>승리도, 패배도, 표정에 안 드러내기.<br><br>+1 포커페이스 · 김연수 (형제)' }
   ],
+  // Day 9: 빚 청산
   9: [
-    { icon: '💎', text: '트라이튼 하이스테이크.<br>$2000/$5000 게임.<br>최소 바이인 $500,000.', champion: 'chidwick' },
-    { icon: '🧮', text: '<b style="color:var(--gold-bright);">Stephen Chidwick</b>이 GTO 솔버처럼 플레이한다.<br>"수학적으로... 너의 레인지는 30/30/40."' },
-    { icon: '🌟', text: '너는 더 이상 신참이 아니다.<br>이건 너의 <b>레벨</b>이다.<br><br>+2 통찰력' }
+    { icon: '💎', char: 'chidwick', text: '트라이튼 하이스테이크.<br>$2,000/$5,000. 최소 바이인 $500,000.<br><br>맞은편엔 <b style="color:var(--gold-bright);">Stephen Chidwick</b>.<br>"수학적으로... 너의 레인지는 30/30/40이군."', champion: 'chidwick' },
+    { icon: '🧮', text: '6시간의 사투.<br>너는 그의 GTO를 읽었다.<br>그가 균형을 깬 순간 — 너는 그를 잡았다.<br><br>+$2,500,000. 너의 자금이 <b>1억</b>을 넘었다.' },
+    { icon: '📞', char: 'joonyoung', text: '호텔로 돌아가 박준영에게 전화했다.<br><br>"준영아... 나, <b>빚 1억 다 갚았어.</b>"<br><br>전화기 너머로 박준영이 울었다.<br>"형... 정말 해냈구나."' },
+    { icon: '🌟', text: '코인 트레이더 김민준은 죽었다.<br>오늘 태어난 건 — 진짜 너다.<br><br>너는 더 이상 신참이 아니다.<br>이건 너의 <b style="color:var(--gold-bright);">레벨</b>이다.<br><br>+2 통찰력 · 박준영 (가족)' }
   ],
+  // Day 10: 전설들의 무대
   10: [
-    { icon: '👑', text: '최종 라운드.<br>모든 전설이 한 테이블에 있다.', champion: 'brunson' },
-    { icon: '🤠', text: 'Doyle Brunson. <b style="color:var(--gold-bright);">Texas Dolly</b>.<br>포커의 신.<br><br>"꼬마야, 이제 너도 우리 중 하나야."' },
-    { icon: '💰', text: '빚 1억은 잊혀진지 오래.<br>너는 <b style="color:var(--gold-bright);">전설</b>이 됐다.<br><br>모든 능력 +1' }
+    { icon: '👑', text: '트라이튼 최종 테이블.<br>한 자리씩 채워진다 — <b>모든 전설.</b><br><br>김연수, 박재정, 이서연,<br>Ivey, Hellmuth, Antonius, Chidwick.<br><br>그리고 마지막 한 자리.', champion: 'brunson' },
+    { icon: '🤠', char: 'brunson', text: '문이 열린다.<br><b style="color:var(--gold-bright);">Doyle Brunson</b>이 들어온다.<br>"Texas Dolly". 포커의 신.<br><br>그가 너를 본다. 따뜻하게 웃는다.<br>"꼬마... 너도 이제 우리 중 하나야."' },
+    { icon: '⚔️', text: '마지막 핸드.<br>너 KK. Brunson T2 (Dolly의 시그니처).<br>플랍 T28. Brunson 투페어.<br>턴 K. 너 셋. 리버 K. <b>너 풀하우스.</b><br><br>너는 그의 시그니처 핸드로 그를 이겼다.' },
+    { icon: '🌟', char: 'brunson', text: 'Brunson이 자신의 카드를 보여줬다.<br>그리고 너에게 손을 내밀었다.<br><br>"수고했어, 친구.<br>이제 다음 세대는... <b>너야.</b>"<br><br>빚 1억은 잊혀진 지 오래.<br>너는 <b style="color:var(--gold-bright);">전설</b>이 됐다.<br><br>모든 능력 +1 · Brunson (영혼의 스승)' }
   ]
 };
 
@@ -5700,6 +5807,17 @@ function renderDayStorySlide(day, idx) {
   const isLast = idx === story.length - 1;
   const isFirst = idx === 0;
 
+  // Character name tag at top if slide references one
+  let charTag = '';
+  if (slide.char && STORY_CHARS[slide.char]) {
+    const ch = STORY_CHARS[slide.char];
+    charTag = `<div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-card-2);border:1px solid var(--border-light);padding:4px 10px;border-radius:14px;margin-bottom:10px;">
+      <span style="font-size:14px;">${ch.emoji}</span>
+      <span style="font-size:11px;color:var(--gold-bright);font-weight:700;">${ch.name}</span>
+      <span style="font-size:10px;color:var(--text-dim);">· ${ch.role}</span>
+    </div>`;
+  }
+
   // Champion intro card if this slide introduces one
   let championCard = '';
   if (slide.champion && SPECIAL_ABILITIES[slide.champion]) {
@@ -5722,7 +5840,8 @@ function renderDayStorySlide(day, idx) {
     <div style="font-size:11px;color:var(--text-dim);letter-spacing:3px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:6px;">DAY ${day}</div>
     <h2 style="color:var(--gold-bright);font-size:18px;letter-spacing:2px;font-family:'Press Start 2P','Galmuri11',monospace;margin-top:4px;">${cfg.title}</h2>
     <div style="font-size:60px;margin:20px 0 10px;">${slide.icon}</div>
-    <div style="font-size:14px;line-height:1.9;color:var(--text);min-height:80px;">${slide.text}</div>
+    ${charTag}
+    <div style="font-size:14px;line-height:1.9;color:var(--text);min-height:80px;text-align:left;padding:0 8px;">${slide.text}</div>
     ${championCard}
     ${isLast ? `<div style="background:linear-gradient(135deg,rgba(255,217,61,0.15),rgba(212,175,55,0.08));border:2px solid var(--gold-foil);border-radius:8px;padding:12px;margin:14px 0;">
       <div style="font-size:11px;letter-spacing:2px;color:var(--gold-bright);font-family:'Press Start 2P','Galmuri11',monospace;">DAY ${day-1} CLEAR</div>
@@ -5751,6 +5870,390 @@ function closeDayStory(day) {
 
 function getRarityColor(rarity) {
   return RARITY_INFO[rarity]?.color || '#888';
+}
+
+// ===================== VENUE TROPHY SYSTEM (v29) =====================
+// 6 venues × 3 tiers (bronze/silver/gold) = 18 trophies total
+const VENUE_TROPHIES = {
+  pub: {
+    venueName: '동네 펍', color: '#a8ff7a',
+    bronze: {
+      icon: '🥉', name: '동네 입성', desc: '동네 펍에서 30핸드 + 수익 +$300',
+      cond: { hands: 30, profit: 300 },
+      reward: { cash: 500, xp: { insight: 50 }, item: null, cardBack: null }
+    },
+    silver: {
+      icon: '🥈', name: '동네 단골', desc: '100핸드 + 풀하우스 이상 메이드 1번',
+      cond: { hands: 100, fullhouses: 1 },
+      reward: { cash: 2000, xp: { exploit: 60 }, item: 'cap_basic', cardBack: null }
+    },
+    gold: {
+      icon: '🥇', name: '동네 챔피언', desc: '200핸드 + 5연승 1번',
+      cond: { hands: 200, winStreak: 5 },
+      reward: { cash: 5000, xp: { mental: 100 }, item: 'fedora_leather', cardBack: 'gold' }
+    }
+  },
+  seoul: {
+    venueName: '강남 홀덤바', color: '#3ee8ff',
+    bronze: {
+      icon: '🥉', name: '강남 신입', desc: '50핸드 + 수익 +$3,000',
+      cond: { hands: 50, profit: 3000 },
+      reward: { cash: 2000, xp: { insight: 60, exploit: 30 }, item: null, cardBack: null }
+    },
+    silver: {
+      icon: '🥈', name: '강남 그라인더', desc: '150핸드 + 챔피언 1명 격파',
+      cond: { hands: 150, bosses: 1 },
+      reward: { cash: 8000, xp: { bluff: 80 }, item: 'rayban_classic', cardBack: null }
+    },
+    gold: {
+      icon: '🥇', name: '강남 마스터', desc: '300핸드 + 큰 팟(30BB+) 5번 승리',
+      cond: { hands: 300, bigPots: 5 },
+      reward: { cash: 20000, xp: { pressure: 120 }, item: 'shades_cheap', cardBack: 'seoul' }
+    }
+  },
+  macau: {
+    venueName: '마카오 캐쉬', color: '#ff2d92',
+    bronze: {
+      icon: '🥉', name: '아시아 입성', desc: '50핸드 + 수익 +$15,000',
+      cond: { hands: 50, profit: 15000 },
+      reward: { cash: 10000, xp: { math: 80 }, item: null, cardBack: null }
+    },
+    silver: {
+      icon: '🥈', name: '마카오 정착민', desc: '150핸드 + 김연수 격파',
+      cond: { hands: 150, beatChampion: 'yeonsu' },
+      reward: { cash: 30000, xp: { pokerFace: 100 }, item: 'mask_black', cardBack: null }
+    },
+    gold: {
+      icon: '🥇', name: '마카오 황제', desc: '300핸드 + Antonius 격파',
+      cond: { hands: 300, beatChampion: 'antonius' },
+      reward: { cash: 80000, xp: { pokerFace: 200 }, item: null, cardBack: 'macau' }
+    }
+  },
+  bellagio: {
+    venueName: '라스베가스 벨라지오', color: '#b14eff',
+    bronze: {
+      icon: '🥉', name: '베가스 데뷔', desc: '50핸드 + 수익 +$50,000',
+      cond: { hands: 50, profit: 50000 },
+      reward: { cash: 50000, xp: { math: 100 }, item: null, cardBack: null }
+    },
+    silver: {
+      icon: '🥈', name: '벨라지오 레귤러', desc: '150핸드 + 박재정 격파',
+      cond: { hands: 150, beatChampion: 'jaejeong' },
+      reward: { cash: 150000, xp: { insight: 150 }, item: null, cardBack: null }
+    },
+    gold: {
+      icon: '🥇', name: '벨라지오 챔피언', desc: '300핸드 + Phil Ivey 격파',
+      cond: { hands: 300, beatChampion: 'ivey' },
+      reward: { cash: 300000, xp: { insight: 250 }, item: null, cardBack: 'bellagio' }
+    }
+  },
+  wsop: {
+    venueName: 'WSOP 캐쉬', color: '#ffd93d',
+    bronze: {
+      icon: '🥉', name: 'WSOP 도전자', desc: '50핸드 + 수익 +$200,000',
+      cond: { hands: 50, profit: 200000 },
+      reward: { cash: 100000, xp: { mental: 150 }, item: null, cardBack: null }
+    },
+    silver: {
+      icon: '🥈', name: 'WSOP 프로', desc: '150핸드 + Phil Ivey 격파',
+      cond: { hands: 150, beatChampion: 'ivey' },
+      reward: { cash: 400000, xp: { exploit: 200 }, item: null, cardBack: null }
+    },
+    gold: {
+      icon: '🥇', name: 'WSOP 브래슬릿', desc: '300핸드 + Hellmuth 격파',
+      cond: { hands: 300, beatChampion: 'hellmuth' },
+      reward: { cash: 1000000, xp: { all: 50 }, item: null, cardBack: 'wsop' }
+    }
+  },
+  triton: {
+    venueName: '트라이튼 하이스테이크', color: '#f5c542',
+    bronze: {
+      icon: '🥉', name: '트라이튼 입성', desc: '50핸드 + 수익 +$500,000',
+      cond: { hands: 50, profit: 500000 },
+      reward: { cash: 300000, xp: { insight: 200 }, item: null, cardBack: null }
+    },
+    silver: {
+      icon: '🥈', name: '트라이튼 레귤러', desc: '150핸드 + Hellmuth 격파',
+      cond: { hands: 150, beatChampion: 'hellmuth' },
+      reward: { cash: 1000000, xp: { all: 75 }, item: null, cardBack: null }
+    },
+    gold: {
+      icon: '🥇', name: '트라이튼 전설', desc: 'Doyle Brunson 격파 (게임 클리어)',
+      cond: { hands: 300, beatChampion: 'brunson' },
+      reward: { cash: 5000000, xp: { all: 200 }, item: null, cardBack: 'legendary' }
+    }
+  }
+};
+
+function ensureTrophies() {
+  if (!career.trophies) career.trophies = {};
+  if (!career.venueStats) career.venueStats = {};
+  for (const vId of Object.keys(VENUE_TROPHIES)) {
+    if (!career.trophies[vId]) career.trophies[vId] = { bronze: false, silver: false, gold: false };
+    if (!career.venueStats[vId]) {
+      career.venueStats[vId] = {
+        hands: 0,
+        profit: 0,           // net P&L in this venue
+        startStack: 0,       // tracked per session for profit calc
+        fullhouses: 0,
+        bigPots: 0,          // >= 30BB wins
+        bosses: 0,           // total bosses beaten here
+        beatenChampions: [], // famous players beaten here
+        maxWinStreak: 0,
+        currentStreak: 0
+      };
+    }
+  }
+}
+
+function recordVenueStat(stat, delta = 1, extra) {
+  if (!state || !state.venue) return;
+  ensureTrophies();
+  const vs = career.venueStats[state.venue.id];
+  if (!vs) return;
+  if (typeof delta === 'number') vs[stat] = (vs[stat] || 0) + delta;
+  if (stat === 'beatenChampions' && extra) {
+    vs.beatenChampions = vs.beatenChampions || [];
+    if (!vs.beatenChampions.includes(extra)) vs.beatenChampions.push(extra);
+  }
+  saveCareer();
+}
+
+function checkTrophyProgress() {
+  ensureTrophies();
+  if (!state || !state.venue) return;
+  const vId = state.venue.id;
+  const venue = VENUE_TROPHIES[vId];
+  if (!venue) return;
+  const stats = career.venueStats[vId];
+  const earned = career.trophies[vId];
+  const tiers = ['bronze', 'silver', 'gold'];
+
+  for (const tier of tiers) {
+    if (earned[tier]) continue;
+    const t = venue[tier];
+    if (!t || !t.cond) continue;
+    if (meetsCondition(t.cond, stats)) {
+      earned[tier] = true;
+      saveCareer();
+      setTimeout(() => grantTrophy(vId, tier), 600);
+      break; // one trophy per check (to avoid stacking modals)
+    }
+  }
+}
+
+function meetsCondition(cond, stats) {
+  if (cond.hands && stats.hands < cond.hands) return false;
+  if (cond.profit && stats.profit < cond.profit) return false;
+  if (cond.fullhouses && (stats.fullhouses || 0) < cond.fullhouses) return false;
+  if (cond.bigPots && (stats.bigPots || 0) < cond.bigPots) return false;
+  if (cond.winStreak && (stats.maxWinStreak || 0) < cond.winStreak) return false;
+  if (cond.bosses && (stats.bosses || 0) < cond.bosses) return false;
+  if (cond.beatChampion && !(stats.beatenChampions || []).includes(cond.beatChampion)) return false;
+  return true;
+}
+
+function grantTrophy(venueId, tier) {
+  const venue = VENUE_TROPHIES[venueId];
+  const t = venue[tier];
+  if (!t) return;
+  // Apply rewards
+  if (t.reward.cash) career.bankroll += t.reward.cash;
+  if (t.reward.xp) {
+    ensureAbilities();
+    for (const [stat, xp] of Object.entries(t.reward.xp)) {
+      if (stat === 'all') {
+        for (const k of Object.keys(ABILITY_DEFS)) gainXP(k, xp, '트로피 보상');
+      } else {
+        gainXP(stat, xp, '트로피 보상');
+      }
+    }
+  }
+  if (t.reward.item && typeof showItemDrop === 'function') {
+    setTimeout(() => showItemDrop(t.reward.item), 2200);
+  }
+  if (t.reward.cardBack) {
+    career.unlockedCardBacks = career.unlockedCardBacks || ['basic'];
+    if (!career.unlockedCardBacks.includes(t.reward.cardBack)) {
+      career.unlockedCardBacks.push(t.reward.cardBack);
+    }
+    if (CARD_BACKS && CARD_BACKS[t.reward.cardBack]) CARD_BACKS[t.reward.cardBack].unlocked = true;
+  }
+  saveCareer();
+
+  // Trophy ceremony modal
+  const tierColors = { bronze: '#cd7f32', silver: '#c0c0c0', gold: '#ffd93d' };
+  const tierColor = tierColors[tier];
+  const xpHtml = Object.entries(t.reward.xp || {}).map(([s, v]) =>
+    s === 'all' ? `✨ 모든 능력 +${v} XP` : `${ABILITY_DEFS[s]?.icon || ''} ${ABILITY_DEFS[s]?.name || s} +${v} XP`
+  ).join(' / ');
+  const itemHtml = t.reward.item && ITEMS[t.reward.item] ? `<br>🎁 아이템: <b>${ITEMS[t.reward.item].icon} ${ITEMS[t.reward.item].name}</b>` : '';
+  const cardBackHtml = t.reward.cardBack ? `<br>🃏 카드 뒷면 해금: <b>${t.reward.cardBack}</b>` : '';
+
+  const html = `<div style="text-align:center;padding:24px 16px;">
+    <div style="font-size:96px;margin-bottom:8px;text-shadow:0 0 40px ${tierColor};animation:trophy-pop 0.6s cubic-bezier(0.34,1.56,0.64,1);">${t.icon}</div>
+    <div style="font-size:11px;letter-spacing:4px;color:${tierColor};font-family:'Press Start 2P','Galmuri11',monospace;">TROPHY EARNED</div>
+    <h2 style="color:${tierColor};font-size:20px;margin:10px 0;font-family:'Press Start 2P','Galmuri11',monospace;letter-spacing:2px;text-shadow:0 0 16px ${tierColor};">${t.name}</h2>
+    <div style="font-size:12px;color:var(--text-dim);margin-bottom:14px;">${venue.venueName} · ${tier.toUpperCase()}</div>
+    <div style="background:${tierColor}22;border:2px solid ${tierColor};border-radius:8px;padding:14px;margin:14px 0;">
+      <div style="font-size:13px;color:var(--text);line-height:1.9;">
+        ✅ ${t.desc}<br><br>
+        💰 <b style="color:var(--gold-bright);font-size:18px;">+$${t.reward.cash.toLocaleString()}</b><br>
+        ${xpHtml}
+        ${itemHtml}
+        ${cardBackHtml}
+      </div>
+    </div>
+    <button class="btn-primary" onclick="closeModal()" style="margin-top:12px;padding:12px 28px;font-size:14px;font-weight:700;">계속 →</button>
+  </div>`;
+  showModal(html);
+  triggerGoldRain(60);
+  sfxLevelUp();
+}
+
+// ===================== TROPHY CODEX MENU =====================
+function openTrophyCodex() {
+  ensureTrophies();
+  let totalEarned = 0, total = 0;
+  for (const vId of Object.keys(VENUE_TROPHIES)) {
+    for (const tier of ['bronze', 'silver', 'gold']) {
+      total++;
+      if (career.trophies[vId]?.[tier]) totalEarned++;
+    }
+  }
+  let html = `<h3>🏆 트로피 도감</h3>
+  <p style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">각 베뉴에서 도전과제 클리어 시 자동 획득. 보상은 영구.</p>
+  <div style="background:linear-gradient(135deg,rgba(255,217,61,0.15),rgba(212,175,55,0.08));border:2px solid var(--gold-foil);border-radius:8px;padding:12px;text-align:center;margin-bottom:14px;">
+    <div style="font-size:11px;letter-spacing:3px;color:var(--gold-bright);font-family:'Press Start 2P','Galmuri11',monospace;">총 진행도</div>
+    <div style="font-weight:800;font-size:24px;color:var(--gold-bright);margin-top:4px;">${totalEarned} / ${total}</div>
+    <div style="background:var(--bg-darker);height:8px;border-radius:4px;overflow:hidden;margin-top:8px;">
+      <div style="background:linear-gradient(90deg,var(--gold-foil),var(--gold-bright));height:100%;width:${(totalEarned/total*100)}%;"></div>
+    </div>
+  </div>`;
+
+  for (const [vId, venue] of Object.entries(VENUE_TROPHIES)) {
+    const stats = career.venueStats?.[vId] || {};
+    const earned = career.trophies?.[vId] || {};
+    const earnedCount = ['bronze','silver','gold'].filter(t => earned[t]).length;
+    html += `<div style="background:var(--bg-card-2);border:2px solid ${venue.color};border-radius:8px;padding:12px;margin:10px 0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-weight:700;font-size:14px;color:${venue.color};">${venue.venueName}</div>
+        <div style="font-size:11px;color:var(--text-dim);">${earnedCount}/3 트로피</div>
+      </div>`;
+    for (const tier of ['bronze', 'silver', 'gold']) {
+      const t = venue[tier];
+      const got = earned[tier];
+      const tierColors = { bronze: '#cd7f32', silver: '#c0c0c0', gold: '#ffd93d' };
+      const tcolor = tierColors[tier];
+      // Calculate progress %
+      const cond = t.cond;
+      let progress = '';
+      if (!got) {
+        const parts = [];
+        if (cond.hands) parts.push(`핸드 ${stats.hands || 0}/${cond.hands}`);
+        if (cond.profit) parts.push(`수익 $${(stats.profit || 0).toLocaleString()}/$${cond.profit.toLocaleString()}`);
+        if (cond.fullhouses) parts.push(`풀하우스 ${stats.fullhouses || 0}/${cond.fullhouses}`);
+        if (cond.bigPots) parts.push(`큰 팟 ${stats.bigPots || 0}/${cond.bigPots}`);
+        if (cond.winStreak) parts.push(`최대 연승 ${stats.maxWinStreak || 0}/${cond.winStreak}`);
+        if (cond.bosses) parts.push(`보스 ${stats.bosses || 0}/${cond.bosses}`);
+        if (cond.beatChampion) {
+          const ab = SPECIAL_ABILITIES[cond.beatChampion];
+          const beaten = (stats.beatenChampions || []).includes(cond.beatChampion);
+          parts.push(`${ab?.owner || cond.beatChampion} 격파 ${beaten ? '✓' : '✗'}`);
+        }
+        progress = parts.join(' · ');
+      }
+      html += `<div style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:6px;margin:4px 0;background:${got ? tcolor+'22' : 'var(--bg-darker)'};${!got ? 'opacity:0.7;' : ''}">
+        <div style="font-size:32px;${!got ? 'filter:grayscale(1);opacity:0.5;' : ''}">${t.icon}</div>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:12px;color:${got ? tcolor : 'var(--text-dim)'};">${t.name} ${got ? '✓' : ''}</div>
+          <div style="font-size:10px;color:var(--text-dim);margin-top:2px;line-height:1.4;">${t.desc}</div>
+          ${!got && progress ? `<div style="font-size:10px;color:var(--gold-bright);margin-top:3px;">${progress}</div>` : ''}
+        </div>
+        <div style="text-align:right;font-size:10px;color:var(--gold-bright);">+$${t.reward.cash.toLocaleString()}</div>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+  html += `<div style="text-align:center;margin-top:14px;"><button onclick="closeModal()">닫기</button></div>`;
+  showModal(html);
+}
+
+// ===================== CHARACTER RELATIONS =====================
+const CHAR_GROUPS = [
+  {
+    title: '🌟 핵심 인연',
+    color: 'var(--gold-bright)',
+    chars: [
+      { key: 'joonyoung', firstDay: 1,  arc: '대학 친구 → 평생 동지. Day 1에 포커를 권유, Day 9 빚 청산을 함께 운다.' },
+      { key: 'yeonsu',    firstDay: 3,  arc: '한국 레전드. Day 3 라이벌, Day 8 형제로 응원하러 옴.' },
+      { key: 'jaejeong',  firstDay: 5,  arc: 'WSOP 우승자. Day 5 너를 마카오로 데려간 진짜 멘토.' }
+    ]
+  },
+  {
+    title: '🌸 마카오 동료',
+    color: 'var(--pink)',
+    chars: [
+      { key: 'seoyeon',   firstDay: 6,  arc: '마카오 한국인 프로. Day 6 첫 만남, 이후 동료. 최종 테이블 함께.' }
+    ]
+  },
+  {
+    title: '⚔️ 거인들',
+    color: 'var(--purple)',
+    chars: [
+      { key: 'antonius',  firstDay: 6,  arc: '북극의 침묵. Day 6 너에게 작은 끄덕임 — 그의 최고 인정.' },
+      { key: 'ivey',      firstDay: 7,  arc: '신의 눈. Day 7 너를 처음 알아본 거인. "...너 누구지?"' },
+      { key: 'hellmuth',  firstDay: 8,  arc: 'WSOP 11회. Day 8 자존심 충돌, 결국 너의 이름을 묻는다.' },
+      { key: 'chidwick',  firstDay: 9,  arc: 'GTO 솔버. Day 9 수학적 사투. 너는 그의 균형을 깼다.' },
+      { key: 'brunson',   firstDay: 10, arc: '포커의 신. Day 10 최종 만남. "다음 세대는 너야."' }
+    ]
+  },
+  {
+    title: '🍺 시작의 사람들',
+    color: 'var(--cyan)',
+    chars: [
+      { key: 'pubowner',  firstDay: 1,  arc: '동네 펍 사장. 너의 첫 환영. 끝까지 너를 자랑스러워한다.' },
+      { key: 'chulho',    firstDay: 4,  arc: '옛 코인 동료. Day 4 너를 도박꾼이라 부른다 — 너의 거울.' }
+    ]
+  }
+];
+
+function openCharacterRelations() {
+  ensureCareer();
+  const curDay = getCurrentDay();
+  const playerName = career.playerName || '김민준';
+
+  let html = `<h3>👥 등장인물 관계도</h3>
+  <p style="font-size:12px;color:var(--text-dim);">주인공 <b style="color:var(--gold-bright);">${playerName}</b>을 둘러싼 11명의 인물. Day 진행 시 자동으로 만남.</p>
+
+  <div style="background:linear-gradient(135deg,rgba(255,217,61,0.18),rgba(212,175,55,0.06));border:2px solid var(--gold-foil);border-radius:10px;padding:14px;margin:12px 0;text-align:center;">
+    <div>${typeof getProtagonistAvatarHTML === 'function' ? getProtagonistAvatarHTML(72, true) : '<span style="font-size:54px;">🧑‍💻</span>'}</div>
+    <div style="font-weight:800;font-size:16px;color:var(--gold-bright);margin-top:8px;letter-spacing:1px;">${playerName}</div>
+    <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">코인 트레이더 → 포커 전설 (Day ${curDay}/10)</div>
+  </div>`;
+
+  for (const grp of CHAR_GROUPS) {
+    html += `<h4 style="color:${grp.color};margin-top:18px;font-size:13px;letter-spacing:1px;">${grp.title}</h4>`;
+    for (const c of grp.chars) {
+      const ch = STORY_CHARS[c.key];
+      if (!ch) continue;
+      const met = curDay >= c.firstDay;
+      html += `<div style="display:flex;gap:12px;background:${met ? 'var(--bg-card-2)' : 'var(--bg-darker)'};border:2px solid ${met ? grp.color : 'var(--border)'};border-radius:8px;padding:12px;margin:6px 0;${met ? '' : 'opacity:0.55;filter:grayscale(0.6);'}">
+        <div style="font-size:38px;flex-shrink:0;">${met ? ch.emoji : '❓'}</div>
+        <div style="flex:1;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-weight:700;font-size:14px;color:${met ? grp.color : 'var(--text-dim)'};">${met ? ch.name : '???'}</div>
+            <div style="font-size:10px;color:var(--text-dim);">Day ${c.firstDay}</div>
+          </div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${met ? ch.role : '아직 만나지 않음'}</div>
+          ${met ? `<div style="font-size:12px;color:var(--gold-bright);margin-top:6px;font-weight:600;">관계: ${ch.relationship}</div>
+                   <div style="font-size:11px;color:var(--text);margin-top:6px;line-height:1.6;">${c.arc}</div>` : `<div style="font-size:11px;color:var(--text-dim);margin-top:6px;">Day ${c.firstDay} 진행 시 등장</div>`}
+        </div>
+      </div>`;
+    }
+  }
+  html += `<div style="text-align:center;margin-top:18px;"><button onclick="closeModal()">닫기</button></div>`;
+  showModal(html);
 }
 
 // ===================== DAY CAMPAIGN MENU =====================
@@ -5897,7 +6400,9 @@ function openMainMenu() {
         { icon: '🃏', label: '인벤토리 & 상점', desc: '41 아이템, 5 카드뒷면', action: 'openInventoryMenu()' },
         { icon: '🎯', label: `일일 챌린지${chReady > 0 ? ` (${chReady} 보상 가능!)` : ''}`, desc: '매일 3개, 자정 갱신', action: 'openChallengesMenu()', highlight: chReady > 0 },
         { icon: '📅', label: 'Day 캠페인 진행도', desc: '10일 RPG 스토리 + 챔피언 만남', action: 'openDayCampaign()' },
-        { icon: '⚔️', label: '챔피언 도감', desc: '만난 전설 + 흡수 가능 능력', action: 'openChampionCodex()' }
+        { icon: '⚔️', label: '챔피언 도감', desc: '만난 전설 + 흡수 가능 능력', action: 'openChampionCodex()' },
+        { icon: '🏆', label: '트로피 도감', desc: '18개 베뉴 트로피 — 브론즈/실버/골드', action: 'openTrophyCodex()' },
+        { icon: '👥', label: '등장인물 관계도', desc: '주인공 김민준을 둘러싼 11명의 인물', action: 'openCharacterRelations()' }
       ]
     },
     {
@@ -7520,6 +8025,17 @@ function checkFamousBust() {
       updateChallengeProgress('beat_famous');
       // Onboarding for first famous encounter
       checkTutorial('famous_first');
+      // === TROPHY: record this champion as beaten in current venue ===
+      ensureTrophies();
+      if (state.venue) {
+        recordVenueStat('bosses', 1);
+        recordVenueStat('beatenChampions', null, abilityKey);
+        // Also globally mark in championsMet (Day system)
+        career.championsMet = career.championsMet || [];
+        if (!career.championsMet.includes(abilityKey)) career.championsMet.push(abilityKey);
+        saveCareer();
+        checkTrophyProgress();
+      }
     }
   }
 }
