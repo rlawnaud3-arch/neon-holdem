@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v32 ★ 40 SUB-EVENTS + CHOICES + 어머니</title>
+<title>NEON HOLDEM v33 ★ PNG UNIFIED + CHARACTER VARIANTS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -5673,27 +5673,31 @@ const STORY_CHARS = {
   oldself:   { name: '60세 김민준', role: '미래의 자기', emoji: '👴', relationship: '회상' }
 };
 
-// === 캐릭터 이미지 시스템 ===
-// 파일명 규칙: char-{id}.jpg (또는 .png) — index.html 같은 폴더에 저장
-// 예: char-ivey.jpg, char-yeonsu.jpg, char-joonyoung.png
-// 이미지가 없으면 자동으로 이모지 fallback
-function getCharImageHTML(charKey, size = 80, withGlow = true) {
+// === 캐릭터 이미지 시스템 (v33 — PNG 통일 + variant 지원) ===
+// 파일명 규칙: char-{id}.png 또는 char-{id}-{variant}.png
+// 예: char-joonyoung.png (기본 — 맥주잔 들고)
+//     char-joonyoung-msg.png (카톡 응원 컷)
+//     char-joonyoung-cry.png (감동 컷 - 선택)
+// 같은 폴더(index.html 옆)에 저장. 이미지 없으면 자동으로 이모지 fallback.
+function getCharImageHTML(charKey, size = 80, withGlow = true, variant = '') {
   const ch = STORY_CHARS[charKey];
   if (!ch) return '';
   const emoji = ch.emoji;
   const fallbackSize = Math.floor(size * 0.7);
   const glow = withGlow ? 'box-shadow:0 0 24px rgba(255,217,61,0.4);' : '';
-  // Try .jpg first, fallback to .png, then emoji
+  const suffix = variant ? `-${variant}` : '';
+  // PNG first, then JPG fallback, then emoji
   return `<span class="char-image" style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#0a0817,#221f3d);border:3px solid var(--gold-foil);${glow}vertical-align:middle;flex-shrink:0;">
-    <img src="char-${charKey}.jpg" alt="${ch.name}" style="width:100%;height:100%;object-fit:cover;image-rendering:pixelated;" onerror="this.onerror=null;this.src='char-${charKey}.png';this.addEventListener('error',()=>{this.parentElement.innerHTML='<span style=\\u0022font-size:${fallbackSize}px;\\u0022>${emoji}</span>'});">
+    <img src="char-${charKey}${suffix}.png" alt="${ch.name}" style="width:100%;height:100%;object-fit:cover;image-rendering:pixelated;" onerror="this.onerror=null;this.src='char-${charKey}${suffix}.jpg';this.addEventListener('error',()=>{this.parentElement.innerHTML='<span style=\\u0022font-size:${fallbackSize}px;\\u0022>${emoji}</span>'});">
   </span>`;
 }
 
-function getCharImageBigHTML(charKey, maxHeight = 200) {
+function getCharImageBigHTML(charKey, maxHeight = 200, variant = '') {
   const ch = STORY_CHARS[charKey];
   if (!ch) return '';
+  const suffix = variant ? `-${variant}` : '';
   return `<div class="char-image-big" style="display:flex;justify-content:center;margin:0 auto 12px;">
-    <img src="char-${charKey}.jpg" alt="${ch.name}" style="max-height:${maxHeight}px;max-width:90%;border-radius:12px;border:3px solid var(--gold-foil);box-shadow:0 0 32px rgba(255,217,61,0.45),0 8px 24px rgba(0,0,0,0.6);image-rendering:pixelated;" onerror="this.onerror=null;this.src='char-${charKey}.png';this.addEventListener('error',()=>{this.parentElement.innerHTML='<div style=\\u0022font-size:90px;text-align:center;\\u0022>${ch.emoji}</div>'});">
+    <img src="char-${charKey}${suffix}.png" alt="${ch.name}" style="max-height:${maxHeight}px;max-width:90%;border-radius:12px;border:3px solid var(--gold-foil);box-shadow:0 0 32px rgba(255,217,61,0.45),0 8px 24px rgba(0,0,0,0.6);image-rendering:pixelated;" onerror="this.onerror=null;this.src='char-${charKey}${suffix}.jpg';this.addEventListener('error',()=>{this.parentElement.innerHTML='<div style=\\u0022font-size:90px;text-align:center;\\u0022>${ch.emoji}</div>'});">
   </div>`;
 }
 
@@ -5702,7 +5706,7 @@ function getCharImageBigHTML(charKey, maxHeight = 200) {
 const SUB_EVENTS = [
   // ===== 1막: 동네 펍 / 강남 (Day 1~3) =====
   { id: 'pub_5h',     trig: { type: 'venueHands', venue: 'pub', count: 5 },
-    char: 'joonyoung', icon: '💬', title: '박준영의 카톡',
+    char: 'joonyoung', charVariant: 'msg', icon: '💬', title: '박준영의 카톡',
     text: '<b>박준영</b>: "어때 형, 재밌어? 손 떨리지 않아? ㅋㅋ 차 한잔 하고 침착하게."',
     reward: { cash: 50 } },
   { id: 'pub_25h',    trig: { type: 'venueHands', venue: 'pub', count: 25 },
@@ -5714,7 +5718,7 @@ const SUB_EVENTS = [
     text: '플랍에 너의 페어가 셋이 되고, 턴에 추가 페어.<br>리버 — <b style="color:var(--gold-bright);">풀하우스!</b><br><br>"이게... 진짜 되는 거구나."',
     reward: { xp: { insight: 30 } } },
   { id: 'streak3_pub', trig: { type: 'streak', count: 3, maxDay: 2 },
-    char: 'joonyoung', icon: '🔥', title: '3연승!',
+    char: 'joonyoung', charVariant: 'msg', icon: '🔥', title: '3연승!',
     text: '<b>박준영</b>의 카톡: "형 천재 아니야? 진짜 잘하는데?!"',
     reward: { cash: 100 } },
   { id: 'mother_call_d2', trig: { type: 'day', day: 2 },
@@ -5814,7 +5818,7 @@ const SUB_EVENTS = [
     text: '호텔 로비. 카우보이 모자의 노신사가 너를 본다.<br>아주 잠깐, 그가 모자를 살짝 들었다.<br>"...<b>Doyle Brunson</b>이 나를 봤다."<br>심장이 뛴다.',
     reward: { xp: { insight: 70 } } },
   { id: 'jp_final_msg', trig: { type: 'day', day: 10 },
-    char: 'joonyoung', icon: '📱', title: '박준영의 마지막 메시지',
+    char: 'joonyoung', charVariant: 'msg', icon: '📱', title: '박준영의 마지막 메시지',
     text: '<b>박준영</b>: "형, 결승 봤어. 진짜 자랑스러워.<br>나는 회계사로 한국에 남지만,<br>너는 가서 — <b>전설</b>이 되어줘."',
     reward: { xp: { all: 30 } } },
 
@@ -5966,7 +5970,7 @@ function showSubEvent(event, choiceIdx) {
       saveCareer();
       // Show outcome modal
       const charTag = event.char && STORY_CHARS[event.char]
-        ? `<div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-card-2);border:1px solid var(--border-light);padding:4px 10px;border-radius:14px;margin-bottom:10px;">${getCharImageHTML(event.char, 28, false)}<span style="font-size:11px;color:var(--gold-bright);font-weight:700;">${STORY_CHARS[event.char].name}</span></div>`
+        ? `<div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-card-2);border:1px solid var(--border-light);padding:4px 10px;border-radius:14px;margin-bottom:10px;">${getCharImageHTML(event.char, 28, false, event.charVariant || '')}<span style="font-size:11px;color:var(--gold-bright);font-weight:700;">${STORY_CHARS[event.char].name}</span></div>`
         : '';
       const rewardText = formatSubReward(ch.outcome);
       const html = `<div style="text-align:center;padding:18px 14px;">
@@ -5987,7 +5991,7 @@ function showSubEvent(event, choiceIdx) {
   saveCareer();
 
   const charTag = event.char && STORY_CHARS[event.char]
-    ? `<div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-card-2);border:1px solid var(--border-light);padding:4px 10px;border-radius:14px;margin-bottom:10px;">${getCharImageHTML(event.char, 28, false)}<span style="font-size:11px;color:var(--gold-bright);font-weight:700;">${STORY_CHARS[event.char].name}</span></div>`
+    ? `<div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-card-2);border:1px solid var(--border-light);padding:4px 10px;border-radius:14px;margin-bottom:10px;">${getCharImageHTML(event.char, 28, false, event.charVariant || '')}<span style="font-size:11px;color:var(--gold-bright);font-weight:700;">${STORY_CHARS[event.char].name}</span></div>`
     : '';
   const rewardText = formatSubReward(event.reward);
 
@@ -6000,9 +6004,13 @@ function showSubEvent(event, choiceIdx) {
     choicesHtml += '</div>';
   }
 
+  // Big image: when event has bigImage flag OR character has a variant (e.g. kakao msg)
+  const useBig = event.bigImage || (event.char && event.charVariant);
+  const bigVisual = useBig && event.char ? getCharImageBigHTML(event.char, 160, event.charVariant || '') : '';
+
   const html = `<div style="text-align:center;padding:18px 14px;">
     <div style="font-size:11px;color:var(--text-dim);letter-spacing:3px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:6px;">SUB EVENT</div>
-    <div style="font-size:42px;margin:10px 0 6px;">${event.icon}</div>
+    ${bigVisual || `<div style="font-size:42px;margin:10px 0 6px;">${event.icon}</div>`}
     <h3 style="color:var(--gold-bright);font-size:15px;letter-spacing:1px;">${event.title}</h3>
     ${charTag}
     <div style="font-size:13px;line-height:1.9;color:var(--text);margin:14px 0;text-align:left;padding:0 8px;">${event.text}</div>
@@ -6051,7 +6059,7 @@ function formatSubReward(r) {
 const DAY_STORIES = {
   // ===== 1막: 추락과 부활 (Day 1~3) =====
   1: [
-    { icon: '🍺', char: 'joonyoung', text: '<b style="color:var(--cyan);">박준영</b> — 너의 대학 친구, KPMG 회계사.<br>그가 너를 동네 펍으로 끌고 갔다.<br><br>"코인은 진짜 도박이지만,<br>포커는 <b>EV+</b>야. 한번 해봐."' },
+    { icon: '🍺', char: 'joonyoung', bigImage: true, text: '<b style="color:var(--cyan);">박준영</b> — 너의 대학 친구, KPMG 회계사.<br>그가 너를 동네 펍으로 끌고 갔다.<br><br>"코인은 진짜 도박이지만,<br>포커는 <b>EV+</b>야. 한번 해봐."' },
     { icon: '🍻', char: 'pubowner', text: '<b style="color:var(--cyan);">김 사장</b>이 환영했다.<br>"처음이야? 천천히 해.<br>나도 처음엔 다 잃었어. 하지만 재미있지."<br><br>너는 의자에 앉았다.' },
     { icon: '🃏', text: '첫 핸드 — <b>A♠ K♠</b>.<br>플랍 A♥ K♥ Q♦.<br>리버 <b style="color:var(--gold-bright);">A♣</b> — <b>풀하우스!</b><br><br>그날 +$200.<br>박준영: "거봐. 너 손이 좋다니까."' },
     { icon: '👁️', text: '집에 가는 길.<br>너는 알게 됐어.<br>이건 <b style="color:var(--gold-bright);">관찰의 게임</b>이라는 걸.<br>그리고 박준영이 평생 친구가 될 거라는 걸.<br><br>+1 통찰력' }
@@ -6074,7 +6082,7 @@ const DAY_STORIES = {
   4: [
     { icon: '💔', text: '강남에서의 5연패.<br>5BB 핸드도 안 들어왔다.<br>너의 손은 더 이상 떨리지 않았다 — <b>마비됐다.</b><br><br>"이거... 내가 진짜 할 수 있는 거 맞나?"' },
     { icon: '📉', char: 'chulho', text: '편의점에서 우연히 마주친 <b style="color:var(--red);">신철호</b>.<br>옛 코인 트레이딩 동료. 같이 청산당한 사이.<br><br>"민준아... 너 요즘 포커한다며?<br>결국 너도 <b>도박꾼</b>이야. 인정해."' },
-    { icon: '👔', char: 'joonyoung', text: '박준영의 카톡:<br><br>"형, 괜찮아?<br>5번 졌다고 끝난 거 아니야.<br>이건 핸드 한 판이 아니라 <b>인생 한 판</b>이야.<br>형 거기서 기다릴게."' },
+    { icon: '👔', char: 'joonyoung', charVariant: 'msg', bigImage: true, text: '박준영의 카톡:<br><br>"형, 괜찮아?<br>5번 졌다고 끝난 거 아니야.<br>이건 핸드 한 판이 아니라 <b>인생 한 판</b>이야.<br>형 거기서 기다릴게."' },
     { icon: '🧘', text: '너는 커피 한잔을 마셨다.<br>창밖을 봤다.<br>그리고 다시 의자에 앉았다.<br><br>이건 시작이지, 끝이 아니야.<br><br>+2 멘탈 (시련 보상)' }
   ],
   // Day 5: 진짜 멘토
@@ -6109,7 +6117,7 @@ const DAY_STORIES = {
   9: [
     { icon: '💎', char: 'chidwick', text: '트라이튼 하이스테이크.<br>$2,000/$5,000. 최소 바이인 $500,000.<br><br>맞은편엔 <b style="color:var(--gold-bright);">Stephen Chidwick</b>.<br>"수학적으로... 너의 레인지는 30/30/40이군."', champion: 'chidwick' },
     { icon: '🧮', text: '6시간의 사투.<br>너는 그의 GTO를 읽었다.<br>그가 균형을 깬 순간 — 너는 그를 잡았다.<br><br>+$2,500,000. 너의 자금이 <b>1억</b>을 넘었다.' },
-    { icon: '📞', char: 'joonyoung', text: '호텔로 돌아가 박준영에게 전화했다.<br><br>"준영아... 나, <b>빚 1억 다 갚았어.</b>"<br><br>전화기 너머로 박준영이 울었다.<br>"형... 정말 해냈구나."' },
+    { icon: '📞', char: 'joonyoung', charVariant: 'cry', bigImage: true, text: '호텔로 돌아가 박준영에게 전화했다.<br><br>"준영아... 나, <b>빚 1억 다 갚았어.</b>"<br><br>전화기 너머로 박준영이 울었다.<br>"형... 정말 해냈구나."' },
     { icon: '🌟', text: '코인 트레이더 김민준은 죽었다.<br>오늘 태어난 건 — 진짜 너다.<br><br>너는 더 이상 신참이 아니다.<br>이건 너의 <b style="color:var(--gold-bright);">레벨</b>이다.<br><br>+2 통찰력 · 박준영 (가족)' }
   ],
   // Day 10: 전설들의 무대
@@ -6217,14 +6225,15 @@ function renderDayStorySlide(day, idx) {
   let charVisual = '';
   if (slide.char && STORY_CHARS[slide.char]) {
     const ch = STORY_CHARS[slide.char];
+    const variant = slide.charVariant || '';
     charTag = `<div style="display:inline-flex;align-items:center;gap:8px;background:var(--bg-card-2);border:1px solid var(--border-light);padding:5px 12px;border-radius:18px;margin-bottom:10px;">
-      ${getCharImageHTML(slide.char, 28, false)}
+      ${getCharImageHTML(slide.char, 28, false, variant)}
       <span style="font-size:12px;color:var(--gold-bright);font-weight:700;">${ch.name}</span>
       <span style="font-size:10px;color:var(--text-dim);">· ${ch.role}</span>
     </div>`;
-    // Big visual: if the slide also has a champion (boss reveal), show large character image
-    if (slide.champion === slide.char || (slide.champion && SPECIAL_ABILITIES[slide.champion]?.owner === ch.name)) {
-      charVisual = getCharImageBigHTML(slide.char, 180);
+    // Big visual: champion reveal OR explicit slide.bigImage flag
+    if (slide.bigImage || slide.champion === slide.char || (slide.champion && SPECIAL_ABILITIES[slide.champion]?.owner === ch.name)) {
+      charVisual = getCharImageBigHTML(slide.char, 180, variant);
     }
   }
 
