@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v42.1 ★ REAL PLAYING CARD IMAGES</title>
+<title>NEON HOLDEM v42.2 ★ CARD IMAGE PRELOAD + INSTANT FALLBACK</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -580,21 +580,26 @@
   .bankroll-amount.loss { color: var(--red) !important; }
   .card.red { color: #d63030; }
 
-  /* === v42.1: 실제 카드 이미지 (deckofcardsapi) === */
+  /* === v42.2: 실제 카드 이미지 + 인스턴트 fallback === */
   .card.card-image {
     padding: 0 !important;
-    background: white;
+    background: #f7eed3;
     display: block;
     overflow: hidden;
+    position: relative;
   }
   .card.card-image img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
+    position: relative;
+    z-index: 2;
   }
-  .card-fallback {
-    width: 100%; height: 100%;
+  .card-fallback-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
     background: #f7eed3;
     display: flex; flex-direction: column; justify-content: space-between;
     padding: 4px;
@@ -602,9 +607,12 @@
     font-family: 'Press Start 2P', 'Galmuri11', monospace;
     font-size: 9px;
   }
-  .card-fallback.red { color: #d63030; }
-  .card-fallback .corner-tl { font-size: 9px; line-height: 1; }
-  .card-fallback .corner-br { font-size: 9px; line-height: 1; transform: rotate(180deg); align-self: flex-end; }
+  .card-fallback-layer.red { color: #d63030; }
+  .card-fallback-layer .corner-tl { font-size: 9px; line-height: 1; }
+  .card-fallback-layer .corner-br { font-size: 9px; line-height: 1; transform: rotate(180deg); align-self: flex-end; }
+  /* community cards larger fallback */
+  .community-cards .card-fallback-layer .corner-tl,
+  .community-cards .card-fallback-layer .corner-br { font-size: 13px; }
   .card.placeholder {
     background: transparent; border: 2px dashed var(--border);
     box-shadow: none; animation: none;
@@ -4590,8 +4598,32 @@ function renderFigureFace(rank, suit, color) {
   return `<svg class="card-figure" viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">${figureSvg}</svg>`;
 }
 
-// v42.1: 진짜 트럼프 카드 이미지 사용 — deckofcardsapi.com
-// rank: A, 2-9, 0 (=10), J, Q, K | suit: S, H, D, C
+// v42.2: 카드 이미지 프리로드 + 인스턴트 fallback
+const CARD_RANKS_CODE = ['A','2','3','4','5','6','7','8','9','0','J','Q','K'];
+const CARD_SUITS_CODE = ['S','H','D','C'];
+const cardImageCache = new Map();
+
+function preloadCardImages() {
+  for (const r of CARD_RANKS_CODE) {
+    for (const s of CARD_SUITS_CODE) {
+      const url = `https://deckofcardsapi.com/static/img/${r}${s}.png`;
+      const img = new Image();
+      img.src = url;
+      cardImageCache.set(r + s, { img, loaded: false });
+      img.onload = () => {
+        const entry = cardImageCache.get(r + s);
+        if (entry) entry.loaded = true;
+      };
+    }
+  }
+}
+
+// 페이지 로딩 직후 백그라운드 프리로드 시작
+if (typeof window !== 'undefined') {
+  if (document.readyState === 'complete') preloadCardImages();
+  else window.addEventListener('load', preloadCardImages);
+}
+
 function cardImageURL(card) {
   if (!card) return null;
   const rank = card.rank === '10' ? '0' : card.rank;
@@ -4601,35 +4633,50 @@ function cardImageURL(card) {
   return `https://deckofcardsapi.com/static/img/${rank}${suitChar}.png`;
 }
 
+function isCardImageReady(card) {
+  if (!card) return false;
+  const rank = card.rank === '10' ? '0' : card.rank;
+  const suitMap = { '♠': 'S', '♥': 'H', '♦': 'D', '♣': 'C' };
+  const suitChar = suitMap[card.suit];
+  if (!suitChar) return false;
+  const entry = cardImageCache.get(rank + suitChar);
+  return entry && entry.loaded;
+}
+
 function cardHTML(card, hidden = false, isPlayerCard = false) {
   if (!card) return '<div class="card placeholder"></div>';
   if (hidden) {
-    // Custom card back for player's hand
     if (isPlayerCard && career.cardBack && CARD_BACKS[career.cardBack]) {
       return `<div class="card back" style="${cardBackPreview(career.cardBack)};color:transparent;"></div>`;
     }
     return '<div class="card back"></div>';
   }
 
-  // v42.1: 실제 트럼프 카드 이미지 우선, fallback으로 기존 SVG
   const imgURL = cardImageURL(card);
   const colorClass = card.color === 'red' ? 'red' : '';
   const color = card.color === 'red' ? 'red' : 'black';
   const cornerRank = card.rank === '10' ? 'T' : card.rank;
 
-  // Fallback face (이미지 로딩 실패 시 사용)
+  // Fallback face (이미지 로딩 중 표시)
   let fallbackFace;
   if (card.rank === 'A') fallbackFace = `<div class="card-ace">${card.suit}</div>`;
   else if (card.rank === 'K' || card.rank === 'Q' || card.rank === 'J') fallbackFace = renderFigureFace(card.rank, card.suit, color);
   else fallbackFace = renderPipFace(card.rank, card.suit, color);
 
   if (imgURL) {
-    // 이미지 우선 시도, onerror 시 fallback HTML로
-    const fallbackHTML = `<div class="card-fallback ${colorClass}"><div class="corner-tl">${cornerRank}<br>${card.suit}</div>${fallbackFace}<div class="corner-br">${cornerRank}<br>${card.suit}</div></div>`;
+    const ready = isCardImageReady(card);
+    // 이미지 + fallback 동시 렌더. 이미지 로드 완료되면 fallback 숨김.
+    // 이미 캐시된 경우 fallback 안 보임.
     return `<div class="card card-image">
-      <img src="${imgURL}" alt="${card.rank}${card.suit}"
-        onerror="this.style.display='none';this.parentElement.insertAdjacentHTML('beforeend',this.dataset.fallback);"
-        data-fallback='${fallbackHTML.replace(/'/g, "&apos;")}' />
+      <div class="card-fallback-layer ${colorClass}" ${ready ? 'style="display:none;"' : ''}>
+        <div class="corner-tl">${cornerRank}<br>${card.suit}</div>
+        ${fallbackFace}
+        <div class="corner-br">${cornerRank}<br>${card.suit}</div>
+      </div>
+      <img src="${imgURL}" alt="${card.rank}${card.suit}" loading="eager"
+        onload="this.previousElementSibling.style.display='none';this.style.opacity='1';"
+        onerror="this.style.display='none';"
+        style="opacity:${ready ? 1 : 0};transition:opacity 0.2s;" />
     </div>`;
   }
 
