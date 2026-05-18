@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v43.1 ★ MANUAL CARD PEEK (TAP TO REVEAL)</title>
+<title>NEON HOLDEM v43.2 ★ PROFILE MODAL (TAP AVATAR)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -2552,11 +2552,11 @@
   <h1>★ NEON HOLDEM ★</h1>
   <p style="margin-top:-8px;margin-bottom:20px;color:var(--neon-cyan);font-size:14px;letter-spacing:2px;text-shadow:0 0 4px var(--neon-cyan);">PUB &gt; SEOUL &gt; MACAU &gt; VEGAS &gt; WSOP &gt; TRITON</p>
   <div class="bankroll-banner">
-    <div style="display:flex;align-items:center;gap:14px;">
+    <div style="display:flex;align-items:center;gap:14px;cursor:pointer;" onclick="openProfile()" title="클릭하여 프로필 보기">
       <div id="lobby-avatar" style="flex-shrink:0;"></div>
       <div>
         <div id="lobby-player-name" style="font-size:13px;font-weight:700;color:var(--gold-bright);letter-spacing:1px;margin-bottom:2px;"></div>
-        <div style="font-size:13px;font-weight:600;color:var(--text-dim);">내 자금</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text-dim);">내 자금 <span style="font-size:10px;opacity:0.7;">▶ 프로필</span></div>
         <div class="bankroll-amount">$<span id="bankroll-display">500</span></div>
       </div>
     </div>
@@ -12095,6 +12095,154 @@ function showAiAbilities(playerIdx) {
     ${famousCard}
     <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;text-align:center;">💡 ${pers.desc || ''}</div>
     ${renderAbilityRadar(abilities, radarSize, maxLv, 'AI 능력치 추정')}
+    <div style="text-align:center;margin-top:14px;"><button onclick="closeModal()">닫기</button></div>
+  </div>`;
+  showModal(html);
+}
+
+// === v43.2: 통합 프로필 모달 — 로비 아바타 클릭 시 ===
+function openProfile() {
+  ensureAbilities();
+  ensureTrophies();
+  ensureCareer();
+  const abilities = career.pokerAbilities;
+  const eff = getActiveEffects();
+  const playerName = career.playerName || '플레이어';
+  const day = career.day || 1;
+  const prog = (typeof getDayProgress === 'function') ? getDayProgress() : { day: day, pct: 0, cfg: { title: '' } };
+
+  // 트로피 카운트
+  let trophyCount = 0, totalTrophies = 0;
+  for (const vId of Object.keys(VENUE_TROPHIES || {})) {
+    for (const tier of ['bronze','silver','gold']) {
+      totalTrophies++;
+      if (career.trophies?.[vId]?.[tier]) trophyCount++;
+    }
+  }
+
+  // 챔피언 격파 카운트
+  const championsCollected = career.specialAbilities?.collected?.length || 0;
+  const championsTotal = Object.keys(SPECIAL_ABILITIES || {}).length;
+  const bossesBeaten = career.bossesBeaten?.length || 0;
+  const bossesTotal = Object.keys(BOSS_HANDS || {}).length;
+
+  // 서브이벤트 진행도
+  const subFired = Object.keys(career.subEventsFired || {}).length;
+  const subTotal = (typeof SUB_EVENTS !== 'undefined') ? SUB_EVENTS.length : 0;
+
+  // 베뉴 최고 도달
+  let maxVenue = 'pub', maxVenueName = '동네 펍';
+  for (const v of VENUES) {
+    if (career.bankroll >= v.unlockBankroll) {
+      maxVenue = v.id;
+      maxVenueName = v.name.replace(v.emoji, '').trim();
+    }
+  }
+
+  // 능력치 레이더
+  const abilityData = Object.fromEntries(
+    Object.entries(abilities).map(([s,a]) => [s, a.lv + ((eff[s] || 0) + (eff.all || 0))])
+  );
+  const maxLv = Math.max(30, ...Object.values(abilityData));
+  const radarSize = Math.min(260, window.innerWidth - 80);
+
+  // 활성 특수 능력
+  const activeKey = career.specialAbilities?.active;
+  const activeAb = activeKey ? SPECIAL_ABILITIES[activeKey] : null;
+
+  const html = `<div style="padding:4px;">
+    <!-- 헤더: 큰 아바타 + 이름 -->
+    <div style="text-align:center;background:linear-gradient(135deg, rgba(255,217,61,0.15), rgba(177,78,255,0.1));border:2px solid var(--gold-foil);border-radius:14px;padding:18px 14px;margin-bottom:14px;box-shadow:0 0 24px rgba(255,217,61,0.2);">
+      <div style="display:flex;justify-content:center;margin-bottom:10px;">${typeof getProtagonistAvatarHTML === 'function' ? getProtagonistAvatarHTML(96, true) : '<div style="font-size:72px;">🧑‍💻</div>'}</div>
+      <h2 style="margin:6px 0;color:var(--gold-bright);font-size:18px;letter-spacing:2px;font-family:'Press Start 2P','Galmuri11',monospace;">${playerName}</h2>
+      <div style="font-size:11px;color:var(--text-dim);letter-spacing:2px;margin-top:4px;">DAY ${day} / 10 · ${prog.cfg.title || ''}</div>
+      <div style="background:var(--bg-darker);height:8px;border-radius:4px;overflow:hidden;margin:10px 12% 0;">
+        <div style="background:linear-gradient(90deg,var(--purple),var(--gold-bright));height:100%;width:${prog.pct || 0}%;"></div>
+      </div>
+    </div>
+
+    <!-- 통계 그리드 -->
+    <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:8px;margin-bottom:14px;">
+      <div style="background:var(--bg-card-2);padding:12px;border-radius:8px;text-align:center;">
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;">자금</div>
+        <div style="font-size:20px;font-weight:800;color:var(--gold-bright);margin-top:4px;font-family:'Press Start 2P','Galmuri11',monospace;">$${career.bankroll.toLocaleString()}</div>
+      </div>
+      <div style="background:var(--bg-card-2);padding:12px;border-radius:8px;text-align:center;">
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;">총 핸드</div>
+        <div style="font-size:20px;font-weight:800;color:var(--cyan);margin-top:4px;font-family:'Press Start 2P','Galmuri11',monospace;">${career.handsPlayed || 0}</div>
+      </div>
+      <div style="background:var(--bg-card-2);padding:12px;border-radius:8px;text-align:center;">
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;">최대 승리</div>
+        <div style="font-size:16px;font-weight:800;color:var(--green);margin-top:4px;">+$${(career.biggestWin || 0).toLocaleString()}</div>
+      </div>
+      <div style="background:var(--bg-card-2);padding:12px;border-radius:8px;text-align:center;">
+        <div style="font-size:10px;color:var(--text-dim);letter-spacing:1px;">최고 베뉴</div>
+        <div style="font-size:13px;font-weight:700;color:var(--gold-bright);margin-top:6px;">${maxVenueName}</div>
+      </div>
+    </div>
+
+    <!-- 컬렉션 진행도 -->
+    <h4 style="color:var(--gold-bright);margin-top:14px;font-size:13px;letter-spacing:1px;">🏆 컬렉션 진행</h4>
+    <div style="display:grid;grid-template-columns:repeat(2, 1fr);gap:6px;font-size:12px;">
+      <div style="background:var(--bg-card-2);padding:10px;border-radius:6px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span>🏆 트로피</span><b style="color:var(--gold-bright);">${trophyCount}/${totalTrophies}</b>
+        </div>
+        <div style="background:var(--bg-darker);height:5px;border-radius:3px;overflow:hidden;margin-top:4px;">
+          <div style="background:var(--gold-bright);height:100%;width:${(trophyCount/totalTrophies*100)||0}%;"></div>
+        </div>
+      </div>
+      <div style="background:var(--bg-card-2);padding:10px;border-radius:6px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span>⚔️ 챔피언 능력</span><b style="color:var(--gold-bright);">${championsCollected}/${championsTotal}</b>
+        </div>
+        <div style="background:var(--bg-darker);height:5px;border-radius:3px;overflow:hidden;margin-top:4px;">
+          <div style="background:var(--purple);height:100%;width:${(championsCollected/championsTotal*100)||0}%;"></div>
+        </div>
+      </div>
+      <div style="background:var(--bg-card-2);padding:10px;border-radius:6px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span>⚔️ 보스 격파</span><b style="color:var(--red);">${bossesBeaten}/${bossesTotal}</b>
+        </div>
+        <div style="background:var(--bg-darker);height:5px;border-radius:3px;overflow:hidden;margin-top:4px;">
+          <div style="background:var(--red);height:100%;width:${(bossesBeaten/bossesTotal*100)||0}%;"></div>
+        </div>
+      </div>
+      <div style="background:var(--bg-card-2);padding:10px;border-radius:6px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span>📜 서브이벤트</span><b style="color:var(--cyan);">${subFired}/${subTotal}</b>
+        </div>
+        <div style="background:var(--bg-darker);height:5px;border-radius:3px;overflow:hidden;margin-top:4px;">
+          <div style="background:var(--cyan);height:100%;width:${(subFired/subTotal*100)||0}%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 활성 특수 능력 -->
+    ${activeAb ? `<h4 style="color:var(--gold-bright);margin-top:14px;font-size:13px;letter-spacing:1px;">★ 장착된 특수 능력</h4>
+    <div style="background:${getRarityColor(activeAb.rarity)}22;border:2px solid ${getRarityColor(activeAb.rarity)};border-radius:8px;padding:10px;display:flex;align-items:center;gap:10px;">
+      <span style="font-size:32px;">${activeAb.icon}</span>
+      <div>
+        <div style="font-weight:700;color:${getRarityColor(activeAb.rarity)};">${activeAb.name}</div>
+        <div style="font-size:11px;color:var(--text-dim);">${activeAb.owner}</div>
+      </div>
+    </div>` : ''}
+
+    <!-- 능력치 레이더 -->
+    <h4 style="color:var(--gold-bright);margin-top:14px;font-size:13px;letter-spacing:1px;">📊 능력치</h4>
+    <div style="background:radial-gradient(ellipse at center, rgba(255,217,61,0.05) 0%, transparent 70%);padding:6px;border-radius:10px;">
+      ${renderAbilityRadar(abilityData, radarSize, maxLv, '레벨 ' + maxLv + ' 만점')}
+    </div>
+
+    <!-- 빠른 이동 버튼 -->
+    <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;margin-top:14px;">
+      <button onclick="closeModal();openAbilityMenu()" style="font-size:11px;padding:8px;">🎮 능력 자세히</button>
+      <button onclick="closeModal();openTrophyCodex()" style="font-size:11px;padding:8px;">🏆 트로피</button>
+      <button onclick="closeModal();openChampionCodex()" style="font-size:11px;padding:8px;">⚔️ 챔피언</button>
+      <button onclick="closeModal();openDayCampaign()" style="font-size:11px;padding:8px;">📅 Day 진행</button>
+      <button onclick="closeModal();openCharacterRelations()" style="font-size:11px;padding:8px;">👥 관계도</button>
+      <button onclick="closeModal();openBossChallenge()" style="font-size:11px;padding:8px;background:rgba(255,46,146,0.15);border-color:var(--red);">⚔️ 도전 모드</button>
+    </div>
     <div style="text-align:center;margin-top:14px;"><button onclick="closeModal()">닫기</button></div>
   </div>`;
   showModal(html);
