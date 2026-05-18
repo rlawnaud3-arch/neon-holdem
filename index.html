@@ -5897,10 +5897,19 @@ async function changeBGMTrack(trackId) {
     updateBgmIcon();
   }
   disposeBGM();
-  await setupToneBGM();
-  if (state) {
-    const track = BGM_TRACK_LIST.find(t => t.id === trackId);
-    log(`🎵 ${track.icon} ${track.name}`, false, true);
+  try {
+    await setupToneBGM();
+    if (state) {
+      const track = BGM_TRACK_LIST.find(t => t.id === trackId);
+      log(`🎵 ${track.icon} ${track.name}`, false, true);
+    }
+  } catch (e) {
+    console.error('BGM setup failed:', e);
+    // Fallback to funky track if specific track fails
+    if (trackId !== 'funky') {
+      currentTrack = 'funky';
+      try { await setupToneBGM(); } catch (e2) { console.error('Fallback also failed:', e2); }
+    }
   }
 }
 
@@ -6234,13 +6243,15 @@ function setupPubTrack() {
   const pubVerb = new Tone.Reverb({ decay: 2.2, wet: 0.22 }).connect(masterLP);
   bgmSynths.push(masterHP, masterLP, pubVerb);
 
-  // ACOUSTIC GUITAR (PluckSynth — sounds remarkably guitar-like)
-  tonePiano = new Tone.PolySynth(Tone.PluckSynth, {
-    attackNoise: 0.6,
-    dampening: 4200,
-    resonance: 0.85
+  // ACOUSTIC GUITAR — AMSynth (PluckSynth가 PolySynth에서 가끔 안 됨)
+  tonePiano = new Tone.PolySynth(Tone.AMSynth, {
+    harmonicity: 1.5,
+    oscillator: { type: 'triangle' },
+    envelope: { attack: 0.002, decay: 0.4, sustain: 0.1, release: 0.6 },
+    modulation: { type: 'square' },
+    modulationEnvelope: { attack: 0.002, decay: 0.3, sustain: 0, release: 0.2 }
   }).connect(pubVerb);
-  tonePiano.volume.value = -8;
+  tonePiano.volume.value = -10;
   bgmSynths.push(tonePiano);
 
   // WOODY UPRIGHT BASS
@@ -11898,6 +11909,162 @@ function unequipSpecial() {
 }
 
 // === Ability menu UI ===
+// === v43: AI 능력치 계산 — skill + personality에서 추정 ===
+function getAiAbilities(p) {
+  if (!p) return {};
+  const skill = p.skill || 0.5;
+  const pers = PERSONALITIES[p.personalityType] || {};
+  const base = Math.round(skill * 30); // 0.5 → 15, 0.97 → 29
+
+  // 챔피언이면 시그니처 능력 적용
+  if (p.isFamous && p.famousData) {
+    for (const [key, ab] of Object.entries(SPECIAL_ABILITIES || {})) {
+      if (ab.owner === p.famousData.name) {
+        const eff = ab.effects || {};
+        const result = {};
+        const allBonus = eff.all || 0;
+        for (const stat of ['insight','pokerFace','bluff','exploit','mental','patience','math','pressure']) {
+          result[stat] = base + (eff[stat] || 0) + allBonus;
+        }
+        return result;
+      }
+    }
+  }
+
+  // 일반 AI — personality 따라 가중치
+  const aggression = pers.aggression || 0.5;
+  const bluffFreq = pers.bluffFreq || 0.1;
+  const tiltSus = pers.tiltSus || 0.3;
+
+  return {
+    insight:    Math.round(base * (0.8 + skill * 0.4)),
+    pokerFace:  Math.round(base * (0.9 + (1 - tiltSus) * 0.3)),
+    bluff:      Math.round(base * (0.6 + bluffFreq * 4)),
+    exploit:    Math.round(base * (0.7 + skill * 0.6)),
+    mental:     Math.round(base * (0.7 + (1 - tiltSus) * 0.6)),
+    patience:   Math.round(base * (0.8 + (1 - aggression) * 0.6)),
+    math:       Math.round(base * (0.7 + skill * 0.5)),
+    pressure:   Math.round(base * (0.7 + aggression * 0.8))
+  };
+}
+
+// AI 능력치 모달
+function showAiAbilities(playerIdx) {
+  if (!state || !state.players[playerIdx]) return;
+  const p = state.players[playerIdx];
+  if (p.isHuman) return; // 내 능력치는 다른 메뉴
+  const abilities = getAiAbilities(p);
+  const pers = PERSONALITIES[p.personalityType] || {};
+  const isFamous = p.isFamous && p.famousData;
+
+  // 챔피언 정보
+  let famousCard = '';
+  let specialAb = null;
+  if (isFamous) {
+    for (const [key, ab] of Object.entries(SPECIAL_ABILITIES || {})) {
+      if (ab.owner === p.famousData.name) { specialAb = { key, ab }; break; }
+    }
+    if (specialAb) {
+      const color = getRarityColor(specialAb.ab.rarity);
+      const charVisual = STORY_CHARS[specialAb.key] ? getCharImageHTML(specialAb.key, 56, true) : `<span style="font-size:36px;">${specialAb.ab.icon}</span>`;
+      famousCard = `<div style="display:flex;align-items:center;gap:12px;background:${color}22;border:2px solid ${color};border-radius:8px;padding:10px;margin:10px 0;">
+        ${charVisual}
+        <div style="flex:1;">
+          <div style="font-weight:800;color:${color};font-size:14px;">${specialAb.ab.name}</div>
+          <div style="font-size:11px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;">${specialAb.ab.rarity}</div>
+          <div style="font-size:11px;color:var(--text);margin-top:4px;line-height:1.4;">${specialAb.ab.desc}</div>
+        </div>
+      </div>`;
+    }
+  }
+
+  const maxLv = Math.max(30, ...Object.values(abilities));
+  const radarSize = Math.min(300, window.innerWidth - 80);
+
+  const html = `<div style="padding:8px;">
+    <h3>${isFamous ? '👑 ' : ''}${p.name} 능력치</h3>
+    <div style="display:flex;gap:10px;align-items:center;font-size:12px;color:var(--text-dim);margin-bottom:10px;">
+      <span style="background:var(--bg-card-2);padding:3px 8px;border-radius:4px;">${pers.emoji} ${pers.label}</span>
+      <span>스킬 ${Math.round(p.skill * 100)}%</span>
+      ${p.tilt > 0.3 ? `<span style="color:var(--red);">😡 틸트 ${Math.round(p.tilt * 100)}%</span>` : ''}
+    </div>
+    ${famousCard}
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;text-align:center;">💡 ${pers.desc || ''}</div>
+    ${renderAbilityRadar(abilities, radarSize, maxLv, 'AI 능력치 추정')}
+    <div style="text-align:center;margin-top:14px;"><button onclick="closeModal()">닫기</button></div>
+  </div>`;
+  showModal(html);
+}
+
+// === v43: 8각형 레이더 차트 (능력치 시각화) ===
+function renderAbilityRadar(abilityData, size = 280, maxLv = 30, label = '') {
+  // abilityData: { insight: lv, pokerFace: lv, ... } — 모든 8개 능력
+  const stats = ['insight', 'pokerFace', 'bluff', 'exploit', 'mental', 'patience', 'math', 'pressure'];
+  const cx = size / 2, cy = size / 2;
+  const radius = size * 0.36;
+  // 정팔각형 — 8개 점, 각 45도
+  // -90도(위에서 시작)로 시작해서 시계방향
+  const points = stats.map((stat, i) => {
+    const angle = (-90 + i * 45) * Math.PI / 180;
+    const value = Math.min(maxLv, abilityData[stat] || 0);
+    const r = (value / maxLv) * radius;
+    return {
+      stat,
+      x: cx + Math.cos(angle) * r,
+      y: cy + Math.sin(angle) * r,
+      labelX: cx + Math.cos(angle) * (radius + 22),
+      labelY: cy + Math.sin(angle) * (radius + 22),
+      value
+    };
+  });
+  // 배경 정팔각형들 (격자) — 25%, 50%, 75%, 100%
+  let gridPolys = '';
+  for (const pct of [0.25, 0.5, 0.75, 1]) {
+    const ringPoints = stats.map((_, i) => {
+      const angle = (-90 + i * 45) * Math.PI / 180;
+      const r = radius * pct;
+      return `${cx + Math.cos(angle) * r},${cy + Math.sin(angle) * r}`;
+    }).join(' ');
+    gridPolys += `<polygon points="${ringPoints}" fill="none" stroke="rgba(245,200,73,${pct === 1 ? 0.4 : 0.15})" stroke-width="${pct === 1 ? 1.5 : 1}"/>`;
+  }
+  // 8개 축선
+  let axisLines = '';
+  stats.forEach((_, i) => {
+    const angle = (-90 + i * 45) * Math.PI / 180;
+    const ex = cx + Math.cos(angle) * radius;
+    const ey = cy + Math.sin(angle) * radius;
+    axisLines += `<line x1="${cx}" y1="${cy}" x2="${ex}" y2="${ey}" stroke="rgba(245,200,73,0.12)" stroke-width="1"/>`;
+  });
+  // 능력 폴리곤
+  const dataPoints = points.map(p => `${p.x},${p.y}`).join(' ');
+  // 능력치 점 + 라벨
+  let dotsAndLabels = '';
+  points.forEach(p => {
+    const def = ABILITY_DEFS[p.stat];
+    const typeColor = { attack: '#ff5b5b', defense: '#5fb8d4', utility: '#a8ff7a' }[def.type];
+    dotsAndLabels += `<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="${typeColor}" stroke="#fff" stroke-width="1.5"/>`;
+    // 라벨 (아이콘 + 레벨)
+    dotsAndLabels += `<text x="${p.labelX}" y="${p.labelY}" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="${typeColor}" font-weight="700">
+      <tspan font-size="14">${def.icon}</tspan>
+      <tspan x="${p.labelX}" dy="14" fill="var(--text-dim)" font-size="10">${def.name.replace(/[()]/g,'')} ${p.value}</tspan>
+    </text>`;
+  });
+
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto;">
+    <defs>
+      <radialGradient id="radarGrad" cx="50%" cy="50%">
+        <stop offset="0%" stop-color="rgba(255,217,61,0.45)"/>
+        <stop offset="100%" stop-color="rgba(255,46,146,0.2)"/>
+      </radialGradient>
+    </defs>
+    ${gridPolys}
+    ${axisLines}
+    <polygon points="${dataPoints}" fill="url(#radarGrad)" stroke="var(--gold-bright)" stroke-width="2" stroke-linejoin="round"/>
+    ${dotsAndLabels}
+    ${label ? `<text x="${cx}" y="${size - 8}" text-anchor="middle" font-size="11" fill="var(--text-dim)" letter-spacing="2">${label}</text>` : ''}
+  </svg>`;
+}
+
 function openAbilityMenu() {
   ensureAbilities();
   const abilities = career.pokerAbilities;
@@ -11989,6 +12156,14 @@ function openAbilityMenu() {
   ${activeSlotHtml}
 
   <h4 style="color:var(--gold-bright);margin-top:14px;">📊 8 기본 능력</h4>
+  <div style="background:radial-gradient(ellipse at center, rgba(255,217,61,0.05) 0%, transparent 70%);padding:8px;border-radius:10px;margin-bottom:10px;">
+    ${renderAbilityRadar(
+      Object.fromEntries(Object.entries(abilities).map(([s,a]) => [s, a.lv + ((eff[s] || 0) + (eff.all || 0))])),
+      Math.min(320, window.innerWidth - 60),
+      Math.max(30, ...Object.values(abilities).map(a => a.lv + 5)),
+      `최대 레벨 ${Math.max(30, ...Object.values(abilities).map(a => a.lv + 5))}`
+    )}
+  </div>
   ${abilityRows}
 
   <h4 style="color:var(--gold-bright);margin-top:14px;">🗂️ 능력 컬렉션 (${collected}/15)</h4>
