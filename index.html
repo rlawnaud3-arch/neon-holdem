@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v40.1 ★ CARD T + MENU ALERTS</title>
+<title>NEON HOLDEM v40.2 ★ PROPER POKER PIP LAYOUT</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -419,30 +419,31 @@
   .card .corner-br { font-size: 9px; line-height: 1; transform: rotate(180deg); align-self: flex-end; }
   .card .center-suit { text-align: center; font-size: 16px; line-height: 1; }
 
-  /* === Card face pip patterns (v38 — proper card UI) === */
+  /* === Card face pip patterns (v40.2 — Bicycle 표준 비례) === */
   .card .pip-grid {
     flex: 1;
     position: relative;
     width: 100%;
-    margin: 1px 0;
+    min-height: 32px;  /* 손 카드(52×72)에서도 face 영역 확보 */
   }
   .card .pip-grid .pip {
     position: absolute;
-    font-size: 11px;
+    font-size: 9px;
     line-height: 1;
     transform-origin: center;
-    transform: translate(-50%, -50%);
-  }
-  /* Bottom pips rotated 180° via inline style */
-  .card .pip-grid .pip[style*="rotate(180deg)"] {
-    transform: translate(-50%, -50%) rotate(180deg);
+    /* transform은 inline style에서 직접 처리 (translate + 옵션 rotate) */
+    user-select: none;
   }
 
-  /* Larger pips for community cards */
-  .community-cards .card .pip-grid .pip { font-size: 16px; }
+  /* Larger pips for community cards (78×110) */
+  .community-cards .card .pip-grid { min-height: 70px; }
+  .community-cards .card .pip-grid .pip { font-size: 16px; font-weight: 700; }
+
+  /* Winner reveal cards (큰 카드) */
+  .winner-cards-row .card .pip-grid .pip { font-size: 18px; font-weight: 700; }
 
   /* Mini pips for showdown reveals */
-  .showdown-hand-mini .card .pip-grid .pip { font-size: 8px; }
+  .showdown-hand-mini .card .pip-grid .pip { font-size: 7px; }
 
   /* Ace — big single center suit with glow */
   .card .card-ace {
@@ -3917,39 +3918,29 @@ function scheduleNextAction() {
 }
 
 // ===================== Rendering =====================
-// Pip layouts for number cards 2-10 (rows of pips, like real French cards)
-// Each row is a string of dots: '.' = empty, 'P' = pip, 'p' = small pip (for middle filler)
-const PIP_LAYOUTS = {
-  '2':  [['P','.','P'], ['.','.','.'], ['.','.','.'], ['.','.','.'], ['P','.','P']],  // top, bottom (inverted)
-  '3':  [['P','.','P'], ['.','.','.'], ['.','P','.'], ['.','.','.'], ['P','.','P']],
-  '4':  [['P','.','P'], ['.','.','.'], ['.','.','.'], ['.','.','.'], ['P','.','P'], ['P','.','P']],  // not used, see below
-  // Use position-based layout instead (more flexible). 5x3 grid:
-};
-
-// Pip positions in 5×3 grid (top, mid-top, mid, mid-bot, bot) × (L, C, R)
-// Each layout = array of [row, col] coordinates (1-indexed inside 5-row grid for clarity)
+// Pip 위치 — Bicycle 표준 포커 카드 비례 (% 좌표).
+// 카드 face 영역에서 [top%, left%] — 카드 외곽 침범 X, 좌우 1/4, 3/4 위치.
+// 절반(top>50%)은 자동으로 180도 회전 (실제 카드와 동일).
 const PIP_POSITIONS = {
-  '2':  [[1,2],[5,2]],
-  '3':  [[1,2],[3,2],[5,2]],
-  '4':  [[1,1],[1,3],[5,1],[5,3]],
-  '5':  [[1,1],[1,3],[3,2],[5,1],[5,3]],
-  '6':  [[1,1],[1,3],[3,1],[3,3],[5,1],[5,3]],
-  '7':  [[1,1],[1,3],[2,2],[3,1],[3,3],[5,1],[5,3]],
-  '8':  [[1,1],[1,3],[2,2],[3,1],[3,3],[4,2],[5,1],[5,3]],
-  '9':  [[1,1],[1,3],[2,1],[2,3],[3,2],[4,1],[4,3],[5,1],[5,3]],
-  '10': [[1,1],[1,3],[2,1],[2,3],[2.5,2],[3.5,2],[4,1],[4,3],[5,1],[5,3]]
+  '2':  [[18,50], [82,50]],
+  '3':  [[18,50], [50,50], [82,50]],
+  '4':  [[18,28], [18,72], [82,28], [82,72]],
+  '5':  [[18,28], [18,72], [50,50], [82,28], [82,72]],
+  '6':  [[18,28], [18,72], [50,28], [50,72], [82,28], [82,72]],
+  '7':  [[18,28], [18,72], [34,50], [50,28], [50,72], [82,28], [82,72]],
+  '8':  [[18,28], [18,72], [34,50], [50,28], [50,72], [66,50], [82,28], [82,72]],
+  '9':  [[18,28], [18,72], [38,28], [38,72], [50,50], [62,28], [62,72], [82,28], [82,72]],
+  '10': [[18,28], [18,72], [28,50], [38,28], [38,72], [62,28], [62,72], [72,50], [82,28], [82,72]]
 };
 
 function renderPipFace(rank, suit, color) {
   const positions = PIP_POSITIONS[rank];
   if (!positions) return '';
   let pips = '';
-  for (const [row, col] of positions) {
-    const top = ((row - 1) / 4) * 100;
-    const left = ((col - 1) / 2) * 100;
-    // Bottom half pips rotate 180° (traditional card design)
-    const rotate = row > 3 ? 'transform:rotate(180deg);' : '';
-    pips += `<span class="pip" style="top:${top}%;left:${left}%;${rotate}">${suit}</span>`;
+  for (const [top, left] of positions) {
+    // Bottom half pips rotate 180° (real card design)
+    const rotate = top > 50 ? ' rotate(180deg)' : '';
+    pips += `<span class="pip" style="top:${top}%;left:${left}%;transform:translate(-50%,-50%)${rotate};">${suit}</span>`;
   }
   return `<div class="pip-grid">${pips}</div>`;
 }
