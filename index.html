@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v39 ★ BETTING UI MOBILE OPTIMIZED</title>
+<title>NEON HOLDEM v40.1 ★ CARD T + MENU ALERTS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -3392,6 +3392,7 @@ function advanceStreet() {
     state.communityCards.push(state.deck.pop());
     state.street = 'river';
     log('--- 리버 ---', true);
+    setTimeout(() => sfxRiverReveal(), 200); // v40: 리버 스타카토 임팩트
   } else if (state.street === 'river') {
     return showdown();
   }
@@ -4071,10 +4072,12 @@ function cardHTML(card, hidden = false, isPlayerCard = false) {
     face = renderPipFace(card.rank, card.suit, color);
   }
 
+  // 카드 코너 표시 — '10'은 'T'로 (회전 시 'OT'가 되는 문제 + 포커 표준)
+  const cornerRank = card.rank === '10' ? 'T' : card.rank;
   return `<div class="card ${colorClass}">
-    <div class="corner-tl">${card.rank}<br>${card.suit}</div>
+    <div class="corner-tl">${cornerRank}<br>${card.suit}</div>
     ${face}
-    <div class="corner-br">${card.rank}<br>${card.suit}</div>
+    <div class="corner-br">${cornerRank}<br>${card.suit}</div>
   </div>`;
 }
 function cardText(card) { return card.rank + card.suit; }
@@ -4951,7 +4954,7 @@ function showFamousAnnouncement(fp) {
     <div class="name">${fp.emoji} ${fp.country} ${fp.name}</div>
     <div class="flair">${fp.flair}</div>`;
   document.body.appendChild(banner);
-  sfxFanfare();
+  sfxChampionEntrance(); // v40: 신비로운 등장 사운드
   setTimeout(() => banner.remove(), 5000);
 
   // 김민준 챔피언 인식 모놀로그
@@ -5045,12 +5048,25 @@ function openSettings() {
       <input type="range" class="volume-slider" min="0" max="1" step="0.05" value="${volSFX}"
         oninput="setVolume('sfx', parseFloat(this.value)); document.getElementById('vol-sfx-val').textContent = Math.round(this.value * 100) + '%';">
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">
       <button onclick="sfxChip()" style="font-size:11px;padding:6px 10px;">🪙 칩</button>
       <button onclick="sfxRaise()" style="font-size:11px;padding:6px 10px;">💰 레이즈</button>
       <button onclick="sfxAllIn()" style="font-size:11px;padding:6px 10px;">💥 올인</button>
       <button onclick="sfxWin()" style="font-size:11px;padding:6px 10px;">🏆 승리</button>
       <button onclick="sfxLevelUp()" style="font-size:11px;padding:6px 10px;">⭐ 레벨업</button>
+    </div>
+    <div style="padding:10px;background:linear-gradient(135deg,rgba(255,217,61,0.08),transparent);border:1px solid var(--gold-foil);border-radius:8px;">
+      <div style="font-size:11px;color:var(--gold-bright);font-weight:700;letter-spacing:2px;margin-bottom:8px;">🎬 시네마틱 SFX (v40 신규)</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">
+        <button onclick="sfxChipsAvalanche()" style="font-size:11px;padding:6px 10px;">💎 칩 사태</button>
+        <button onclick="sfxChampionEntrance()" style="font-size:11px;padding:6px 10px;">👑 챔피언 등장</button>
+        <button onclick="sfxDebtCleared()" style="font-size:11px;padding:6px 10px;">💰 빚 청산</button>
+        <button onclick="sfxKnockout()" style="font-size:11px;padding:6px 10px;">⚔️ KO</button>
+        <button onclick="sfxCardSlide()" style="font-size:11px;padding:6px 10px;">🃏 카드 슬라이드</button>
+        <button onclick="sfxTension()" style="font-size:11px;padding:6px 10px;">🌀 긴장</button>
+        <button onclick="sfxRiverReveal()" style="font-size:11px;padding:6px 10px;">🌊 리버</button>
+        <button onclick="sfxTrophy()" style="font-size:11px;padding:6px 10px;">🏆 트로피</button>
+      </div>
     </div>
     <div style="padding:12px;background:var(--bg-card-2);border-radius:8px;">
       <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:700;">⌨️ 키보드 단축키</div>
@@ -5980,6 +5996,272 @@ function sfxLevelUp() {
   });
 }
 
+// ===================== CINEMATIC SFX (v40) =====================
+// 칩 사태 (빅팟 — 여러 칩이 와르륵)
+function sfxChipsAvalanche() {
+  ensureAudio(); if (!audioCtx) return;
+  for (let i = 0; i < 12; i++) {
+    const delay = Math.random() * 800;
+    setTimeout(() => {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+      const o1 = audioCtx.createOscillator();
+      o1.type = 'square';
+      o1.frequency.value = 2000 + Math.random() * 500;
+      const g1 = audioCtx.createGain();
+      g1.gain.setValueAtTime(0.05 + Math.random() * 0.04, now);
+      g1.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+      const o2 = audioCtx.createOscillator();
+      o2.type = 'triangle';
+      o2.frequency.value = 220 + Math.random() * 80;
+      const g2 = audioCtx.createGain();
+      g2.gain.setValueAtTime(0.06, now);
+      g2.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      o1.connect(g1); g1.connect(sfxGain);
+      o2.connect(g2); g2.connect(sfxGain);
+      o1.start(now); o1.stop(now + 0.06);
+      o2.start(now); o2.stop(now + 0.12);
+    }, delay);
+  }
+}
+
+// 챔피언 등장 — 신비로운 신스
+function sfxChampionEntrance() {
+  ensureAudio(); if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  // Deep bass impact
+  const bass = audioCtx.createOscillator();
+  bass.type = 'sine';
+  bass.frequency.setValueAtTime(60, now);
+  bass.frequency.exponentialRampToValueAtTime(40, now + 0.6);
+  const bassG = audioCtx.createGain();
+  bassG.gain.setValueAtTime(0.3, now);
+  bassG.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+  bass.connect(bassG); bassG.connect(sfxGain);
+  bass.start(now); bass.stop(now + 0.6);
+  // Mysterious chord (A C# F)
+  [220, 277.18, 349.23].forEach((freq) => {
+    const o = audioCtx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.value = freq;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(400, now);
+    filter.frequency.exponentialRampToValueAtTime(2000, now + 0.8);
+    filter.Q.value = 8;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.08, now + 0.5);
+    g.gain.linearRampToValueAtTime(0, now + 1.6);
+    o.connect(filter); filter.connect(g); g.connect(sfxGain);
+    o.start(now); o.stop(now + 1.6);
+  });
+  // High shimmer
+  setTimeout(() => {
+    if (!audioCtx) return;
+    const n = audioCtx.currentTime;
+    const high = audioCtx.createOscillator();
+    high.type = 'sine';
+    high.frequency.value = 1760;
+    const hg = audioCtx.createGain();
+    hg.gain.setValueAtTime(0, n);
+    hg.gain.linearRampToValueAtTime(0.06, n + 0.1);
+    hg.gain.exponentialRampToValueAtTime(0.001, n + 0.8);
+    high.connect(hg); hg.connect(sfxGain);
+    high.start(n); high.stop(n + 0.8);
+  }, 600);
+}
+
+// 빚 청산 — 카타르시스 차임
+function sfxDebtCleared() {
+  ensureAudio(); if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  // Deep release bass
+  const bass = audioCtx.createOscillator();
+  bass.type = 'sine';
+  bass.frequency.setValueAtTime(55, now);
+  const bg = audioCtx.createGain();
+  bg.gain.setValueAtTime(0, now);
+  bg.gain.linearRampToValueAtTime(0.25, now + 0.3);
+  bg.gain.exponentialRampToValueAtTime(0.001, now + 2.5);
+  bass.connect(bg); bg.connect(sfxGain);
+  bass.start(now); bass.stop(now + 2.5);
+  // Ascending arpeggio
+  [261.63, 329.63, 392, 523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+    setTimeout(() => {
+      if (!audioCtx) return;
+      const n = audioCtx.currentTime;
+      const o = audioCtx.createOscillator();
+      o.type = 'triangle';
+      o.frequency.value = freq;
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.15, n);
+      g.gain.exponentialRampToValueAtTime(0.001, n + 1.2);
+      o.connect(g); g.connect(sfxGain);
+      o.start(n); o.stop(n + 1.2);
+    }, i * 180);
+  });
+  // Final glorious chord
+  setTimeout(() => {
+    if (!audioCtx) return;
+    const n = audioCtx.currentTime;
+    [523.25, 659.25, 783.99, 1046.50].forEach(freq => {
+      const o = audioCtx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = freq;
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.2, n);
+      g.gain.exponentialRampToValueAtTime(0.001, n + 2);
+      o.connect(g); g.connect(sfxGain);
+      o.start(n); o.stop(n + 2);
+    });
+  }, 1500);
+}
+
+// KO — 드라마틱 임팩트
+function sfxKnockout() {
+  ensureAudio(); if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  // Riser
+  const riser = audioCtx.createOscillator();
+  riser.type = 'sawtooth';
+  riser.frequency.setValueAtTime(100, now);
+  riser.frequency.exponentialRampToValueAtTime(800, now + 0.8);
+  const rg = audioCtx.createGain();
+  rg.gain.setValueAtTime(0, now);
+  rg.gain.linearRampToValueAtTime(0.1, now + 0.7);
+  rg.gain.linearRampToValueAtTime(0, now + 0.9);
+  const rf = audioCtx.createBiquadFilter();
+  rf.type = 'lowpass';
+  rf.frequency.value = 2000;
+  riser.connect(rf); rf.connect(rg); rg.connect(sfxGain);
+  riser.start(now); riser.stop(now + 0.9);
+  // Impact at 0.8s
+  setTimeout(() => {
+    if (!audioCtx) return;
+    const n = audioCtx.currentTime;
+    const boom = audioCtx.createOscillator();
+    boom.type = 'sine';
+    boom.frequency.setValueAtTime(80, n);
+    boom.frequency.exponentialRampToValueAtTime(40, n + 0.4);
+    const bg = audioCtx.createGain();
+    bg.gain.setValueAtTime(0.4, n);
+    bg.gain.exponentialRampToValueAtTime(0.001, n + 0.5);
+    boom.connect(bg); bg.connect(sfxGain);
+    boom.start(n); boom.stop(n + 0.5);
+    const hit = audioCtx.createOscillator();
+    hit.type = 'square';
+    hit.frequency.value = 1200;
+    const hg = audioCtx.createGain();
+    hg.gain.setValueAtTime(0.15, n);
+    hg.gain.exponentialRampToValueAtTime(0.001, n + 0.15);
+    hit.connect(hg); hg.connect(sfxGain);
+    hit.start(n); hit.stop(n + 0.15);
+    setTimeout(() => {
+      if (!audioCtx) return;
+      const n2 = audioCtx.currentTime;
+      [392, 493.88, 587.33].forEach(f => {
+        const o = audioCtx.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = f;
+        const g = audioCtx.createGain();
+        g.gain.setValueAtTime(0.12, n2);
+        g.gain.exponentialRampToValueAtTime(0.001, n2 + 1.2);
+        o.connect(g); g.connect(sfxGain);
+        o.start(n2); o.stop(n2 + 1.2);
+      });
+    }, 100);
+  }, 800);
+}
+
+// 카드 슬라이드 — 슈우우 소리
+function sfxCardSlide() {
+  ensureAudio(); if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const bufSize = audioCtx.sampleRate * 0.18;
+  const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buf;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(800, now);
+  filter.frequency.exponentialRampToValueAtTime(3500, now + 0.15);
+  filter.Q.value = 6;
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0, now);
+  g.gain.linearRampToValueAtTime(0.12, now + 0.04);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+  noise.connect(filter); filter.connect(g); g.connect(sfxGain);
+  noise.start(now); noise.stop(now + 0.18);
+}
+
+// 긴장감 빌드업
+function sfxTension() {
+  ensureAudio(); if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const drone = audioCtx.createOscillator();
+  drone.type = 'sine';
+  drone.frequency.value = 55;
+  const lfo = audioCtx.createOscillator();
+  lfo.frequency.value = 5;
+  const lfoGain = audioCtx.createGain();
+  lfoGain.gain.value = 8;
+  lfo.connect(lfoGain); lfoGain.connect(drone.frequency);
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0, now);
+  g.gain.linearRampToValueAtTime(0.18, now + 0.4);
+  g.gain.linearRampToValueAtTime(0.18, now + 1.2);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+  drone.connect(g); g.connect(sfxGain);
+  drone.start(now); drone.stop(now + 1.8);
+  lfo.start(now); lfo.stop(now + 1.8);
+}
+
+// 리버 카드 오픈 — 스타카토 임팩트
+function sfxRiverReveal() {
+  ensureAudio(); if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const stab = audioCtx.createOscillator();
+  stab.type = 'square';
+  stab.frequency.setValueAtTime(880, now);
+  stab.frequency.exponentialRampToValueAtTime(440, now + 0.1);
+  const sg = audioCtx.createGain();
+  sg.gain.setValueAtTime(0.18, now);
+  sg.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+  stab.connect(sg); sg.connect(sfxGain);
+  stab.start(now); stab.stop(now + 0.2);
+  const thud = audioCtx.createOscillator();
+  thud.type = 'sine';
+  thud.frequency.setValueAtTime(100, now);
+  thud.frequency.exponentialRampToValueAtTime(60, now + 0.15);
+  const tg = audioCtx.createGain();
+  tg.gain.setValueAtTime(0.2, now);
+  tg.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+  thud.connect(tg); tg.connect(sfxGain);
+  thud.start(now); thud.stop(now + 0.2);
+}
+
+// 트로피 시상식 차임
+function sfxTrophy() {
+  ensureAudio(); if (!audioCtx) return;
+  [523.25, 1046.50, 1568, 2093].forEach((freq, i) => {
+    setTimeout(() => {
+      if (!audioCtx) return;
+      const n = audioCtx.currentTime;
+      const o = audioCtx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = freq;
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.18 - i * 0.04, n);
+      g.gain.exponentialRampToValueAtTime(0.001, n + 2);
+      o.connect(g); g.connect(sfxGain);
+      o.start(n); o.stop(n + 2);
+    }, i * 100);
+  });
+}
+
 // ===================== CHIP ANIMATION =====================
 function animateChipsToPot(fromSeatIdx, amount) {
   const seat = document.getElementById('seat-' + fromSeatIdx);
@@ -6548,9 +6830,9 @@ function triggerDebtClearedCinematic() {
       }
     }, i * 800);
   }
-  // BGM duck & extra sounds
+  // BGM duck & sound — full cinematic debt-cleared sound
   duckBGM(7000);
-  sfxLevelUp();
+  sfxDebtCleared();
 }
 
 // === 2. 챔피언 격파 시네마틱 ===
@@ -6580,7 +6862,7 @@ function triggerChampionKOCinematic(abilityKey, beatenPlayer) {
   showCinematic(contentHTML, 6000, true);
   triggerGoldRain(50);
   duckBGM(6000);
-  sfxLevelUp();
+  sfxKnockout();
 }
 
 // === 3. 큰 팟 시네마틱 (50BB+ — 기존 triggerBigPotImpact 확장) ===
@@ -6595,6 +6877,7 @@ function triggerBigPotCinematic(amount) {
   showCinematic(contentHTML, 3000, true);
   triggerGoldRain(60);
   duckBGM(3000);
+  sfxChipsAvalanche();
 
   // Count-up animation
   const targetEl = () => document.getElementById('big-pot-counter');
@@ -7995,7 +8278,7 @@ function grantTrophy(venueId, tier) {
   </div>`;
   showModal(html);
   triggerGoldRain(60);
-  sfxLevelUp();
+  sfxTrophy(); // v40: 트로피 시상식 차임
 }
 
 // ===================== TROPHY CODEX MENU =====================
@@ -8512,6 +8795,26 @@ function openMainMenu() {
   ensureDailyChallenges();
   const chReady = career.challenges?.daily?.filter(c => c.completed && !c.claimed).length || 0;
 
+  // === 알람 수집 — 어떤 메뉴가 액션 필요한지 ===
+  const alerts = [];
+  if (chReady > 0) {
+    alerts.push({ icon: '🎯', text: `일일 챌린지 ${chReady}개 보상 받기`, target: 'openChallengesMenu()' });
+  }
+  // 능력치 레벨업 가능 체크 (XP 가득 찬 능력)
+  if (career.pokerAbilities) {
+    for (const [stat, a] of Object.entries(career.pokerAbilities)) {
+      if (typeof xpForNextLevel === 'function') {
+        const need = xpForNextLevel(a.lv);
+        if (a.xp >= need) {
+          alerts.push({ icon: '⭐', text: `${ABILITY_DEFS[stat]?.name || stat} 레벨업 가능`, target: 'openAbilityMenu()' });
+          break; // 한 번만
+        }
+      }
+    }
+  }
+  // 새 트로피 거의 다 됨 (gold 90% 이상)
+  // (생략 — 일단 챌린지/레벨업만)
+
   const menuSections = [
     {
       title: '📊 통계 & 분석', color: 'var(--cyan)',
@@ -8557,19 +8860,49 @@ function openMainMenu() {
   ];
 
   let html = `<h3>🎮 메인 메뉴</h3>
-  <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;">슬롯 ${currentSlot} · 자금 $${career.bankroll.toLocaleString()} · ${career.handsPlayed}핸드</p>`;
+  <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">슬롯 ${currentSlot} · 자금 $${career.bankroll.toLocaleString()} · ${career.handsPlayed}핸드</p>`;
+
+  // === 알람 배너 — 어떤 액션 필요한지 한 눈에 ===
+  if (alerts.length > 0) {
+    html += `<div style="background:linear-gradient(135deg,rgba(255,46,146,0.18),rgba(255,217,61,0.12));border:2px solid var(--gold-bright);border-radius:10px;padding:12px 14px;margin-bottom:14px;box-shadow:0 0 20px rgba(255,217,61,0.25);">
+      <div style="font-size:11px;color:var(--gold-bright);letter-spacing:3px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:8px;">★ 새 알림 ${alerts.length} ★</div>
+      ${alerts.map(a => `<div onclick="closeModal();${a.target}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,217,61,0.08);border:1px solid var(--gold-foil);border-radius:6px;margin:4px 0;cursor:pointer;" onmouseover="this.style.background='rgba(255,217,61,0.18)'" onmouseout="this.style.background='rgba(255,217,61,0.08)'">
+        <span style="font-size:20px;">${a.icon}</span>
+        <span style="flex:1;font-size:13px;color:var(--text);font-weight:600;">${a.text}</span>
+        <span style="font-size:11px;color:var(--gold-bright);">▶ 가기</span>
+      </div>`).join('')}
+    </div>`;
+  }
 
   for (const section of menuSections) {
     html += `<div style="margin-bottom:18px;">
       <div style="font-weight:700;color:${section.color};font-size:13px;letter-spacing:1px;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">${section.title}</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:6px;">`;
     for (const it of section.items) {
-      const bg = it.highlight ? 'background:rgba(255,217,61,0.15);border-color:var(--gold-bright);' : '';
+      const bg = it.highlight ? 'background:rgba(255,217,61,0.15);border-color:var(--gold-bright);box-shadow:0 0 12px rgba(255,217,61,0.3);' : '';
+      // 빨간 알림 뱃지 (challenge 보상, level up 등)
+      let badge = '';
+      if (it.action.includes('openChallengesMenu') && chReady > 0) {
+        badge = `<span style="background:var(--red);color:#fff;font-size:10px;font-weight:800;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">${chReady}</span>`;
+      }
+      // 능력치 레벨업 가능 뱃지
+      if (it.action === 'openAbilityMenu()' && career.pokerAbilities) {
+        let levelUpCount = 0;
+        for (const [stat, a] of Object.entries(career.pokerAbilities)) {
+          if (typeof xpForNextLevel === 'function' && a.xp >= xpForNextLevel(a.lv)) levelUpCount++;
+        }
+        if (levelUpCount > 0) {
+          badge = `<span style="background:var(--gold-bright);color:var(--bg-deep);font-size:10px;font-weight:800;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">⭐</span>`;
+        }
+      }
       html += `<div onclick="closeModal();${it.action}" style="padding:10px 12px;background:var(--bg-card-2);border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:all 0.15s;${bg}" onmouseover="this.style.borderColor='${section.color}';this.style.background='var(--bg-accent)';" onmouseout="this.style.borderColor='var(--border)';this.style.background='var(--bg-card-2)';">
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:20px;">${it.icon}</span>
           <div style="flex:1;">
-            <div style="font-weight:700;font-size:12px;color:var(--text);">${it.label}</div>
+            <div style="font-weight:700;font-size:12px;color:var(--text);display:flex;align-items:center;justify-content:space-between;gap:6px;">
+              <span>${it.label}</span>
+              ${badge}
+            </div>
             <div style="font-size:10px;color:var(--text-dim);margin-top:2px;">${it.desc}</div>
           </div>
         </div>
