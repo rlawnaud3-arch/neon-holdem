@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v30 ★ STORY ARCS + REBUY FIX + CHARACTERS</title>
+<title>NEON HOLDEM v32 ★ 40 SUB-EVENTS + CHOICES + 어머니</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -2511,6 +2511,8 @@ function newHand() {
   ensureTrophies();
   recordVenueStat('hands', 1);
   checkTrophyProgress();
+  // Check sub-events (after hand count updates)
+  checkSubEvents();
   state.pot = 0;
   state.communityCards = [];
   state.deck = createDeck();
@@ -2956,8 +2958,9 @@ function endHandByFold(winner) {
     if (humanWon && won >= (state.bb || 10) * 50) {
       triggerBigPotImpact(won, true);
     }
-    // === TROPHY STATS — FOLD WIN ===
+    // === TROPHY + SUB-EVENT STATS — FOLD WIN ===
     ensureTrophies();
+    ensureSubEvents();
     if (state.venue) {
       const vs = career.venueStats[state.venue.id];
       if (vs) {
@@ -2967,13 +2970,26 @@ function endHandByFold(winner) {
           vs.profit = (vs.profit || 0) + (won - myContribution);
           vs.currentStreak = (vs.currentStreak || 0) + 1;
           if (vs.currentStreak > (vs.maxWinStreak || 0)) vs.maxWinStreak = vs.currentStreak;
-          if (won >= (state.bb || 10) * 30) vs.bigPots = (vs.bigPots || 0) + 1;
+          if (won >= (state.bb || 10) * 30) {
+            vs.bigPots = (vs.bigPots || 0) + 1;
+            career.totalBigPots = (career.totalBigPots || 0) + 1;
+          }
+          career.lossStreak = 0;
         } else {
           vs.profit = (vs.profit || 0) - myContribution;
           vs.currentStreak = 0;
+          // Loss streak: only if me0 was actually in the hand
+          if (myContribution > 0) career.lossStreak = (career.lossStreak || 0) + 1;
+        }
+        // Track first fold in venue (for trigger)
+        if (me0.folded && me0.totalBet > 0) {
+          career.subEventFlags = career.subEventFlags || {};
+          career.subEventFlags.foldedInVenue = career.subEventFlags.foldedInVenue || {};
+          career.subEventFlags.foldedInVenue[state.venue.id] = true;
         }
         saveCareer();
         checkTrophyProgress();
+        checkSubEvents();
       }
     }
   }
@@ -3091,8 +3107,9 @@ function showdown() {
       triggerFullHouseImpact();
     }
 
-    // === TROPHY STATS — SHOWDOWN ===
+    // === TROPHY + SUB-EVENT STATS — SHOWDOWN ===
     ensureTrophies();
+    ensureSubEvents();
     if (state.venue) {
       const vs = career.venueStats[state.venue.id];
       if (vs) {
@@ -3101,17 +3118,26 @@ function showdown() {
           vs.profit = (vs.profit || 0) + (myWinAmt - myContribution);
           vs.currentStreak = (vs.currentStreak || 0) + 1;
           if (vs.currentStreak > (vs.maxWinStreak || 0)) vs.maxWinStreak = vs.currentStreak;
-          if (myWinAmt >= (state.bb || 10) * 30) vs.bigPots = (vs.bigPots || 0) + 1;
-          // Full house or better tracker (for trophy)
+          if (myWinAmt >= (state.bb || 10) * 30) {
+            vs.bigPots = (vs.bigPots || 0) + 1;
+            career.totalBigPots = (career.totalBigPots || 0) + 1;
+          }
+          // Full house or better tracker (for trophy + sub-event firstFullhouse)
           if (me.handResult && me.handResult[0] >= 7) {
             vs.fullhouses = (vs.fullhouses || 0) + 1;
+            career.totalFullhouses = (career.totalFullhouses || 0) + 1;
           }
+          // All-in call success — if I was allin and won
+          if (me.allIn) career.totalAllinCalls = (career.totalAllinCalls || 0) + 1;
+          career.lossStreak = 0;
         } else {
           vs.profit = (vs.profit || 0) - myContribution;
           vs.currentStreak = 0;
+          if (myContribution > 0) career.lossStreak = (career.lossStreak || 0) + 1;
         }
         saveCareer();
         checkTrophyProgress();
+        checkSubEvents();
       }
     }
   }
@@ -5640,8 +5666,387 @@ const STORY_CHARS = {
   hellmuth:  { name: 'Phil Hellmuth', role: '브래슬릿 11회', emoji: '😤', relationship: '자존심 충돌' },
   antonius:  { name: 'Patrik Antonius', role: '북극의 침묵', emoji: '❄️', relationship: '말 없는 존경' },
   chidwick:  { name: 'Stephen Chidwick', role: 'GTO 솔버', emoji: '🧮', relationship: '수학 라이벌' },
-  brunson:   { name: 'Doyle Brunson', role: '포커의 신', emoji: '🤠', relationship: '영혼의 스승' }
+  brunson:   { name: 'Doyle Brunson', role: '포커의 신', emoji: '🤠', relationship: '영혼의 스승' },
+  // === 서브이벤트 신규 인물 (v32) ===
+  mother:    { name: '어머니', role: '걱정 많은 엄마', emoji: '👩‍🦳', relationship: '가족' },
+  reporter:  { name: '한국 기자', role: 'WSOP 취재', emoji: '🎤', relationship: '단발성' },
+  oldself:   { name: '60세 김민준', role: '미래의 자기', emoji: '👴', relationship: '회상' }
 };
+
+// === 캐릭터 이미지 시스템 ===
+// 파일명 규칙: char-{id}.jpg (또는 .png) — index.html 같은 폴더에 저장
+// 예: char-ivey.jpg, char-yeonsu.jpg, char-joonyoung.png
+// 이미지가 없으면 자동으로 이모지 fallback
+function getCharImageHTML(charKey, size = 80, withGlow = true) {
+  const ch = STORY_CHARS[charKey];
+  if (!ch) return '';
+  const emoji = ch.emoji;
+  const fallbackSize = Math.floor(size * 0.7);
+  const glow = withGlow ? 'box-shadow:0 0 24px rgba(255,217,61,0.4);' : '';
+  // Try .jpg first, fallback to .png, then emoji
+  return `<span class="char-image" style="display:inline-flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#0a0817,#221f3d);border:3px solid var(--gold-foil);${glow}vertical-align:middle;flex-shrink:0;">
+    <img src="char-${charKey}.jpg" alt="${ch.name}" style="width:100%;height:100%;object-fit:cover;image-rendering:pixelated;" onerror="this.onerror=null;this.src='char-${charKey}.png';this.addEventListener('error',()=>{this.parentElement.innerHTML='<span style=\\u0022font-size:${fallbackSize}px;\\u0022>${emoji}</span>'});">
+  </span>`;
+}
+
+function getCharImageBigHTML(charKey, maxHeight = 200) {
+  const ch = STORY_CHARS[charKey];
+  if (!ch) return '';
+  return `<div class="char-image-big" style="display:flex;justify-content:center;margin:0 auto 12px;">
+    <img src="char-${charKey}.jpg" alt="${ch.name}" style="max-height:${maxHeight}px;max-width:90%;border-radius:12px;border:3px solid var(--gold-foil);box-shadow:0 0 32px rgba(255,217,61,0.45),0 8px 24px rgba(0,0,0,0.6);image-rendering:pixelated;" onerror="this.onerror=null;this.src='char-${charKey}.png';this.addEventListener('error',()=>{this.parentElement.innerHTML='<div style=\\u0022font-size:90px;text-align:center;\\u0022>${ch.emoji}</div>'});">
+  </div>`;
+}
+
+// ===================== SUB EVENTS (v32) =====================
+// 40 sub-events triggered by hands, streaks, milestones, choices. Make game feel alive between main story beats.
+const SUB_EVENTS = [
+  // ===== 1막: 동네 펍 / 강남 (Day 1~3) =====
+  { id: 'pub_5h',     trig: { type: 'venueHands', venue: 'pub', count: 5 },
+    char: 'joonyoung', icon: '💬', title: '박준영의 카톡',
+    text: '<b>박준영</b>: "어때 형, 재밌어? 손 떨리지 않아? ㅋㅋ 차 한잔 하고 침착하게."',
+    reward: { cash: 50 } },
+  { id: 'pub_25h',    trig: { type: 'venueHands', venue: 'pub', count: 25 },
+    char: 'pubowner', icon: '🍻', title: '김 사장의 서비스',
+    text: '<b>김 사장</b>: "단골이 됐네. 오늘 안주는 서비스야. 천천히 해."<br><br>스택 +$20 회복.',
+    reward: { cash: 20 } },
+  { id: 'first_fh',   trig: { type: 'firstFullhouse' },
+    icon: '🎉', title: '첫 풀하우스!',
+    text: '플랍에 너의 페어가 셋이 되고, 턴에 추가 페어.<br>리버 — <b style="color:var(--gold-bright);">풀하우스!</b><br><br>"이게... 진짜 되는 거구나."',
+    reward: { xp: { insight: 30 } } },
+  { id: 'streak3_pub', trig: { type: 'streak', count: 3, maxDay: 2 },
+    char: 'joonyoung', icon: '🔥', title: '3연승!',
+    text: '<b>박준영</b>의 카톡: "형 천재 아니야? 진짜 잘하는데?!"',
+    reward: { cash: 100 } },
+  { id: 'mother_call_d2', trig: { type: 'day', day: 2 },
+    char: 'mother', icon: '📞', title: '어머니 전화',
+    text: '<b>어머니</b>: "민준아, 너 요즘 뭐하니? 회사는 잘 다니고?<br>그... 코인 때문에 빚 진 거 갚고 있지?"<br><br><span style="color:var(--text-dim);font-size:12px;">너의 대답은?</span>',
+    choices: [
+      { label: '거짓말 — "잘 다니고 있어요, 엄마"', outcome: { text: '엄마는 안심했다.<br>하지만 가슴 한구석이 무거워졌다.', xp: { mental: -10 }, flag: 'lied_to_mom' } },
+      { label: '솔직 — "엄마, 사실 회사 그만뒀어요..."', outcome: { text: '엄마는 한참 말이 없었다.<br>"...그래도 너를 믿어. 무슨 일이든 정직하게 해."', cash: 200, xp: { mental: 30 }, flag: 'honest_to_mom' } }
+    ] },
+  { id: 'seoul_first10', trig: { type: 'venueHands', venue: 'seoul', count: 10 },
+    icon: '😰', title: '강남, 차원이 다르다',
+    text: '강남 홀덤바. 모두 표정 없고 베팅이 정확하다.<br>"이 사람들... 진짜다."<br><br>긴장이 올라온다.',
+    reward: { xp: { patience: 20 } } },
+  { id: 'seoul_firstfold', trig: { type: 'firstFoldAfterVenue', venue: 'seoul' },
+    char: 'yeonsu', icon: '👁️', title: '김연수가 끄덕임',
+    text: '강남에서 너의 첫 큰 폴드.<br>건너편의 <b>김연수</b>가 살짝 끄덕였다.<br>"...폴드할 줄 알면 살아남는다."',
+    reward: { xp: { patience: 30 } } },
+  { id: 'chulho_msg_d3', trig: { type: 'day', day: 3 },
+    char: 'chulho', icon: '💬', title: '단톡방 알림',
+    text: '옛 코인 트레이딩 단톡방에 알림.<br><b>신철호</b>: "민준이 사라졌네 ㅋㅋ 어디 도망갔냐?"<br><br><span style="color:var(--text-dim);font-size:12px;">반응은?</span>',
+    choices: [
+      { label: '무시 — 단톡방 나가기', outcome: { text: '깨끗하게 끝냈다.<br>너는 이제 다른 길이다.', xp: { mental: 40 } } },
+      { label: '한 마디 — "곧 다 갚을 거야"', outcome: { text: '신철호는 비웃었다.<br>하지만 너는 진심이었다.', xp: { pressure: 30 }, flag: 'told_chulho' } }
+    ] },
+
+  // ===== 2막 진입 =====
+  { id: 'losestreak5', trig: { type: 'lossStreak', count: 5 },
+    icon: '😔', title: '거울 앞에서',
+    text: '5연패. 화장실에 들어가 거울을 봤다.<br>"...이게 진짜 내가 할 수 있는 거야?"<br><br>심호흡. 다시 자리로.',
+    reward: { xp: { mental: 30 } } },
+  { id: 'jp_drink_d4', trig: { type: 'day', day: 4 },
+    char: 'joonyoung', icon: '🍺', title: '박준영의 깜짝 술자리',
+    text: '<b>박준영</b>이 강남까지 찾아왔다.<br>"형, 한 잔 하자. 오늘은 포커 얘기 금지."<br><br>그날 밤 너는 처음으로 웃었다.',
+    reward: { cash: 300, xp: { mental: 30 } } },
+  { id: 'macau_arrival', trig: { type: 'venueHands', venue: 'macau', count: 1 },
+    char: 'jaejeong', icon: '🌃', title: '마카오 첫 인상',
+    text: '<b>박재정</b>: "여기는 다른 세계야.<br>스택이 커지면 시야가 좁아져. 잊지 마라."',
+    reward: { xp: { pressure: 20 } } },
+  { id: 'seoyeon_meal', trig: { type: 'venueHands', venue: 'macau', count: 50 },
+    char: 'seoyeon', icon: '🍚', title: '이서연의 권유',
+    text: '<b>이서연</b>: "한국 식당 가실래요? 김치찌개 진짜 맛있는 데 있어요."<br><br><span style="color:var(--text-dim);font-size:12px;">대답은?</span>',
+    choices: [
+      { label: '"좋아요. 같이 가요."', outcome: { text: '저녁 식사. 그녀의 포커 이야기를 들었다.<br>10년 차 그라인더의 노하우.', xp: { insight: 50 }, flag: 'meal_with_seoyeon' } },
+      { label: '"오늘은 좀... 다음에요."', outcome: { text: '그녀는 살짝 웃었다.<br>"알겠어요. 다음에 꼭."', xp: { patience: 10 } } }
+    ] },
+  { id: 'macau_night', trig: { type: 'venueHands', venue: 'macau', count: 75 },
+    icon: '🌃', title: '마카오의 밤거리',
+    text: '잠깐 룸을 나와 카지노 옥상으로.<br>마카오의 야경이 빛난다.<br>"내가 여기 있구나..."<br><br>회복.',
+    reward: { xp: { mental: 25 } } },
+  { id: 'gambler_fall', trig: { type: 'venueHands', venue: 'macau', count: 100 },
+    icon: '💀', title: '옆 테이블의 무너짐',
+    text: '옆 테이블에서 한 사람이 모든 걸 잃고 무너졌다.<br>그는 울고 있었다.<br>"...너도 저렇게 될 수 있어. 정신 차려."',
+    reward: { xp: { patience: 40, mental: 20 } } },
+  { id: 'jj_wsop_story', trig: { type: 'day', day: 5 },
+    char: 'jaejeong', icon: '🥇', title: '박재정의 WSOP 비화',
+    text: '<b>박재정</b>: "WSOP 우승하던 그날, 나는 13시간 동안 한 번도 화장실을 안 갔어.<br>그게 집중이야. 그게 우승의 무게야."',
+    reward: { xp: { insight: 50 } } },
+  { id: 'ivey_silhouette', trig: { type: 'venueHands', venue: 'bellagio', count: 1 },
+    icon: '👤', title: 'Phil Ivey 첫 목격',
+    text: '벨라지오 로비. 멀리서 검은 양복.<br>그가 너를 잠깐 봤다 — 무관심하게.<br>"저 사람이... <b>Phil Ivey</b>구나."',
+    reward: { xp: { insight: 20 } } },
+  { id: 'sy_ivey_info', trig: { type: 'venueHands', venue: 'bellagio', count: 50 },
+    char: 'seoyeon', icon: '☕', title: '이서연의 정보',
+    text: '<b>이서연</b>: "Phil Ivey 본 적 있어요?<br>그 사람 베팅 패턴 — 특이해요.<br>3-bet 빈도가 일반 사람보다 12% 높아요. 알아두세요."',
+    reward: { xp: { exploit: 50, insight: 30 } } },
+
+  // ===== 3막 (WSOP/트라이튼) =====
+  { id: 'reporter_interview', trig: { type: 'venueHands', venue: 'wsop', count: 1 },
+    char: 'reporter', icon: '🎤', title: '한국 기자의 인터뷰',
+    text: '<b>한국 기자</b>: "WSOP에 신예 한국인 그라인더가 떴다는 소문이 있어서요!<br>어떻게 시작하셨어요?"<br><br><span style="color:var(--text-dim);font-size:12px;">대답은?</span>',
+    choices: [
+      { label: '"코인으로 1억 빚져서 시작했어요"', outcome: { text: '솔직한 인터뷰. 기사가 나갔다.<br>"코인 빚에서 WSOP까지 — 한국 그라인더의 길"<br>+$500 + 인지도.', cash: 500, flag: 'honest_interview' } },
+      { label: '"포커는 제 꿈이었어요"', outcome: { text: '기사가 멋지게 나왔다.<br>"한국의 포커 신성, WSOP 등장"<br>+$300 + 신비주의.', cash: 300, flag: 'mysterious_interview' } }
+    ] },
+  { id: 'yeonsu_kakao_d8', trig: { type: 'day', day: 8 },
+    char: 'yeonsu', icon: '💬', title: '김연수의 카톡',
+    text: '<b>김연수</b>: "내일 응원하러 갈게.<br>너는 이미 형제야. Hellmuth 그놈 박살내."',
+    reward: { xp: { mental: 50, pressure: 20 } } },
+  { id: 'jp_wedding_flash', trig: { type: 'venueHands', venue: 'wsop', count: 100 },
+    char: 'joonyoung', icon: '💒', title: '박준영 결혼식 회상',
+    text: '문득 떠오른다.<br>3년 전 <b>박준영</b>의 결혼식.<br>"형, 너 그때 코인 한참이었지. 신부 측 잔칫상 못 도와줘서 미안했지?"<br>지금은 갚을 수 있다.',
+    reward: { xp: { mental: 40 } } },
+  { id: 'sy_reunion_triton', trig: { type: 'venueHands', venue: 'triton', count: 1 },
+    char: 'seoyeon', icon: '🌸', title: '이서연 재회',
+    text: '트라이튼 라운지에서 <b>이서연</b>과 마주쳤다.<br>"오랜만이에요. 정말... 여기까지 오셨네요."<br>그녀의 눈이 빛난다.',
+    reward: { cash: 1000, xp: { insight: 30 } } },
+  { id: 'mom_remittance', trig: { type: 'profitMilestone', amount: 50000000 },
+    char: 'mother', icon: '💸', title: '어머니에게 송금',
+    text: '빚 청산 후 어머니에게 큰 돈을 보냈다.<br><b>어머니</b>: "민준아... 이거 뭐야?<br>이렇게 큰 돈이..."<br><br>"엄마, 이제 걱정 안 해도 돼요."<br>전화기 너머로 울음소리.',
+    reward: { xp: { mental: 100 } } },
+  { id: 'chulho_reconcile', trig: { type: 'profitMilestone', amount: 100000000 },
+    char: 'chulho', icon: '🤝', title: '신철호와의 화해',
+    text: '서울에 잠깐 들렀다.<br>편의점에서 우연히 <b>신철호</b> 마주침.<br>"...민준아. 너 진짜 해냈네.<br>그때 내가 비웃은 거, 미안하다."<br><br>너는 그의 어깨를 두드렸다.<br>"괜찮아. 너도 다시 시작해."',
+    reward: { xp: { mental: 60 } } },
+  { id: 'brunson_lobby', trig: { type: 'venueHands', venue: 'triton', count: 50 },
+    char: 'brunson', icon: '🤠', title: 'Brunson 잠깐 마주침',
+    text: '호텔 로비. 카우보이 모자의 노신사가 너를 본다.<br>아주 잠깐, 그가 모자를 살짝 들었다.<br>"...<b>Doyle Brunson</b>이 나를 봤다."<br>심장이 뛴다.',
+    reward: { xp: { insight: 70 } } },
+  { id: 'jp_final_msg', trig: { type: 'day', day: 10 },
+    char: 'joonyoung', icon: '📱', title: '박준영의 마지막 메시지',
+    text: '<b>박준영</b>: "형, 결승 봤어. 진짜 자랑스러워.<br>나는 회계사로 한국에 남지만,<br>너는 가서 — <b>전설</b>이 되어줘."',
+    reward: { xp: { all: 30 } } },
+
+  // ===== 베뉴 무관 (어디서나) =====
+  { id: 'big_pot_first', trig: { type: 'firstBigPot' },
+    icon: '💗', title: '심장이 뛴다',
+    text: '첫 50BB 큰 팟 승리.<br>"...이게 큰 팟이구나."<br>심장이 미친듯이 뛴다.',
+    reward: { xp: { pressure: 30 } } },
+  { id: 'first_allin_call', trig: { type: 'firstAllinCall' },
+    icon: '🎯', title: '첫 Hero Call',
+    text: '올인 콜 — 성공.<br>"이게 hero call이구나."<br>너는 더 이상 신참이 아니다.',
+    reward: { xp: { insight: 60 } } },
+  { id: 'streak5_any', trig: { type: 'streak', count: 5 },
+    icon: '🔥', title: '5연승의 흐름',
+    text: '5연승. <br>"흐름이 왔다."<br>모든 게 명확하게 보인다.',
+    reward: { xp: { insight: 30 } } },
+  { id: 'streak7', trig: { type: 'streak', count: 7 },
+    icon: '⚡', title: '7연승!',
+    text: '믿기지 않는다.<br>7연승.<br>모든 베팅이 정확히 맞아떨어진다.',
+    reward: { cash: 1500, xp: { exploit: 60 } } },
+  { id: 'hand200', trig: { type: 'totalHands', count: 200 },
+    icon: '📊', title: '200핸드 돌파',
+    text: '돌이켜보면 어느새 200핸드.<br>너는 변했다. 손이 떨리지 않는다.',
+    reward: { cash: 1000 } },
+  { id: 'hand500', trig: { type: 'totalHands', count: 500 },
+    icon: '📈', title: '500핸드 마일스톤',
+    text: '500핸드.<br>너는 이제 다른 사람이다.',
+    reward: { cash: 5000, xp: { all: 20 } } },
+  { id: 'fullhouse5', trig: { type: 'fullhouseCount', count: 5 },
+    icon: '✨', title: '풀하우스 5번째',
+    text: '풀하우스를 다섯 번째 메이드.<br>"수학 너머에 운이 있다."<br>너는 운을 다스리는 법을 배웠다.',
+    reward: { xp: { math: 30, insight: 20 } } },
+  { id: 'hellmuth_aftermath', trig: { type: 'beatChampion', champion: 'hellmuth' },
+    char: 'yeonsu', icon: '🍻', title: '김연수와 술자리',
+    text: 'Hellmuth 격파 후 그날 밤.<br><b>김연수</b>: "형제, 잘했어.<br>이제 진짜 시작이야."',
+    reward: { xp: { mental: 50, pressure: 30 } } },
+  { id: 'ivey_aftermath', trig: { type: 'beatChampion', champion: 'ivey' },
+    char: 'ivey', icon: '🤝', title: 'Ivey의 인정',
+    text: '<b>Phil Ivey</b>가 너의 어깨를 두드렸다.<br>"Good game.<br>...자네 이름이 뭐였지?"',
+    reward: { xp: { insight: 100 } } },
+  { id: 'brunson_aftermath', trig: { type: 'beatChampion', champion: 'brunson' },
+    icon: '👑', title: '모든 챔피언의 박수',
+    text: '최종 핸드 후, 모든 챔피언이 일어났다.<br>박수.<br>김연수, 박재정, 이서연, Ivey, Hellmuth, Antonius, Chidwick, Brunson.<br>그리고 너 — 그들 중 하나.',
+    reward: { xp: { all: 100 } } },
+  { id: 'old_self_reflect', trig: { type: 'gameCleared' },
+    char: 'oldself', icon: '👴', title: '60세 김민준의 회상',
+    text: '30년 후. 너는 60세.<br>골프장에서 시가를 피우며 옛 일을 회상한다.<br>"그때 빚 1억 졌을 때 — 친구가 손을 내밀어줬지."<br>"인생은... 한 번의 핸드다."',
+    reward: { xp: { all: 50 } } },
+
+  // ===== 랜덤 / 분위기 이벤트 =====
+  { id: 'rand_donator', trig: { type: 'venueHands', venue: 'seoul', count: 75 },
+    icon: '💰', title: '무명의 donator',
+    text: '옆자리에 앉은 사람이 너에게 돈을 갖다 바쳤다.<br>모든 핸드를 베팅하고 콜.<br>"이런 사람도 있구나..."',
+    reward: { cash: 1500 } },
+  { id: 'rand_silent_pro', trig: { type: 'venueHands', venue: 'macau', count: 150 },
+    icon: '🎩', title: '무명의 강자',
+    text: '맞은편 한 사람. 표정 없이 6시간.<br>한 번도 큰 손해 없이 천천히 +$50K.<br>"진짜 프로는 조용하다."',
+    reward: { xp: { patience: 50, pokerFace: 30 } } },
+  { id: 'rand_tilted_rage', trig: { type: 'venueHands', venue: 'bellagio', count: 75 },
+    icon: '😡', title: '틸트의 광기',
+    text: '옆 테이블 — 한 사람이 칩을 던지며 욕설.<br>"이런 게 도박이다."<br>너는 조용히 자기 핸드에 집중했다.',
+    reward: { xp: { mental: 50 } } },
+  { id: 'celeb_appearance', trig: { type: 'venueHands', venue: 'wsop', count: 200 },
+    icon: '🌟', title: '셀럽의 등장',
+    text: '갑자기 카지노가 술렁였다.<br>유명 배우가 카메오로 들렀다.<br>너는 핸드에만 집중했다.',
+    reward: { cash: 500 } },
+  { id: 'photo_request', trig: { type: 'venueHands', venue: 'triton', count: 100 },
+    icon: '📸', title: '팬의 사진 요청',
+    text: '한 사람이 다가왔다.<br>"...당신 그 한국 그라인더죠? 사진 한 장 부탁드려요!"<br>너는 첫 팬이 생겼다.',
+    reward: { cash: 1000, xp: { mental: 30 } } }
+];
+
+function ensureSubEvents() {
+  if (!career.subEventsFired) career.subEventsFired = {};
+  if (!career.subEventFlags) career.subEventFlags = {};
+  if (!career.totalFullhouses) career.totalFullhouses = 0;
+  if (!career.totalBigPots) career.totalBigPots = 0;
+  if (!career.totalAllinCalls) career.totalAllinCalls = 0;
+  if (!career.lossStreak) career.lossStreak = 0;
+}
+
+function evaluateTrigger(event) {
+  ensureSubEvents();
+  ensureCareer();
+  if (career.subEventsFired[event.id]) return false; // already fired
+
+  const t = event.trig;
+  const venueId = state?.venue?.id;
+  const venueStats = career.venueStats?.[venueId];
+
+  switch (t.type) {
+    case 'venueHands':
+      return venueId === t.venue && (venueStats?.hands || 0) >= t.count;
+    case 'streak':
+      if (t.maxDay && (career.day || 1) > t.maxDay) return false;
+      return (career.streak?.current || 0) >= t.count;
+    case 'lossStreak':
+      return (career.lossStreak || 0) >= t.count;
+    case 'firstFullhouse':
+      return (career.totalFullhouses || 0) >= 1;
+    case 'firstBigPot':
+      return (career.totalBigPots || 0) >= 1;
+    case 'firstAllinCall':
+      return (career.totalAllinCalls || 0) >= 1;
+    case 'firstFoldAfterVenue':
+      return venueId === t.venue && (career.subEventFlags?.foldedInVenue?.[t.venue]);
+    case 'day':
+      return (career.day || 1) >= t.day;
+    case 'totalHands':
+      return (career.handsPlayed || 0) >= t.count;
+    case 'fullhouseCount':
+      return (career.totalFullhouses || 0) >= t.count;
+    case 'profitMilestone':
+      return career.bankroll >= t.amount;
+    case 'beatChampion':
+      return (career.championsMet || []).includes(t.champion) &&
+             (career.specialAbilities?.collected || []).includes(t.champion);
+    case 'gameCleared':
+      return career.trophies?.triton?.gold === true;
+  }
+  return false;
+}
+
+function checkSubEvents() {
+  ensureSubEvents();
+  for (const event of SUB_EVENTS) {
+    if (career.subEventsFired[event.id]) continue;
+    if (evaluateTrigger(event)) {
+      career.subEventsFired[event.id] = Date.now();
+      saveCareer();
+      // Queue the event to fire after a brief delay (so it doesn't overlap with current action)
+      setTimeout(() => showSubEvent(event), 1000);
+      return; // one event per check (prevents stacking)
+    }
+  }
+}
+
+let _subChoiceCallback = null;
+function showSubEvent(event, choiceIdx) {
+  // If this is a choice resolution, apply outcome
+  if (choiceIdx !== undefined && event.choices) {
+    const ch = event.choices[choiceIdx];
+    if (ch?.outcome) {
+      applySubReward(ch.outcome);
+      if (ch.outcome.flag) {
+        career.subEventFlags = career.subEventFlags || {};
+        career.subEventFlags[ch.outcome.flag] = true;
+      }
+      saveCareer();
+      // Show outcome modal
+      const charTag = event.char && STORY_CHARS[event.char]
+        ? `<div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-card-2);border:1px solid var(--border-light);padding:4px 10px;border-radius:14px;margin-bottom:10px;">${getCharImageHTML(event.char, 28, false)}<span style="font-size:11px;color:var(--gold-bright);font-weight:700;">${STORY_CHARS[event.char].name}</span></div>`
+        : '';
+      const rewardText = formatSubReward(ch.outcome);
+      const html = `<div style="text-align:center;padding:18px 14px;">
+        <div style="font-size:42px;margin-bottom:8px;">${event.icon}</div>
+        <h3 style="color:var(--gold-bright);font-size:15px;letter-spacing:1px;">${event.title}</h3>
+        ${charTag}
+        <div style="font-size:13px;line-height:1.9;color:var(--text);margin:14px 0;text-align:left;padding:0 8px;">${ch.outcome.text}</div>
+        ${rewardText ? `<div style="font-size:11px;color:var(--gold-bright);margin:10px 0;">${rewardText}</div>` : ''}
+        <button class="btn-primary" onclick="closeModal()" style="margin-top:10px;padding:10px 24px;">계속 →</button>
+      </div>`;
+      showModal(html);
+      return;
+    }
+  }
+
+  // Apply non-choice reward immediately
+  if (event.reward) applySubReward(event.reward);
+  saveCareer();
+
+  const charTag = event.char && STORY_CHARS[event.char]
+    ? `<div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-card-2);border:1px solid var(--border-light);padding:4px 10px;border-radius:14px;margin-bottom:10px;">${getCharImageHTML(event.char, 28, false)}<span style="font-size:11px;color:var(--gold-bright);font-weight:700;">${STORY_CHARS[event.char].name}</span></div>`
+    : '';
+  const rewardText = formatSubReward(event.reward);
+
+  let choicesHtml = '';
+  if (event.choices) {
+    choicesHtml = '<div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">';
+    event.choices.forEach((c, i) => {
+      choicesHtml += `<button onclick="resolveSubChoice('${event.id}', ${i})" style="text-align:left;padding:12px;font-size:12px;line-height:1.5;background:var(--bg-card-2);border:1px solid var(--border-light);">▸ ${c.label}</button>`;
+    });
+    choicesHtml += '</div>';
+  }
+
+  const html = `<div style="text-align:center;padding:18px 14px;">
+    <div style="font-size:11px;color:var(--text-dim);letter-spacing:3px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:6px;">SUB EVENT</div>
+    <div style="font-size:42px;margin:10px 0 6px;">${event.icon}</div>
+    <h3 style="color:var(--gold-bright);font-size:15px;letter-spacing:1px;">${event.title}</h3>
+    ${charTag}
+    <div style="font-size:13px;line-height:1.9;color:var(--text);margin:14px 0;text-align:left;padding:0 8px;">${event.text}</div>
+    ${!event.choices && rewardText ? `<div style="font-size:11px;color:var(--gold-bright);margin:10px 0;">${rewardText}</div>` : ''}
+    ${choicesHtml}
+    ${!event.choices ? `<button class="btn-primary" onclick="closeModal()" style="margin-top:14px;padding:10px 24px;">계속 →</button>` : ''}
+  </div>`;
+  showModal(html);
+}
+
+function resolveSubChoice(eventId, idx) {
+  const event = SUB_EVENTS.find(e => e.id === eventId);
+  if (!event) return closeModal();
+  closeModal();
+  setTimeout(() => showSubEvent(event, idx), 200);
+}
+
+function applySubReward(r) {
+  if (!r) return;
+  if (r.cash) career.bankroll = Math.max(0, career.bankroll + r.cash);
+  if (r.xp) {
+    ensureAbilities();
+    for (const [stat, amt] of Object.entries(r.xp)) {
+      if (stat === 'all') {
+        for (const k of Object.keys(ABILITY_DEFS)) gainXP(k, amt, '서브이벤트');
+      } else {
+        gainXP(stat, amt, '서브이벤트');
+      }
+    }
+  }
+}
+
+function formatSubReward(r) {
+  if (!r) return '';
+  const parts = [];
+  if (r.cash) parts.push(`💰 ${r.cash > 0 ? '+' : ''}$${r.cash.toLocaleString()}`);
+  if (r.xp) {
+    for (const [s, v] of Object.entries(r.xp)) {
+      if (s === 'all') parts.push(`✨ 모든 능력 ${v > 0 ? '+' : ''}${v} XP`);
+      else parts.push(`${ABILITY_DEFS[s]?.icon || ''} ${ABILITY_DEFS[s]?.name || s} ${v > 0 ? '+' : ''}${v} XP`);
+    }
+  }
+  return parts.join(' · ');
+}
 
 const DAY_STORIES = {
   // ===== 1막: 추락과 부활 (Day 1~3) =====
@@ -5809,13 +6214,18 @@ function renderDayStorySlide(day, idx) {
 
   // Character name tag at top if slide references one
   let charTag = '';
+  let charVisual = '';
   if (slide.char && STORY_CHARS[slide.char]) {
     const ch = STORY_CHARS[slide.char];
-    charTag = `<div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-card-2);border:1px solid var(--border-light);padding:4px 10px;border-radius:14px;margin-bottom:10px;">
-      <span style="font-size:14px;">${ch.emoji}</span>
-      <span style="font-size:11px;color:var(--gold-bright);font-weight:700;">${ch.name}</span>
+    charTag = `<div style="display:inline-flex;align-items:center;gap:8px;background:var(--bg-card-2);border:1px solid var(--border-light);padding:5px 12px;border-radius:18px;margin-bottom:10px;">
+      ${getCharImageHTML(slide.char, 28, false)}
+      <span style="font-size:12px;color:var(--gold-bright);font-weight:700;">${ch.name}</span>
       <span style="font-size:10px;color:var(--text-dim);">· ${ch.role}</span>
     </div>`;
+    // Big visual: if the slide also has a champion (boss reveal), show large character image
+    if (slide.champion === slide.char || (slide.champion && SPECIAL_ABILITIES[slide.champion]?.owner === ch.name)) {
+      charVisual = getCharImageBigHTML(slide.char, 180);
+    }
   }
 
   // Champion intro card if this slide introduces one
@@ -5823,8 +6233,13 @@ function renderDayStorySlide(day, idx) {
   if (slide.champion && SPECIAL_ABILITIES[slide.champion]) {
     const ab = SPECIAL_ABILITIES[slide.champion];
     const color = getRarityColor(ab.rarity);
+    // Use character image if available (matches STORY_CHARS), otherwise emoji
+    const hasCharImage = STORY_CHARS[slide.champion];
+    const visualHTML = hasCharImage
+      ? `<div style="display:flex;justify-content:center;margin-bottom:8px;">${getCharImageHTML(slide.champion, 90, true)}</div>`
+      : `<div style="font-size:48px;">${ab.icon}</div>`;
     championCard = `<div style="background:${color}22;border:2px solid ${color};border-radius:10px;padding:14px;margin:14px 0;text-align:center;">
-      <div style="font-size:48px;">${ab.icon}</div>
+      ${visualHTML}
       <div style="font-weight:800;font-size:16px;color:${color};margin-top:6px;">${ab.owner}</div>
       <div style="font-size:12px;color:var(--text-dim);margin-top:4px;letter-spacing:2px;text-transform:uppercase;">${ab.rarity} · 챔피언 등장</div>
       <div style="font-size:11px;color:var(--text);margin-top:6px;">${ab.desc}</div>
@@ -5836,10 +6251,15 @@ function renderDayStorySlide(day, idx) {
     `<span style="width:9px;height:9px;border-radius:50%;background:${i === idx ? 'var(--gold-bright)' : 'var(--border-light)'};display:inline-block;margin:0 3px;"></span>`
   ).join('');
 
+  // Hero visual: large character image > champion image > big emoji
+  const heroVisual = charVisual || (slide.champion ? '' : `<div style="font-size:60px;margin:20px 0 10px;">${slide.icon}</div>`);
+  const smallIcon = (charVisual || slide.champion) ? `<div style="font-size:30px;margin:6px 0;">${slide.icon}</div>` : '';
+
   const html = `<div style="text-align:center;padding:20px 14px;">
     <div style="font-size:11px;color:var(--text-dim);letter-spacing:3px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:6px;">DAY ${day}</div>
-    <h2 style="color:var(--gold-bright);font-size:18px;letter-spacing:2px;font-family:'Press Start 2P','Galmuri11',monospace;margin-top:4px;">${cfg.title}</h2>
-    <div style="font-size:60px;margin:20px 0 10px;">${slide.icon}</div>
+    <h2 style="color:var(--gold-bright);font-size:18px;letter-spacing:2px;font-family:'Press Start 2P','Galmuri11',monospace;margin-top:4px;margin-bottom:14px;">${cfg.title}</h2>
+    ${heroVisual}
+    ${smallIcon}
     ${charTag}
     <div style="font-size:14px;line-height:1.9;color:var(--text);min-height:80px;text-align:left;padding:0 8px;">${slide.text}</div>
     ${championCard}
@@ -6213,7 +6633,16 @@ const CHAR_GROUPS = [
     color: 'var(--cyan)',
     chars: [
       { key: 'pubowner',  firstDay: 1,  arc: '동네 펍 사장. 너의 첫 환영. 끝까지 너를 자랑스러워한다.' },
-      { key: 'chulho',    firstDay: 4,  arc: '옛 코인 동료. Day 4 너를 도박꾼이라 부른다 — 너의 거울.' }
+      { key: 'chulho',    firstDay: 4,  arc: '옛 코인 동료. Day 4 너를 도박꾼이라 부른다 → 게임 후반 화해.' }
+    ]
+  },
+  {
+    title: '💗 가족과 미디어',
+    color: 'var(--orange)',
+    chars: [
+      { key: 'mother',    firstDay: 2,  arc: '걱정 많은 어머니. Day 2 전화, Day 9 빚 청산 후 큰돈 송금에 울음.' },
+      { key: 'reporter',  firstDay: 8,  arc: 'WSOP 한국 기자. 너의 첫 미디어 인터뷰. 솔직/신비주의 선택.' },
+      { key: 'oldself',   firstDay: 10, arc: '60세 김민준. 게임 클리어 후 회상. "인생은 한 번의 핸드다."' }
     ]
   }
 ];
@@ -6238,8 +6667,9 @@ function openCharacterRelations() {
       const ch = STORY_CHARS[c.key];
       if (!ch) continue;
       const met = curDay >= c.firstDay;
-      html += `<div style="display:flex;gap:12px;background:${met ? 'var(--bg-card-2)' : 'var(--bg-darker)'};border:2px solid ${met ? grp.color : 'var(--border)'};border-radius:8px;padding:12px;margin:6px 0;${met ? '' : 'opacity:0.55;filter:grayscale(0.6);'}">
-        <div style="font-size:38px;flex-shrink:0;">${met ? ch.emoji : '❓'}</div>
+      const charVisualEl = met ? getCharImageHTML(c.key, 56, true) : '<div style="font-size:38px;display:flex;align-items:center;justify-content:center;width:56px;height:56px;">❓</div>';
+      html += `<div style="display:flex;gap:12px;background:${met ? 'var(--bg-card-2)' : 'var(--bg-darker)'};border:2px solid ${met ? grp.color : 'var(--border)'};border-radius:8px;padding:12px;margin:6px 0;align-items:flex-start;${met ? '' : 'opacity:0.55;filter:grayscale(0.6);'}">
+        <div style="flex-shrink:0;">${charVisualEl}</div>
         <div style="flex:1;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <div style="font-weight:700;font-size:14px;color:${met ? grp.color : 'var(--text-dim)'};">${met ? ch.name : '???'}</div>
@@ -6253,6 +6683,48 @@ function openCharacterRelations() {
     }
   }
   html += `<div style="text-align:center;margin-top:18px;"><button onclick="closeModal()">닫기</button></div>`;
+  showModal(html);
+}
+
+// ===================== SUB-EVENT CODEX =====================
+function openSubEventCodex() {
+  ensureSubEvents();
+  const fired = career.subEventsFired || {};
+  const totalFired = Object.keys(fired).length;
+  const total = SUB_EVENTS.length;
+
+  let html = `<h3>📜 서브이벤트 도감</h3>
+  <p style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">짧은 컷씬으로 세계가 살아있어진다. 핸드 / 연승 / 마일스톤 / 선택지에 따라 자동 트리거.</p>
+  <div style="background:linear-gradient(135deg,rgba(177,78,255,0.15),rgba(58,134,255,0.1));border:2px solid var(--purple);border-radius:8px;padding:12px;text-align:center;margin-bottom:14px;">
+    <div style="font-size:11px;letter-spacing:3px;color:var(--purple);font-family:'Press Start 2P','Galmuri11',monospace;">진행도</div>
+    <div style="font-weight:800;font-size:24px;color:var(--gold-bright);margin-top:4px;">${totalFired} / ${total}</div>
+    <div style="background:var(--bg-darker);height:8px;border-radius:4px;overflow:hidden;margin-top:8px;">
+      <div style="background:linear-gradient(90deg,var(--purple),var(--gold-bright));height:100%;width:${(totalFired/total*100)}%;"></div>
+    </div>
+  </div>`;
+
+  for (const event of SUB_EVENTS) {
+    const isFired = !!fired[event.id];
+    const ch = event.char ? STORY_CHARS[event.char] : null;
+    const visualEl = isFired
+      ? (event.char ? getCharImageHTML(event.char, 40, false) : `<div style="font-size:30px;display:flex;align-items:center;justify-content:center;width:40px;height:40px;">${event.icon}</div>`)
+      : `<div style="font-size:30px;display:flex;align-items:center;justify-content:center;width:40px;height:40px;opacity:0.4;">❓</div>`;
+    const hasChoice = !!event.choices;
+    html += `<div style="display:flex;gap:10px;background:${isFired ? 'var(--bg-card-2)' : 'var(--bg-darker)'};border:1px solid ${isFired ? 'var(--gold-foil)' : 'var(--border)'};border-radius:6px;padding:10px;margin:6px 0;align-items:center;${isFired ? '' : 'opacity:0.6;filter:grayscale(0.6);'}">
+      ${visualEl}
+      <div style="flex:1;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-weight:700;font-size:12px;color:${isFired ? 'var(--gold-bright)' : 'var(--text-dim)'};">
+            ${isFired ? `${event.icon} ${event.title}` : '???'}
+            ${hasChoice ? '<span style="font-size:9px;color:var(--purple);margin-left:6px;">[분기]</span>' : ''}
+          </div>
+          ${isFired ? '<span style="font-size:9px;color:var(--green);">✓</span>' : '<span style="font-size:9px;color:var(--text-dim);">미발견</span>'}
+        </div>
+        ${isFired && ch ? `<div style="font-size:10px;color:var(--text-dim);margin-top:2px;">${ch.name}</div>` : ''}
+      </div>
+    </div>`;
+  }
+  html += `<div style="text-align:center;margin-top:14px;"><button onclick="closeModal()">닫기</button></div>`;
   showModal(html);
 }
 
@@ -6402,7 +6874,8 @@ function openMainMenu() {
         { icon: '📅', label: 'Day 캠페인 진행도', desc: '10일 RPG 스토리 + 챔피언 만남', action: 'openDayCampaign()' },
         { icon: '⚔️', label: '챔피언 도감', desc: '만난 전설 + 흡수 가능 능력', action: 'openChampionCodex()' },
         { icon: '🏆', label: '트로피 도감', desc: '18개 베뉴 트로피 — 브론즈/실버/골드', action: 'openTrophyCodex()' },
-        { icon: '👥', label: '등장인물 관계도', desc: '주인공 김민준을 둘러싼 11명의 인물', action: 'openCharacterRelations()' }
+        { icon: '👥', label: '등장인물 관계도', desc: '주인공 김민준을 둘러싼 14명의 인물', action: 'openCharacterRelations()' },
+        { icon: '📜', label: '서브이벤트 도감', desc: '40개 짧은 컷씬 + 선택지 분기 기록', action: 'openSubEventCodex()' }
       ]
     },
     {
@@ -8025,7 +8498,7 @@ function checkFamousBust() {
       updateChallengeProgress('beat_famous');
       // Onboarding for first famous encounter
       checkTutorial('famous_first');
-      // === TROPHY: record this champion as beaten in current venue ===
+      // === TROPHY + SUB-EVENT: record this champion as beaten in current venue ===
       ensureTrophies();
       if (state.venue) {
         recordVenueStat('bosses', 1);
@@ -8035,6 +8508,7 @@ function checkFamousBust() {
         if (!career.championsMet.includes(abilityKey)) career.championsMet.push(abilityKey);
         saveCareer();
         checkTrophyProgress();
+        checkSubEvents(); // beat-champion sub-events
       }
     }
   }
