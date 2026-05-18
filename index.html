@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v42.3 ★ CARD SQUEEZE FLIP + BIGGER MY CARDS</title>
+<title>NEON HOLDEM v43 ★ ABILITY RADAR (OCTAGON) + AI ABILITY CLICK + BGM FIX</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -4945,7 +4945,9 @@ function renderPlayerCard(p, i) {
 
   const timerBar = isCurrent ? '<div class="timer-bar" style="animation-delay:0s;"></div>' : '';
 
-  return `<div class="player-card ${isCurrent?'current':''} ${p.folded&&!p.busted?'folded':''} ${p.busted?'busted':''} ${p.isHuman?'you':''} ${p.isFamous?'famous':''} ${isShowdownWinner?'showdown-winner':''}" style="position:relative;">
+  // v43: AI 좌석 클릭으로 능력치 보기
+  const clickHandler = !p.isHuman && !p.busted ? `onclick="showAiAbilities(${i})" style="cursor:pointer;position:relative;"` : 'style="position:relative;"';
+  return `<div class="player-card ${isCurrent?'current':''} ${p.folded&&!p.busted?'folded':''} ${p.busted?'busted':''} ${p.isHuman?'you':''} ${p.isFamous?'famous':''} ${isShowdownWinner?'showdown-winner':''}" ${clickHandler}>
     ${timerBar}
     <div class="player-name" style="${p.isHuman ? 'display:flex;align-items:center;gap:8px;' : ''}">
       ${avatarHTML}
