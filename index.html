@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v35 ★ KIM MINJUN INTERNAL MONOLOGUE</title>
+<title>NEON HOLDEM v37 ★ AI DIALOGUES + WEAKNESS ANALYSIS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -3177,6 +3177,19 @@ function endHandByFold(winner) {
   if (winner.isHuman) { sfxWin(); duckBGM(2000); }
   else sfxLose();
 
+  // === AI 다이얼로그 (fold win) ===
+  if (!winner.isHuman && won >= (state.bb || 10) * 10) {
+    setTimeout(() => triggerAiChat(winner, 'self_win'), 1500);
+  }
+  // 손해 본 AI들이 가끔 말함
+  for (const p of state.players) {
+    if (!p.isHuman && p !== winner && p.folded && p.totalBet >= (state.bb || 10) * 5) {
+      if (Math.random() < 0.25) {
+        setTimeout(() => triggerAiChat(p, 'self_lose'), 1700 + Math.random() * 400);
+      }
+    }
+  }
+
   // === STREAK + IMPACT MOMENTS ===
   const me0 = state.players[0];
   if (me0 && !me0.busted) {
@@ -3334,6 +3347,22 @@ function showdown() {
   showWinnerAnnouncement(state.winners, false);
   if (meWonShowdown) { sfxWin(); duckBGM(2500); }
   else if (me && !me.folded && !me.busted) sfxLose();
+
+  // === AI 다이얼로그 (showdown) ===
+  for (const w of state.winners || []) {
+    if (w.player && !w.player.isHuman && w.amount >= (state.bb || 10) * 15) {
+      setTimeout(() => triggerAiChat(w.player, 'self_win'), 1600);
+    }
+  }
+  // 쇼다운 패자 AI들 가끔 말함
+  for (const p of state.players) {
+    if (!p.isHuman && !p.folded && !p.busted && p.totalBet >= (state.bb || 10) * 8) {
+      const won = (state.winners || []).some(w => w.player === p);
+      if (!won && Math.random() < 0.20) {
+        setTimeout(() => triggerAiChat(p, 'self_lose'), 1800 + Math.random() * 500);
+      }
+    }
+  }
 
   // === STREAK + IMPACT MOMENTS (showdown) ===
   if (me && !me.busted && !me.folded) {
@@ -3566,10 +3595,31 @@ function aiBetSize(p, personality, strength, isBluff) {
   return p.currentBet + betAmount;
 }
 
-function doFold(p) { state.currentPlayerIdx = state.players.indexOf(p); actFold(); }
+function doFold(p) {
+  state.currentPlayerIdx = state.players.indexOf(p); actFold();
+  // AI dialogue on fold (low chance)
+  if (!p.isHuman && p.totalBet >= (state?.bb || 10) * 3 && Math.random() < 0.4) {
+    setTimeout(() => triggerAiChat(p, 'self_fold'), 250);
+  }
+}
 function doCheckCall(p) { state.currentPlayerIdx = state.players.indexOf(p); actCheckCall(); }
-function doRaise(p, target) { state.currentPlayerIdx = state.players.indexOf(p); actRaise(target); }
-function doAllIn(p) { state.currentPlayerIdx = state.players.indexOf(p); actAllIn(); }
+function doRaise(p, target) {
+  state.currentPlayerIdx = state.players.indexOf(p); actRaise(target);
+  // AI dialogue on big raise (size-dependent)
+  if (!p.isHuman) {
+    const raiseSize = target - (state?.currentBet || 0);
+    if (raiseSize >= (state?.bb || 10) * 8 && Math.random() < 0.5) {
+      setTimeout(() => triggerAiChat(p, 'thinking_big'), 250);
+    }
+  }
+}
+function doAllIn(p) {
+  state.currentPlayerIdx = state.players.indexOf(p); actAllIn();
+  // AI signature line on all-in (rare)
+  if (!p.isHuman && Math.random() < 0.35) {
+    setTimeout(() => triggerAiChat(p, 'thinking_big'), 300);
+  }
+}
 
 // ===================== Action Scheduler =====================
 let aiThinkingTimer = null;
@@ -4444,6 +4494,18 @@ function showFamousAnnouncement(fp) {
   }
   if (abilityKey) {
     setTimeout(() => triggerMonologue('champ_' + abilityKey, { force: true, duration: 4500 }), 2000);
+    // 챔피언 시그니처 한 마디 (테이블에 앉으면서)
+    setTimeout(() => {
+      if (!state || !state.players) return;
+      const champ = state.players.find(p => p.isFamous && p.famousData?.name === fp.name);
+      if (champ) {
+        const msg = pickAiDialogue('champ_' + abilityKey + '_chat');
+        if (msg) {
+          const idx = state.players.indexOf(champ);
+          if (idx >= 0) showChatBubble(idx, msg);
+        }
+      }
+    }, 5500);
   }
 }
 
@@ -5547,6 +5609,159 @@ function showChatBubble(playerIdx, message) {
   playerCard.appendChild(bubble);
   setTimeout(() => bubble.remove(), 3500);
 }
+
+// ===================== AI 다이얼로그 시스템 (v36) =====================
+// AI들이 가끔 한 마디씩 — 테이블이 살아있는 느낌. 베뉴별 빈도 차등.
+const AI_DIALOGUES = {
+  // 자기 큰 팟 승리 후
+  self_win: [
+    'Nice hand!', '럭키 ㅎㅎ', '잘 들어왔네', '운이 좋았어요',
+    '오... 들어갔다', '히트!', 'Good run', '오늘 흐름이 좋네'
+  ],
+  // 자기 큰 팟 패배 후
+  self_lose: [
+    'Good play', '잘하시네요', 'GG', '에휴...',
+    '저게 안 들어가네', '안되네', '다음 핸드', '...'
+  ],
+  // 자기가 폴드 했을 때
+  self_fold: [
+    'Tight', '폴드', '못 들어가지', '다음에', '안전하게',
+    '버블링', '이걸론 못 가요'
+  ],
+  // 큰 베팅 받고 생각 중일 때
+  thinking_big: [
+    '음...', '이거 콜 가야 하나', '레인지 분석 중...',
+    '진짜 가지고 있나', '...읽기 어려운데', '한 번 더 봐야겠다'
+  ],
+  // 상대(인간 플레이어)가 큰 베팅 했을 때
+  vs_human_bigbet: [
+    '이 친구 진짜인가...', '오버베팅이네', '레인지 좀 강한 건가',
+    '뭘 가지고 있길래', '...폴드 가야 되나'
+  ],
+  // 상대가 블러프 하고 있을 거 같을 때 (AI insight 높을 때)
+  detect_bluff: [
+    '...너 블러프 같은데', '뭔가 이상해', '에어 아니야?',
+    '레인지에 없는데 이건'
+  ],
+  // 시그니처 — 챔피언별 (각자 캐릭터에 맞춰)
+  champ_ivey_chat: [
+    '...', '...너 누구지?', 'Interesting.', '다시 한번 보자',
+    '...읽히지 않는군'
+  ],
+  champ_hellmuth_chat: [
+    '꼬마야', '이게 진짜야', '내가 11번이야', '운이 좋네 정말',
+    'Phil이 졌다고? 말도 안 돼', '...어이가 없네'
+  ],
+  champ_brunson_chat: [
+    'Howdy partner.', 'Texas Dolly says hi.', 'Nice play, kid.',
+    '...너 이름이 뭐였지?', 'Good run, friend.'
+  ],
+  champ_antonius_chat: [
+    '...', '......', '...', 'Mm.', '...'  // 거의 무언
+  ],
+  champ_yeonsu_chat: [
+    '잘했어', '...봤어 그거', '한 수 위네', '다음 핸드',
+    '형제. 이거 받아', '...너 진짜야'
+  ],
+  champ_jaejeong_chat: [
+    '좋아요', '하나씩 배우는 거지', '재미있어요',
+    '아주 잘 보고 있어요', '한국 선수들이 빛난다'
+  ],
+  champ_chidwick_chat: [
+    'EV +12.3 here.', '수학적으로...', '레인지 30/30/40.',
+    '솔버는 폴드라고 했는데', 'Interesting deviation.'
+  ],
+  // 콜링스테이션 — 자주 떠듦
+  cs_chat: [
+    '한 번 더 봐!', '콜 콜 콜', '재미있네', '그냥 들어가자',
+    'YOLO', '한 번만 더', '나 이런 거 좋아해'
+  ],
+  // 신참 — 떨림
+  newbie_chat: [
+    '하... 손이 떨려', '이게 맞나', '...폴드', '진짜 잘하시네요',
+    '저는 처음이에요', '아 미안해요'
+  ],
+  // 일반 응대
+  generic: [
+    'Nice', 'GG', 'OK', '잘하시네요', '한 판 더',
+    '오 ㅎㅎ', 'Good game', '재밌네요'
+  ]
+};
+
+// AI 빈도 (베뉴별)
+const VENUE_DIALOGUE_FREQ = {
+  pub:      0.30,  // 동네 펍 — 시끌
+  seoul:    0.22,  // 강남
+  macau:    0.12,  // 마카오 — 좀 더 침묵
+  bellagio: 0.10,  // 베가스
+  wsop:     0.08,  // WSOP
+  triton:   0.05   // 트라이튼 — 침묵의 무게
+};
+
+let _aiDialogueEnabled = true;
+try {
+  const stored = localStorage.getItem('holdem-ai-dialogue');
+  if (stored === '0') _aiDialogueEnabled = false;
+} catch (e) {}
+
+function toggleAiDialogue() {
+  _aiDialogueEnabled = !_aiDialogueEnabled;
+  try { localStorage.setItem('holdem-ai-dialogue', _aiDialogueEnabled ? '1' : '0'); } catch (e) {}
+  return _aiDialogueEnabled;
+}
+
+function pickAiDialogue(category) {
+  const pool = AI_DIALOGUES[category];
+  if (!pool || pool.length === 0) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function getAiChampKey(p) {
+  if (!p.isFamous || !p.famousData) return null;
+  const name = p.famousData.name;
+  for (const [key, ab] of Object.entries(SPECIAL_ABILITIES || {})) {
+    if (ab.owner === name) return key;
+  }
+  return null;
+}
+
+function shouldAiSpeak(p) {
+  if (!_aiDialogueEnabled) return false;
+  if (!state || !state.venue) return false;
+  if (p.isHuman || p.busted || p.folded) return false;
+  const base = VENUE_DIALOGUE_FREQ[state.venue.id] || 0.15;
+  // 챔피언은 더 적게 (시그니처 멘트 1~2번만)
+  if (p.isFamous) {
+    return Math.random() < (base * 0.6);
+  }
+  // 콜링스테이션은 더 자주
+  if (p.personalityType === 'CALL_STATION') {
+    return Math.random() < (base * 1.5);
+  }
+  return Math.random() < base;
+}
+
+function triggerAiChat(p, category) {
+  if (!shouldAiSpeak(p)) return;
+  const champKey = getAiChampKey(p);
+  let msg = null;
+  // 챔피언이면 시그니처 멘트 우선
+  if (champKey) {
+    const champCat = 'champ_' + champKey + '_chat';
+    msg = pickAiDialogue(champCat);
+  }
+  // 콜링스테이션이면 전용 멘트
+  if (!msg && p.personalityType === 'CALL_STATION') {
+    msg = pickAiDialogue('cs_chat');
+  }
+  // 일반 카테고리
+  if (!msg) msg = pickAiDialogue(category);
+  if (!msg) msg = pickAiDialogue('generic');
+  if (!msg) return;
+  const idx = state.players.indexOf(p);
+  if (idx >= 0) showChatBubble(idx, msg);
+}
+
 
 // ===================== PROTAGONIST IMAGE =====================
 // 이미지 경로: 같은 폴더 또는 img/ 폴더에 protagonist.png 저장
@@ -7836,7 +8051,8 @@ function openMainMenu() {
       items: [
         { icon: '📊', label: '통계 대시보드', desc: 'VPIP, PFR, 3-bet, AF 등 트래커', action: 'renderStatsDashboard()' },
         { icon: '📖', label: '최근 핸드 리뷰', desc: '마지막 30핸드 의사결정 분석', action: 'renderRecentHands()' },
-        { icon: '📐', label: '의사결정 점수', desc: '스트릿별 등급 + 약점 분석', action: 'openDecisionDashboard()' }
+        { icon: '📐', label: '의사결정 점수', desc: '스트릿별 등급 + 약점 분석', action: 'openDecisionDashboard()' },
+        { icon: '🔍', label: '약점 분석 (v37)', desc: '액션/스트릿별 자동 진단 + 학습 팁', action: 'openWeaknessAnalysis()' }
       ]
     },
     {
@@ -8527,6 +8743,158 @@ function getDecisionStats() {
     if (sc !== null && sc < weakestScore) { weakestScore = sc; weakest = s; }
   }
   return { overall, streets, weakest, total: last100.length };
+}
+
+// ===================== WEAKNESS ANALYSIS (v37) =====================
+function analyzeWeaknesses() {
+  ensureDecisionHistory();
+  const all = career.decisionHistory || [];
+  const last200 = all.slice(-200);
+  if (last200.length < 20) return { insufficient: true, total: last200.length };
+
+  // Group by various dimensions
+  const byStreet = { preflop: { good: 0, ok: 0, bad: 0, total: 0 }, flop: { good: 0, ok: 0, bad: 0, total: 0 }, turn: { good: 0, ok: 0, bad: 0, total: 0 }, river: { good: 0, ok: 0, bad: 0, total: 0 } };
+  const byAction = { fold: { good: 0, bad: 0, total: 0 }, call: { good: 0, bad: 0, total: 0 }, raise: { good: 0, bad: 0, total: 0 }, check: { good: 0, bad: 0, total: 0 } };
+
+  for (const d of last200) {
+    if (byStreet[d.street]) {
+      byStreet[d.street][d.judgment]++;
+      byStreet[d.street].total++;
+    }
+    if (d.action && byAction[d.action]) {
+      if (d.judgment === 'good') byAction[d.action].good++;
+      else if (d.judgment === 'bad') byAction[d.action].bad++;
+      byAction[d.action].total++;
+    }
+  }
+
+  // Detect weaknesses
+  const weaknesses = [];
+  for (const [street, stats] of Object.entries(byStreet)) {
+    if (stats.total < 5) continue;
+    const badRate = stats.bad / stats.total;
+    if (badRate > 0.35) {
+      weaknesses.push({
+        type: 'street',
+        area: street,
+        severity: badRate,
+        msg: `${street === 'preflop' ? '프리플랍' : street === 'flop' ? '플랍' : street === 'turn' ? '턴' : '리버'}에서 잘못된 결정 ${Math.round(badRate * 100)}% — 평균보다 ${Math.round((badRate - 0.2) * 100)}% 높음`,
+        tip: street === 'preflop' ? 'GTO 핸드 매트릭스(메인 메뉴)에서 13×13 차트 복습. 포지션별 오픈 레인지 외우기.' :
+             street === 'flop' ? 'C-bet 빈도를 보드 텍스처별로 조정. 드라이 보드 (A72레인보우)는 C-bet ↑, 웻 보드 (T98수티드)는 C-bet ↓.' :
+             street === 'turn' ? '턴은 결정적 스트릿. 베럴 컨티뉴 vs 체크 결정 — GTO 퀴즈 "포스트플랍" 카테고리 풀어보기.' :
+             '리버 결정 — 밸류 vs 블러프 차이 학습. MDF(Minimum Defense Frequency) 개념 익히기.'
+      });
+    }
+  }
+
+  for (const [action, stats] of Object.entries(byAction)) {
+    if (stats.total < 10) continue;
+    const badRate = stats.bad / stats.total;
+    if (badRate > 0.40) {
+      weaknesses.push({
+        type: 'action',
+        area: action,
+        severity: badRate,
+        msg: `${action === 'fold' ? '폴드' : action === 'call' ? '콜' : action === 'raise' ? '레이즈' : '체크'} 결정 중 ${Math.round(badRate * 100)}%가 잘못된 판단`,
+        tip: action === 'fold' ? '폴드 너무 많이? 약한 페어를 포기하기 전 팟 오즈 계산. EV+ 콜을 폴드하지 않기.' :
+             action === 'call' ? '루즈한 콜이 많음. 약한 핸드로 콜은 EV- 일 가능성. "콜만 하기보단 폴드 또는 레이즈" 원칙.' :
+             action === 'raise' ? '레이즈 사이즈/타이밍 부적절. 베팅으로 정보 얻을 때 vs 밸류 얻을 때 구분.' :
+             '체크 빈도 부적절. 셋 잡고 체크하는 슬로우플레이 — 상대 핸드에 따라 다름.'
+      });
+    }
+  }
+
+  // Sort by severity
+  weaknesses.sort((a, b) => b.severity - a.severity);
+
+  // Strengths (good decisions)
+  const strengths = [];
+  for (const [street, stats] of Object.entries(byStreet)) {
+    if (stats.total < 5) continue;
+    const goodRate = stats.good / stats.total;
+    if (goodRate > 0.65) {
+      strengths.push({
+        area: street,
+        rate: goodRate,
+        msg: `${street === 'preflop' ? '프리플랍' : street === 'flop' ? '플랍' : street === 'turn' ? '턴' : '리버'} ${Math.round(goodRate * 100)}% 좋은 결정 — 강점`
+      });
+    }
+  }
+
+  return {
+    weaknesses,
+    strengths,
+    byStreet,
+    byAction,
+    total: last200.length
+  };
+}
+
+function openWeaknessAnalysis() {
+  const a = analyzeWeaknesses();
+  if (a.insufficient) {
+    showModal(`<h3>🔍 약점 분석</h3>
+      <p style="text-align:center;color:var(--text-dim);padding:40px 20px;">
+        분석을 위해 최소 20개 의사결정이 필요합니다.<br>
+        현재: ${a.total}개<br><br>
+        더 많은 핸드 플레이 후 다시 확인하세요.
+      </p>
+      <div style="text-align:center;"><button onclick="closeModal()">닫기</button></div>`);
+    return;
+  }
+
+  let html = `<h3>🔍 약점 분석 (최근 ${a.total} 결정)</h3>
+  <p style="font-size:12px;color:var(--text-dim);margin-bottom:14px;">자동으로 패턴을 분석해서 어디서 손해를 보는지 진단합니다.</p>`;
+
+  // Weaknesses
+  if (a.weaknesses.length === 0) {
+    html += `<div style="padding:16px;background:rgba(110,208,126,0.1);border:1px solid var(--green);border-radius:8px;margin:10px 0;text-align:center;color:var(--green);font-weight:700;">
+      ✅ 명확한 약점이 발견되지 않았습니다. 균형 잡힌 플레이!
+    </div>`;
+  } else {
+    html += `<h4 style="color:var(--red);margin-top:14px;">⚠️ 약점 (${a.weaknesses.length}개)</h4>`;
+    for (const w of a.weaknesses.slice(0, 5)) {
+      const sev = w.severity > 0.5 ? '심각' : w.severity > 0.4 ? '주의' : '관찰';
+      const sevColor = w.severity > 0.5 ? 'var(--red)' : w.severity > 0.4 ? 'var(--orange)' : 'var(--gold-bright)';
+      html += `<div style="background:var(--bg-card-2);border-left:3px solid ${sevColor};border-radius:6px;padding:10px 12px;margin:6px 0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <div style="font-size:11px;color:${sevColor};letter-spacing:2px;font-weight:700;">${sev}</div>
+          <div style="font-size:11px;color:var(--text-dim);">${w.type === 'street' ? '스트릿' : '액션'}</div>
+        </div>
+        <div style="font-size:13px;color:var(--text);font-weight:600;line-height:1.5;">${w.msg}</div>
+        <div style="font-size:11px;color:var(--gold-bright);margin-top:6px;line-height:1.6;">💡 ${w.tip}</div>
+      </div>`;
+    }
+  }
+
+  // Strengths
+  if (a.strengths.length > 0) {
+    html += `<h4 style="color:var(--green);margin-top:18px;">✨ 강점</h4>`;
+    for (const s of a.strengths) {
+      html += `<div style="background:rgba(110,208,126,0.08);border-left:3px solid var(--green);border-radius:6px;padding:10px 12px;margin:6px 0;font-size:13px;color:var(--text);">${s.msg}</div>`;
+    }
+  }
+
+  // Action breakdown
+  html += `<h4 style="color:var(--gold-bright);margin-top:18px;">📊 액션별 통계</h4>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">`;
+  for (const [action, stats] of Object.entries(a.byAction)) {
+    if (stats.total < 3) continue;
+    const goodPct = Math.round(stats.good / stats.total * 100);
+    const actionLabel = { fold: '폴드', call: '콜', raise: '레이즈', check: '체크' }[action];
+    html += `<div style="background:var(--bg-card-2);padding:10px;border-radius:6px;">
+      <div style="font-size:11px;color:var(--text-dim);">${actionLabel}</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:4px;">
+        <span style="font-size:18px;font-weight:700;color:${goodPct >= 60 ? 'var(--green)' : goodPct >= 40 ? 'var(--gold-bright)' : 'var(--red)'};">${goodPct}%</span>
+        <span style="font-size:10px;color:var(--text-dim);">${stats.total} 회</span>
+      </div>
+      <div style="font-size:9px;color:var(--text-dim);margin-top:2px;">좋은 결정 비율</div>
+    </div>`;
+  }
+  html += `</div>`;
+
+  html += `<div style="text-align:center;margin-top:18px;"><button onclick="closeModal()">닫기</button></div>`;
+  showModal(html);
 }
 
 function openDecisionDashboard() {
