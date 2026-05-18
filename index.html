@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v38 ★ CARD UI REDESIGN (PROPER PIPS + JQK FIGURES)</title>
+<title>NEON HOLDEM v39 ★ BETTING UI MOBILE OPTIMIZED</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -757,6 +757,239 @@
   }
   .quick-bets { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
   .quick-bets button { padding: 5px 10px; font-size: 11px; min-width: auto; border-radius: 4px; }
+
+  /* === BET SIZER v39 — Mobile-optimized === */
+  .bet-sizer {
+    width: 100%;
+    background: linear-gradient(135deg, rgba(255,217,61,0.04), rgba(20,18,42,0.7));
+    border: 1px solid var(--gold-foil);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .bet-amount-display {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0 4px;
+  }
+  .bet-amount-main {
+    font-family: 'Press Start 2P', 'Galmuri11', monospace;
+    font-size: 18px;
+    color: var(--gold-bright);
+    text-shadow: 0 0 8px var(--gold-bright);
+    letter-spacing: 1px;
+  }
+  .bet-amount-bb {
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+  .bet-amount-bb span {
+    color: var(--neon-cyan);
+    font-weight: 700;
+    font-family: 'Press Start 2P', 'Galmuri11', monospace;
+  }
+  .bet-slider {
+    width: 100%;
+    height: 36px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+    margin: 0;
+  }
+  .bet-slider::-webkit-slider-runnable-track {
+    height: 8px;
+    background: linear-gradient(to right, var(--gold-foil), var(--gold-bright));
+    border-radius: 4px;
+    border: 1px solid var(--border-light);
+  }
+  .bet-slider::-moz-range-track {
+    height: 8px;
+    background: linear-gradient(to right, var(--gold-foil), var(--gold-bright));
+    border-radius: 4px;
+    border: 1px solid var(--border-light);
+  }
+  .bet-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 28px; height: 28px;
+    background: radial-gradient(circle, var(--gold-bright) 30%, var(--gold-foil) 100%);
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 12px var(--gold-bright), 0 2px 4px rgba(0,0,0,0.5);
+    cursor: pointer;
+    margin-top: -11px;
+  }
+  .bet-slider::-moz-range-thumb {
+    width: 28px; height: 28px;
+    background: radial-gradient(circle, var(--gold-bright) 30%, var(--gold-foil) 100%);
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 12px var(--gold-bright), 0 2px 4px rgba(0,0,0,0.5);
+    cursor: pointer;
+  }
+
+  .bet-step-row {
+    display: flex; align-items: center; gap: 8px;
+    justify-content: center;
+  }
+  .bet-step-btn {
+    min-width: 56px;
+    min-height: 40px;
+    background: var(--bg-card-2);
+    border: 2px solid var(--gold-foil);
+    color: var(--gold-bright);
+    font-size: 16px;
+    font-weight: 800;
+    border-radius: 8px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+  }
+  .bet-step-btn small {
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+  .bet-step-btn:hover {
+    background: var(--gold-foil);
+    color: var(--bg-deep);
+  }
+  .bet-step-btn:active {
+    transform: translateY(1px);
+  }
+  .bet-step-row input[type="number"] {
+    flex: 1;
+    max-width: 130px;
+    min-height: 40px;
+    text-align: center;
+    background: var(--bg-darker);
+    border: 2px solid var(--gold-foil);
+    border-radius: 8px;
+    color: var(--gold-bright);
+    font-weight: 800;
+    font-size: 16px;
+    font-family: 'Press Start 2P', 'Galmuri11', monospace;
+    letter-spacing: 1px;
+  }
+  /* Hide spinner buttons (iOS Safari etc) */
+  .bet-step-row input[type="number"]::-webkit-inner-spin-button,
+  .bet-step-row input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none; margin: 0;
+  }
+  .bet-step-row input[type="number"] { -moz-appearance: textfield; }
+
+  /* Quick bet buttons — larger touch targets */
+  .bet-sizer .quick-bets {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 2px;
+  }
+  .bet-sizer .quick-bets button {
+    min-height: 36px;
+    padding: 6px 4px;
+    font-size: 13px;
+    font-weight: 800;
+    background: var(--bg-card-2);
+    border: 1.5px solid var(--border-light);
+    border-radius: 6px;
+    color: var(--gold-bright);
+  }
+  .bet-sizer .quick-bets button:hover {
+    background: var(--gold-foil);
+    color: var(--bg-deep);
+    border-color: var(--gold-bright);
+  }
+
+  /* Action button row — better mobile sizing */
+  .action-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 6px;
+    width: 100%;
+  }
+  .action-btn {
+    min-height: 56px;
+    padding: 6px 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    line-height: 1.2;
+    position: relative;
+  }
+  .action-btn-label {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 1px;
+  }
+  .action-btn-amount {
+    font-size: 11px;
+    opacity: 0.9;
+    font-family: 'Press Start 2P', 'Galmuri11', monospace;
+    letter-spacing: 0.5px;
+  }
+  .action-btn .shortcut {
+    position: absolute;
+    top: 4px; right: 6px;
+    font-size: 9px;
+    opacity: 0.5;
+    background: rgba(0,0,0,0.3);
+    border-radius: 3px;
+    padding: 1px 4px;
+  }
+
+  /* ===== MOBILE BET UI (≤600px) ===== */
+  @media (max-width: 600px) {
+    .bet-sizer {
+      padding: 8px 10px;
+      gap: 6px;
+    }
+    .bet-amount-main { font-size: 16px; }
+    .bet-amount-bb { font-size: 11px; }
+    .bet-step-btn {
+      min-width: 50px;
+      min-height: 44px;
+      font-size: 18px;
+    }
+    .bet-step-row input[type="number"] {
+      min-height: 44px;
+      font-size: 15px;
+    }
+    .bet-slider::-webkit-slider-thumb {
+      width: 32px; height: 32px;
+      margin-top: -13px;
+    }
+    .bet-slider::-moz-range-thumb {
+      width: 32px; height: 32px;
+    }
+    .bet-sizer .quick-bets button {
+      min-height: 44px;
+      font-size: 13px;
+    }
+    .action-btn {
+      min-height: 60px;
+      padding: 6px 2px;
+    }
+    .action-btn-label { font-size: 13px; }
+    .action-btn-amount { font-size: 10px; }
+  }
+  /* Even tighter on tiny screens */
+  @media (max-width: 380px) {
+    .action-btn-label { font-size: 11px; }
+    .action-btn-amount { font-size: 9px; }
+    .bet-sizer .quick-bets button { font-size: 12px; }
+  }
 
   /* Legacy action panel container - now empty */
   .action-panel { display: contents; }
@@ -4095,65 +4328,107 @@ function renderActionPanel() {
   }
   const isStrong = myStrength >= 75;
 
-  let html = `<button class="action-btn action-btn-fold" onclick="actFold()">
-    폴드<span class="shortcut">F</span>
-  </button>
-  <button class="action-btn action-btn-call" onclick="actCheckCall()">
-    ${toCall <= 0 ? '체크' : '콜 $' + Math.min(toCall, p.stack).toLocaleString()}<span class="shortcut">C</span>
-  </button>`;
+  // Compute bet sizing options
+  const halfPot = Math.max(minRaiseTotal, p.currentBet + Math.floor((state.pot + toCall) / 2));
+  const fullPot = Math.max(minRaiseTotal, p.currentBet + state.pot + toCall);
+  const quarterPot = Math.max(minRaiseTotal, p.currentBet + Math.floor((state.pot + toCall) / 4));
+  const threeQuartPot = Math.max(minRaiseTotal, p.currentBet + Math.floor((state.pot + toCall) * 3 / 4));
+  const twoXBB = Math.max(minRaiseTotal, state.bb * 2);
+  const threeXBB = Math.max(minRaiseTotal, state.bb * 3);
+  const minBet = Math.min(minRaiseTotal, allInTotal);
+  const maxBet = allInTotal;
+
+  let html = '';
+
+  // === BET SIZER (raise UI — appears above action buttons) ===
+  if (p.stack > toCall) {
+    const bbAmount = Math.round((defaultRaise / state.bb) * 10) / 10;
+    html += `<div class="bet-sizer">
+      <div class="bet-amount-display">
+        <div class="bet-amount-main">$<span id="raise-display">${defaultRaise.toLocaleString()}</span></div>
+        <div class="bet-amount-bb"><span id="raise-bb-display">${bbAmount}</span> BB</div>
+      </div>
+      <input type="range" id="raise-slider" class="bet-slider"
+        min="${minBet}" max="${maxBet}" value="${defaultRaise}" step="${state.bb}"
+        oninput="syncRaiseFromSlider(this.value)">
+      <div class="bet-step-row">
+        <button class="bet-step-btn" onclick="stepRaise(-state.bb)">−<small>BB</small></button>
+        <input type="number" id="raise-amount" value="${defaultRaise}" min="${minBet}" max="${maxBet}" step="${state.bb}"
+          oninput="syncRaiseFromInput(this.value)">
+        <button class="bet-step-btn" onclick="stepRaise(state.bb)">+<small>BB</small></button>
+      </div>
+      <div class="quick-bets">
+        ${state.street==='preflop' && state.currentBet===state.bb ? `
+          <button onclick="setRaise(${Math.min(twoXBB, allInTotal)})">2x</button>
+          <button onclick="setRaise(${Math.min(threeXBB, allInTotal)})">3x</button>
+        ` : `
+          <button onclick="setRaise(${Math.min(quarterPot, allInTotal)})">¼팟</button>
+          <button onclick="setRaise(${Math.min(halfPot, allInTotal)})">½팟</button>
+          <button onclick="setRaise(${Math.min(threeQuartPot, allInTotal)})">¾팟</button>
+          <button onclick="setRaise(${Math.min(fullPot, allInTotal)})">팟</button>
+        `}
+      </div>
+    </div>`;
+  }
+
+  // === ACTION BUTTONS ===
+  html += `<div class="action-row">
+    <button class="action-btn action-btn-fold" onclick="actFold()">
+      <div class="action-btn-label">폴드</div>
+      <span class="shortcut">F</span>
+    </button>
+    <button class="action-btn action-btn-call" onclick="actCheckCall()">
+      <div class="action-btn-label">${toCall <= 0 ? '체크' : '콜'}</div>
+      ${toCall > 0 ? `<div class="action-btn-amount">$${Math.min(toCall, p.stack).toLocaleString()}</div>` : ''}
+      <span class="shortcut">C</span>
+    </button>`;
 
   if (p.stack > toCall) {
     html += `<button class="action-btn action-btn-raise" onclick="actRaise(parseInt(document.getElementById('raise-amount').value))">
-      ${state.currentBet === 0 ? '베팅' : '레이즈'} $<span id="raise-display">${defaultRaise.toLocaleString()}</span><span class="shortcut">R</span>
+      <div class="action-btn-label">${state.currentBet === 0 ? '베팅' : '레이즈'}</div>
+      <div class="action-btn-amount">$<span id="raise-btn-display">${defaultRaise.toLocaleString()}</span></div>
+      <span class="shortcut">R</span>
     </button>`;
   }
 
   html += `<button class="action-btn action-btn-allin" onclick="actAllIn()">
-    올인 $${allInTotal.toLocaleString()}<span class="shortcut">A</span>
-  </button>`;
+    <div class="action-btn-label">올인</div>
+    <div class="action-btn-amount">$${allInTotal.toLocaleString()}</div>
+    <span class="shortcut">A</span>
+  </button></div>`;
 
-  if (p.stack > toCall) {
-    html += `<div class="raise-controls">
-      <button class="raise-btn-step" onclick="stepRaise(-state.bb)">−</button>
-      <input type="number" id="raise-amount" value="${defaultRaise}" min="${Math.min(minRaiseTotal, allInTotal)}" max="${allInTotal}" step="${state.bb}" oninput="document.getElementById('raise-display').textContent=parseInt(this.value).toLocaleString()" style="width:90px;text-align:center;">
-      <button class="raise-btn-step" onclick="stepRaise(state.bb)">+</button>
-    </div>`;
-
-    const halfPot = Math.max(minRaiseTotal, p.currentBet + Math.floor((state.pot + toCall) / 2));
-    const fullPot = Math.max(minRaiseTotal, p.currentBet + state.pot + toCall);
-    const twoXBB = Math.max(minRaiseTotal, state.bb * 2);
-    const threeXBB = Math.max(minRaiseTotal, state.bb * 3);
-    html += `<div class="quick-bets">
-      ${state.street==='preflop' && state.currentBet===state.bb ?
-        `<button onclick="setRaise(${Math.min(twoXBB, allInTotal)})">2x</button>
-         <button onclick="setRaise(${Math.min(threeXBB, allInTotal)})">3x</button>` : ''}
-      <button onclick="setRaise(${Math.min(halfPot, allInTotal)})">½팟</button>
-      <button onclick="setRaise(${Math.min(fullPot, allInTotal)})">팟</button>
-    </div>`;
-  }
   panel.innerHTML = html;
+}
+
+function syncRaiseDisplays(amt) {
+  amt = parseInt(amt) || 0;
+  const input = document.getElementById('raise-amount');
+  const slider = document.getElementById('raise-slider');
+  const disp = document.getElementById('raise-display');
+  const bbDisp = document.getElementById('raise-bb-display');
+  const btnDisp = document.getElementById('raise-btn-display');
+  if (input) {
+    const min = parseInt(input.min) || 0;
+    const max = parseInt(input.max) || 999999999;
+    amt = Math.max(min, Math.min(max, amt));
+    input.value = amt;
+  }
+  if (slider) slider.value = amt;
+  if (disp) disp.textContent = amt.toLocaleString();
+  if (btnDisp) btnDisp.textContent = amt.toLocaleString();
+  if (bbDisp && state && state.bb) bbDisp.textContent = (Math.round((amt / state.bb) * 10) / 10);
 }
 
 function stepRaise(delta) {
   const input = document.getElementById('raise-amount');
   if (!input) return;
   const cur = parseInt(input.value) || 0;
-  const min = parseInt(input.min) || 0;
-  const max = parseInt(input.max) || 999999999;
-  const nv = Math.max(min, Math.min(max, cur + delta));
-  input.value = nv;
-  const disp = document.getElementById('raise-display');
-  if (disp) disp.textContent = nv.toLocaleString();
+  syncRaiseDisplays(cur + delta);
 }
 
-function setRaise(amt) {
-  const input = document.getElementById('raise-amount');
-  if (input) {
-    input.value = amt;
-    const disp = document.getElementById('raise-display');
-    if (disp) disp.textContent = parseInt(amt).toLocaleString();
-  }
-}
+function setRaise(amt) { syncRaiseDisplays(amt); }
+function syncRaiseFromSlider(val) { syncRaiseDisplays(val); }
+function syncRaiseFromInput(val) { syncRaiseDisplays(val); }
 
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
