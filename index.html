@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v40.2 ★ PROPER POKER PIP LAYOUT</title>
+<title>NEON HOLDEM v41 ★ BOSS CHALLENGE + SHARE CARD + VENUE THEMING</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -339,6 +339,83 @@
     bottom: 14px; right: 22px; font-size: 16px;
     color: rgba(245,200,73,0.2);
   }
+
+  /* === VENUE VISUAL THEMING (v41-C) === */
+  /* 동네 펍 — 따뜻한 우드톤 + 노란 조명 */
+  body[data-venue="pub"] .table-center {
+    background: radial-gradient(ellipse at center, #2a1810 0%, #1c0e08 70%, #0a0504 100%);
+    box-shadow: inset 0 0 70px rgba(0,0,0,0.6), 0 0 30px rgba(255,180,80,0.15);
+  }
+  body[data-venue="pub"] .table-center::before { border-color: rgba(255,180,80,0.15); }
+  body[data-venue="pub"] .table-center::after { color: rgba(255,180,80,0.2); }
+  body[data-venue="pub"] .game-board { background: rgba(40,20,10,0.2); border-radius: 12px; }
+
+  /* 강남 — 차가운 핑크 네온 */
+  body[data-venue="seoul"] .table-center {
+    background: radial-gradient(ellipse at center, #1a0820 0%, #0c0414 70%, #050208 100%);
+    box-shadow: inset 0 0 70px rgba(0,0,0,0.7), 0 0 32px rgba(255,46,146,0.2);
+  }
+  body[data-venue="seoul"] .table-center::before { border-color: rgba(255,46,146,0.2); }
+  body[data-venue="seoul"] .table-center::after { content: '♠'; color: rgba(255,46,146,0.25); }
+  body[data-venue="seoul"] .game-board { background: rgba(40,8,40,0.15); border-radius: 12px; }
+
+  /* 마카오 — 골드 + 빨강 */
+  body[data-venue="macau"] .table-center {
+    background: radial-gradient(ellipse at center, #200818 0%, #100408 70%, #050202 100%);
+    box-shadow: inset 0 0 70px rgba(0,0,0,0.7), 0 0 36px rgba(255,217,61,0.2);
+  }
+  body[data-venue="macau"] .table-center::before { border-color: rgba(255,217,61,0.25); border-style: solid; }
+  body[data-venue="macau"] .table-center::after { content: '🐲'; color: rgba(255,217,61,0.3); font-size: 18px; }
+  body[data-venue="macau"] .game-board { background: rgba(60,12,12,0.15); border-radius: 12px; }
+
+  /* 벨라지오 — 분수 퍼플 */
+  body[data-venue="bellagio"] .table-center {
+    background: radial-gradient(ellipse at top, #1a0830 0%, #0c0418 50%, #04020a 100%);
+    box-shadow: inset 0 0 80px rgba(0,0,0,0.6), 0 0 40px rgba(177,78,255,0.25);
+  }
+  body[data-venue="bellagio"] .table-center::before { border-color: rgba(177,78,255,0.25); }
+  body[data-venue="bellagio"] .table-center::after { content: '⛲'; color: rgba(177,78,255,0.3); font-size: 18px; }
+  body[data-venue="bellagio"] .game-board { background: rgba(30,8,60,0.15); border-radius: 12px; }
+
+  /* WSOP — 무대 조명 앰버 */
+  body[data-venue="wsop"] .table-center {
+    background: radial-gradient(ellipse at center, #201608 0%, #100a04 70%, #050402 100%);
+    box-shadow: inset 0 0 70px rgba(0,0,0,0.65), 0 0 40px rgba(255,190,11,0.25);
+  }
+  body[data-venue="wsop"] .table-center::before { border-color: rgba(255,190,11,0.3); border-style: double; }
+  body[data-venue="wsop"] .table-center::after { content: '🏆'; color: rgba(255,190,11,0.35); font-size: 18px; }
+  body[data-venue="wsop"] .game-board { background: rgba(60,42,8,0.18); border-radius: 12px; }
+
+  /* 트라이튼 — 다이아 럭셔리 골드 */
+  body[data-venue="triton"] .table-center {
+    background: radial-gradient(ellipse at center, #181208 0%, #0a0804 60%, #020201 100%);
+    box-shadow: inset 0 0 90px rgba(0,0,0,0.7), 0 0 50px rgba(245,197,66,0.35);
+  }
+  body[data-venue="triton"] .table-center::before { border-color: rgba(245,197,66,0.4); border-style: double; border-width: 2px; }
+  body[data-venue="triton"] .table-center::after { content: '💎'; color: rgba(245,197,66,0.45); font-size: 20px; }
+  body[data-venue="triton"] .game-board {
+    background: linear-gradient(135deg, rgba(80,60,8,0.2), rgba(40,30,5,0.15));
+    border-radius: 12px;
+    box-shadow: 0 0 30px rgba(245,197,66,0.15);
+  }
+
+  /* 보스전 모드 — 빨간 분위기 */
+  body[data-boss="true"] .table-center {
+    background: radial-gradient(ellipse at center, #2a0814 0%, #0c0408 70%, #04020a 100%);
+    box-shadow: inset 0 0 100px rgba(0,0,0,0.8), 0 0 60px rgba(255,46,146,0.35);
+    border-color: var(--red);
+  }
+  body[data-boss="true"] .table-center::before {
+    border-color: rgba(255,46,146,0.4);
+    border-style: solid; border-width: 2px;
+    animation: boss-pulse 2s ease-in-out infinite;
+  }
+  @keyframes boss-pulse {
+    0%, 100% { box-shadow: 0 0 0 rgba(255,46,146,0); }
+    50% { box-shadow: 0 0 20px rgba(255,46,146,0.4); }
+  }
+  body[data-boss="true"] .table-center::after { content: '⚔️'; color: rgba(255,46,146,0.5); font-size: 22px; }
+  body[data-boss="true"] .venue-info { color: var(--red); }
   .seats-bottom {
     grid-column: 1 / -1; grid-row: 3;
     display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
@@ -2836,6 +2913,10 @@ function enterVenue(venueId) {
   document.getElementById('venue-name').textContent = venue.name;
   document.getElementById('blinds-display').textContent = '$' + venue.sb + '/$' + venue.bb;
 
+  // v41-C: 베뉴별 비주얼 차별화 — body에 data-venue 부착
+  document.body.setAttribute('data-venue', venue.id);
+  document.body.removeAttribute('data-boss');
+
   // Sync BGM icon + auto switch to venue-appropriate track
   setTimeout(() => {
     updateBgmIcon();
@@ -2859,12 +2940,157 @@ function leaveTable() {
   // Track stats
   if (sessionPnL > career.biggestWin) career.biggestWin = sessionPnL;
   if (-sessionPnL > career.biggestLoss) career.biggestLoss = -sessionPnL;
+
+  // v41-B: 세션 요약 데이터 저장
+  const sessionStats = {
+    venueName: state.venue ? state.venue.name.replace(state.venue.emoji, '').trim() : '',
+    venueEmoji: state.venue?.emoji || '🎰',
+    bb: state.venue?.bb || 0,
+    handsPlayed: state.handNumber || 0,
+    pnl: sessionPnL,
+    maxStreak: career.streak?.current || 0,
+    day: career.day || 1,
+    playerName: career.playerName || '플레이어',
+    bankroll: career.bankroll,
+    isBoss: !!state._bossMode,
+    bossKey: state._bossKey || null
+  };
+
   saveCareer();
 
   document.getElementById('game-screen').style.display = 'none';
   document.getElementById('lobby-screen').style.display = 'block';
+  // v41-C: 베뉴 테마 attribute 제거 (로비에서는 기본 톤)
+  document.body.removeAttribute('data-venue');
+  document.body.removeAttribute('data-boss');
   state = null;
   renderLobby();
+
+  // 세션 종료 공유 카드 (몇 핸드 이상 플레이한 경우만)
+  if (sessionStats.handsPlayed >= 3 || sessionStats.isBoss) {
+    setTimeout(() => showSessionSummary(sessionStats), 600);
+  }
+}
+
+// ===================== SESSION SUMMARY SHARE CARD (v41-B) =====================
+function showSessionSummary(s) {
+  const pnlColor = s.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+  const pnlSign = s.pnl >= 0 ? '+' : '';
+  const pnlBB = s.bb > 0 ? Math.round((s.pnl / s.bb) * 10) / 10 : 0;
+
+  // 하이라이트 자동 수집
+  const highlights = [];
+  if (s.pnl >= 50000) highlights.push('💎 빅윈 세션');
+  else if (s.pnl >= 10000) highlights.push('💰 수익 세션');
+  if (s.maxStreak >= 5) highlights.push(`🔥 ${s.maxStreak}연승`);
+  if (s.isBoss) {
+    const beaten = career.bossesBeaten?.includes(s.bossKey);
+    highlights.push(beaten ? '⚔️ 보스 격파!' : '⚔️ 보스 도전');
+  }
+  if (s.handsPlayed >= 50) highlights.push(`📊 ${s.handsPlayed}핸드 그라인딩`);
+
+  const date = new Date();
+  const dateStr = `${date.getFullYear()}.${String(date.getMonth()+1).padStart(2,'0')}.${String(date.getDate()).padStart(2,'0')}`;
+
+  const html = `<div style="text-align:center;padding:14px;">
+    <h3 style="color:var(--gold-bright);">🎬 세션 종료</h3>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:14px;">${dateStr} · ${s.venueEmoji} ${s.venueName}</p>
+
+    <!-- 공유 가능 카드 (id=share-card) -->
+    <div id="share-card" style="background:linear-gradient(135deg,#0a0817 0%,#221f3d 100%);border:3px solid var(--gold-foil);border-radius:14px;padding:20px;margin:14px 0;box-shadow:0 0 32px rgba(255,217,61,0.3);position:relative;overflow:hidden;">
+      <!-- 별 배경 -->
+      <div style="position:absolute;inset:0;background:radial-gradient(circle at 30% 20%, rgba(62,232,255,0.15) 0%, transparent 40%), radial-gradient(circle at 80% 70%, rgba(255,46,146,0.12) 0%, transparent 40%);pointer-events:none;"></div>
+
+      <div style="position:relative;z-index:1;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="font-size:10px;color:var(--text-dim);letter-spacing:3px;font-family:'Press Start 2P','Galmuri11',monospace;">★ NEON HOLDEM ★</div>
+          <div style="font-size:9px;color:var(--text-dim);">${dateStr}</div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+          ${typeof getProtagonistAvatarHTML === 'function' ? getProtagonistAvatarHTML(60, true) : '<div style="font-size:42px;">🧑‍💻</div>'}
+          <div style="text-align:left;flex:1;">
+            <div style="font-weight:800;font-size:16px;color:var(--gold-bright);">${s.playerName}</div>
+            <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">DAY ${s.day} · ${s.venueEmoji} ${s.venueName}</div>
+          </div>
+        </div>
+
+        <div style="background:rgba(0,0,0,0.4);border-radius:10px;padding:14px;margin:10px 0;">
+          <div style="font-size:11px;color:var(--text-dim);letter-spacing:2px;">SESSION P&L</div>
+          <div style="font-size:30px;font-weight:800;color:${pnlColor};font-family:'Press Start 2P','Galmuri11',monospace;letter-spacing:1px;margin-top:4px;text-shadow:0 0 12px ${pnlColor};">
+            ${pnlSign}$${Math.abs(s.pnl).toLocaleString()}
+          </div>
+          ${s.bb > 0 ? `<div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${pnlSign}${pnlBB} BB · ${s.handsPlayed} 핸드</div>` : ''}
+        </div>
+
+        ${highlights.length > 0 ? `<div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:10px 0;">
+          ${highlights.map(h => `<span style="background:rgba(255,217,61,0.15);border:1px solid var(--gold-foil);color:var(--gold-bright);padding:4px 10px;border-radius:14px;font-size:11px;font-weight:700;">${h}</span>`).join('')}
+        </div>` : ''}
+
+        <div style="display:flex;justify-content:space-around;margin-top:14px;padding-top:14px;border-top:1px dashed var(--border);">
+          <div style="text-align:center;">
+            <div style="font-size:10px;color:var(--text-dim);">현재 자금</div>
+            <div style="font-size:14px;color:var(--gold-bright);font-weight:700;">$${s.bankroll.toLocaleString()}</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:10px;color:var(--text-dim);">총 핸드</div>
+            <div style="font-size:14px;color:var(--gold-bright);font-weight:700;">${career.handsPlayed}</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:10px;color:var(--text-dim);">최대 승리</div>
+            <div style="font-size:14px;color:var(--gold-bright);font-weight:700;">$${career.biggestWin.toLocaleString()}</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;font-size:9px;color:var(--text-dim);letter-spacing:1px;">rlawnaud3-arch.github.io/neon-holdem</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap;">
+      <button onclick="downloadShareCard()" class="btn-primary" style="padding:10px 16px;font-size:13px;">📷 이미지 저장</button>
+      <button onclick="copyShareText()" style="padding:10px 16px;font-size:13px;">📋 텍스트 복사</button>
+      <button onclick="closeModal()" style="padding:10px 16px;font-size:13px;">닫기</button>
+    </div>
+  </div>`;
+  showModal(html);
+
+  // 공유용 텍스트 저장
+  const handsRate = s.handsPlayed > 0 ? Math.round((s.pnl / s.handsPlayed)) : 0;
+  window._shareText = `🎰 NEON HOLDEM\n${s.playerName} · DAY ${s.day} · ${s.venueName}\n\n${pnlSign}$${Math.abs(s.pnl).toLocaleString()} (${pnlSign}${pnlBB} BB)\n${s.handsPlayed}핸드 · ${highlights.join(' · ')}\n\nhttps://rlawnaud3-arch.github.io/neon-holdem/`;
+}
+
+function downloadShareCard() {
+  const card = document.getElementById('share-card');
+  if (!card) return;
+  // html2canvas 동적 로딩
+  if (typeof html2canvas === 'undefined') {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload = () => doDownload(card);
+    document.head.appendChild(s);
+  } else {
+    doDownload(card);
+  }
+}
+
+function doDownload(card) {
+  html2canvas(card, { backgroundColor: '#0a0817', scale: 2 }).then(canvas => {
+    const link = document.createElement('a');
+    link.download = `neon-holdem-${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+}
+
+function copyShareText() {
+  if (!window._shareText) return;
+  navigator.clipboard.writeText(window._shareText).then(() => {
+    const toast = document.createElement('div');
+    toast.style.cssText = `position:fixed;top:80px;left:50%;transform:translateX(-50%);background:var(--gold-bright);color:var(--bg-deep);padding:10px 18px;border-radius:8px;font-weight:700;z-index:10000;`;
+    toast.textContent = '📋 복사됨! 카카오톡에 붙여넣기';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2500);
+  });
 }
 
 // ===================== Hand Lifecycle =====================
@@ -3370,6 +3596,50 @@ function advanceStreet() {
     state.handTrack.playerCbetOpp = true;
   }
 
+  // === 보스전 모드: 미리 정해진 보드 사용 ===
+  if (state._bossMode) {
+    const prevStreet = state.street;
+    if (prevStreet === 'preflop') {
+      state.communityCards = BOSS_HANDS[state._bossKey].boardFlop.map(parseCardCode);
+      state.street = 'flop';
+      log('--- 플랍 ---', true);
+    } else if (prevStreet === 'flop') {
+      state.communityCards.push(parseCardCode(BOSS_HANDS[state._bossKey].boardTurn));
+      state.street = 'turn';
+      log('--- 턴 ---', true);
+    } else if (prevStreet === 'turn') {
+      state.communityCards.push(parseCardCode(BOSS_HANDS[state._bossKey].boardRiver));
+      state.street = 'river';
+      log('--- 리버 ---', true);
+      setTimeout(() => sfxRiverReveal(), 200);
+    } else if (prevStreet === 'river') {
+      return showdown();
+    }
+    // 모놀로그 (보스전에서도)
+    if (state.street === 'flop') {
+      const me = state.players[0];
+      if (me && !me.folded && me.cards.length === 2 && Math.random() < 0.6) {
+        setTimeout(() => {
+          const cat = classifyFlop(me.cards, state.communityCards);
+          if (cat) triggerMonologue(cat);
+        }, 900);
+      }
+    }
+    // 일반 흐름 스킵 — 보스전 분기 끝
+    const canAct = state.players.filter(p => !p.folded && !p.busted && !p.allIn);
+    if (canAct.length <= 1) {
+      state.currentPlayerIdx = -1;
+      render();
+      setTimeout(advanceStreet, 1100);
+      return;
+    }
+    // 첫 액션자: 헤즈업에서 BB가 먼저 액션
+    state.currentPlayerIdx = nextActiveIdx(state.dealerIdx);
+    render();
+    scheduleNextAction();
+    return;
+  }
+
   if (state.street === 'preflop') {
     state.deck.pop();
     state.communityCards.push(state.deck.pop(), state.deck.pop(), state.deck.pop());
@@ -3665,6 +3935,11 @@ function showdown() {
       setTimeout(() => triggerMonologue('after_big_win', { force: true }), 1600);
     } else if (!meWonShowdown && myContribForMono >= (state.bb || 10) * 30) {
       setTimeout(() => triggerMonologue('after_big_loss', { force: true }), 1600);
+    }
+
+    // === 보스전 모드: 결과 처리 ===
+    if (state._bossMode) {
+      bossHandComplete(meWonShowdown);
     }
 
     // === TROPHY + SUB-EVENT STATS — SHOWDOWN ===
@@ -8719,6 +8994,395 @@ function openDayCampaign() {
 }
 
 // ===================== CHAMPION CODEX =====================
+// ===================== CHAMPION CHALLENGE MODE (v41-A) =====================
+// 스토리 명장면이 실제 게임에서 그대로 재현 — 보스전 모드
+const BOSS_HANDS = {
+  yeonsu: {
+    name: '김연수 — 첫 라이벌',
+    desc: 'Day 3 강남 — AA vs 76s. 너의 첫 처참한 패배 핸드.',
+    venue: 'seoul',
+    playerCards: ['As', 'Ah'],       // 너 — AA
+    bossCards: ['7s', '6s'],         // 상대 — 76s (스트레이트 가능)
+    board: ['8c', '9d', 'Jh', '5h', 'Td'], // 8 9 J 5 T — 김연수 스트레이트 9-J
+    boardFlop: ['8c', '9d', 'Jh'],
+    boardTurn: '5h',
+    boardRiver: 'Td',
+    sigDialogue: '잘했어. 넌 봤어. 보는 눈이 있어.',
+    failNarrative: '하지만 보드가 너에게서 도망쳤다. 김연수의 스트레이트.',
+    successNarrative: '이번엔 다르다. 너는 김연수의 패턴을 읽었다.',
+    minBuyIn: 3000,
+    reward: { cash: 5000, xp: { exploit: 100, mental: 50 } }
+  },
+  jaejeong: {
+    name: '박재정 — WSOP 한국인 첫 우승자',
+    desc: 'Day 5 — 패턴을 읽은 자의 한 수.',
+    venue: 'seoul',
+    playerCards: ['Kh', 'Kd'],       // KK
+    bossCards: ['Qc', 'Qs'],         // QQ
+    board: ['7h', '4c', '2d', '8s', '3h'],
+    boardFlop: ['7h', '4c', '2d'],
+    boardTurn: '8s',
+    boardRiver: '3h',
+    sigDialogue: '자네 패턴을 외울 줄 알아. 좋은 자질이야.',
+    failNarrative: '박재정은 너의 약점을 정확히 노렸다.',
+    successNarrative: '너의 KK가 박재정의 QQ를 깨끗하게 이겼다.',
+    minBuyIn: 8000,
+    reward: { cash: 12000, xp: { insight: 100, math: 50 } }
+  },
+  antonius: {
+    name: 'Patrik Antonius — 북극의 침묵',
+    desc: 'Day 6 마카오 — 침묵의 압박 대결.',
+    venue: 'macau',
+    playerCards: ['Ad', 'Kd'],       // AKs
+    bossCards: ['Jc', 'Js'],         // JJ
+    board: ['As', '7c', '3h', 'Td', 'Qh'],
+    boardFlop: ['As', '7c', '3h'],
+    boardTurn: 'Td',
+    boardRiver: 'Qh',
+    sigDialogue: '......',
+    failNarrative: 'Antonius의 침묵이 너를 흔들었다.',
+    successNarrative: '톱페어 + 너트 키커. Antonius가 작게 끄덕였다 — 인정.',
+    minBuyIn: 30000,
+    reward: { cash: 40000, xp: { pressure: 100, pokerFace: 80 } }
+  },
+  ivey: {
+    name: 'Phil Ivey — 신의 눈',
+    desc: 'Day 7 벨라지오 — set vs set. 운명의 한 수.',
+    venue: 'bellagio',
+    playerCards: ['Qd', 'Qh'],       // QQ
+    bossCards: ['9s', '9c'],         // 99
+    board: ['Kh', '7s', '2d', 'Qc', '5d'], // 너 Q set on turn
+    boardFlop: ['Kh', '7s', '2d'],
+    boardTurn: 'Qc',
+    boardRiver: '5d',
+    sigDialogue: '...너 누구지?',
+    failNarrative: 'Ivey의 read에 너의 모든 게 발각됐다.',
+    successNarrative: 'Q set! Ivey가 폴드했다 — "Good play."',
+    minBuyIn: 100000,
+    reward: { cash: 150000, xp: { insight: 200, exploit: 100 } }
+  },
+  hellmuth: {
+    name: 'Phil Hellmuth — 자존심의 충돌',
+    desc: 'Day 8 WSOP — AKo vs JJ. 너의 인정받는 한 수.',
+    venue: 'wsop',
+    playerCards: ['Ah', 'Kh'],       // AKo
+    bossCards: ['Js', 'Jh'],         // JJ
+    board: ['Ad', '5c', '2s', 'Kc', '7d'], // 너 투페어 AK
+    boardFlop: ['Ad', '5c', '2s'],
+    boardTurn: 'Kc',
+    boardRiver: '7d',
+    sigDialogue: '꼬마야 — 자네 이름이 뭐였지?',
+    failNarrative: 'Hellmuth의 위협이 너를 흔들었다.',
+    successNarrative: 'AK 투페어 승리! Hellmuth: "자네 이름이 뭐였지?"',
+    minBuyIn: 400000,
+    reward: { cash: 800000, xp: { pokerFace: 200, pressure: 100 } }
+  },
+  chidwick: {
+    name: 'Stephen Chidwick — GTO 솔버',
+    desc: 'Day 9 트라이튼 — 수학 vs 수학의 정점.',
+    venue: 'triton',
+    playerCards: ['Td', 'Th'],       // TT
+    bossCards: ['Ah', 'Qh'],         // AQs
+    board: ['Tc', '5h', '4s', '3d', '8d'], // 너 셋
+    boardFlop: ['Tc', '5h', '4s'],
+    boardTurn: '3d',
+    boardRiver: '8d',
+    sigDialogue: 'EV+12 here.',
+    failNarrative: 'Chidwick의 GTO 라인이 너를 압도했다.',
+    successNarrative: 'Set! Chidwick: "Interesting deviation."',
+    minBuyIn: 1000000,
+    reward: { cash: 2000000, xp: { math: 200, exploit: 100 } }
+  },
+  brunson: {
+    name: 'Doyle Brunson — 포커의 신',
+    desc: 'Day 10 트라이튼 결승 — KK vs Dolly\'s T2. 전설의 한 수.',
+    venue: 'triton',
+    playerCards: ['Kd', 'Kc'],       // KK
+    bossCards: ['Ts', '2s'],         // T2 (Doyle's signature)
+    board: ['Td', '2c', '8h', 'Kh', 'Ks'], // 너 풀하우스 KK over TT
+    boardFlop: ['Td', '2c', '8h'],
+    boardTurn: 'Kh',
+    boardRiver: 'Ks',
+    sigDialogue: 'Howdy partner. ...너도 이제 우리 중 하나야.',
+    failNarrative: 'Brunson의 T2가 마법을 부렸다.',
+    successNarrative: 'KK 풀하우스! Brunson의 시그니처를 그의 시그니처로 이겼다.',
+    minBuyIn: 3000000,
+    reward: { cash: 10000000, xp: { all: 100 } }
+  },
+  // 추가: dwan
+  dwan: {
+    name: 'Tom Dwan — durrrr',
+    desc: '랜덤 — 공포의 LAG 대결.',
+    venue: 'bellagio',
+    playerCards: ['Ac', 'Qc'],
+    bossCards: ['7d', '6d'],
+    board: ['As', 'Td', '4c', 'Kh', '2s'],
+    boardFlop: ['As', 'Td', '4c'],
+    boardTurn: 'Kh',
+    boardRiver: '2s',
+    sigDialogue: 'Big bluff coming...',
+    failNarrative: 'durrrr의 무자비한 베팅이 너를 폴드시켰다.',
+    successNarrative: 'AQ 톱페어. Dwan의 블러프를 캐치했다.',
+    minBuyIn: 200000,
+    reward: { cash: 500000, xp: { bluff: 150, insight: 80 } }
+  }
+};
+
+// 보스전 진행 상태 (career.bossesBeaten 에서 추적)
+function ensureBossProgress() {
+  if (!career.bossesBeaten) career.bossesBeaten = [];
+  if (!career.bossAttempts) career.bossAttempts = {};
+}
+
+// 카드 파싱: 'As' → { rank: 'A', suit: '♠', color: 'black' }
+function parseCardCode(code) {
+  const rankChar = code.slice(0, code.length - 1);
+  const rank = rankChar === 'T' ? '10' : rankChar;
+  const suitChar = code.slice(-1);
+  const suitMap = { s: '♠', h: '♥', d: '♦', c: '♣' };
+  const colorMap = { s: 'black', h: 'red', d: 'red', c: 'black' };
+  return { rank, suit: suitMap[suitChar], color: colorMap[suitChar] };
+}
+
+// 시나리오 핸드 시작 — 정해진 카드로 진행
+function startBossChallenge(bossKey) {
+  ensureBossProgress();
+  const boss = BOSS_HANDS[bossKey];
+  if (!boss) return;
+  if (career.bankroll < boss.minBuyIn) {
+    alert(`자금 부족 — ${boss.name} 도전은 최소 $${boss.minBuyIn.toLocaleString()} 필요.\n현재 자금: $${career.bankroll.toLocaleString()}`);
+    return;
+  }
+
+  // 시도 카운트
+  career.bossAttempts[bossKey] = (career.bossAttempts[bossKey] || 0) + 1;
+
+  // 도전 비용 = 50BB 정도 (베뉴 BB 기준)
+  const venue = VENUES.find(v => v.id === boss.venue);
+  if (!venue) return;
+  const buyIn = Math.min(boss.minBuyIn, career.bankroll);
+  career.bankroll -= buyIn;
+  saveCareer();
+
+  // 보스 플레이어 생성
+  const bossAbility = SPECIAL_ABILITIES[bossKey];
+  const bossPlayer = {
+    name: boss.name.split(' —')[0],
+    isHuman: false, isFamous: true,
+    famousData: { name: bossAbility?.owner || boss.name, country: '🌟', emoji: bossAbility?.icon || '⭐', flair: boss.desc },
+    personalityType: 'TAG',
+    skill: 1.0, tilt: 0,
+    stack: buyIn, buyInsTotal: buyIn,
+    cards: boss.bossCards.map(parseCardCode),
+    folded: false, allIn: false,
+    currentBet: 0, totalBet: 0, hasActed: false, busted: false, handResult: null,
+    _bossLocked: true  // 카드 고정
+  };
+
+  const me = {
+    name: career.playerName || '나', isHuman: true,
+    personalityType: 'HUMAN', skill: 1, tilt: 0,
+    stack: buyIn, buyInsTotal: buyIn,
+    cards: boss.playerCards.map(parseCardCode),
+    folded: false, allIn: false,
+    currentBet: 0, totalBet: 0, hasActed: false, busted: false, handResult: null,
+    _bossLocked: true
+  };
+
+  // 상태 초기화 (헤즈업 보스전)
+  state = {
+    venue, players: [me, bossPlayer],
+    bb: venue.bb, sb: venue.sb,
+    pot: 0, deck: [], communityCards: [],
+    street: 'preHand', currentPlayerIdx: -1,
+    dealerIdx: 0, sbIdx: 0, bbIdx: 1,
+    currentBet: 0, lastRaiseSize: venue.bb,
+    handNumber: 1, log: [],
+    winners: null, sessionPnL: 0,
+    sessionInvested: buyIn,
+    _bossMode: true,
+    _bossKey: bossKey,
+    _bossBoard: boss.board.map(parseCardCode),
+    _bossDealCount: 0
+  };
+
+  // UI 전환
+  document.getElementById('lobby-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display = 'block';
+  document.getElementById('venue-name').textContent = '⚔️ 보스전 — ' + boss.name.split(' —')[0];
+  document.getElementById('blinds-display').textContent = `$${venue.sb}/$${venue.bb}`;
+  document.getElementById('hand-num').textContent = '1 (보스)';
+  // v41-C: 보스전 모드 비주얼
+  document.body.setAttribute('data-venue', venue.id);
+  document.body.setAttribute('data-boss', 'true');
+
+  // 보스전 인트로 시네마틱
+  sfxTension();
+  setTimeout(() => {
+    showCinematic(`
+      <div style="font-size:11px;color:var(--red);letter-spacing:6px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:18px;">★ BOSS CHALLENGE ★</div>
+      ${typeof getCharImageBigHTML === 'function' && STORY_CHARS[bossKey] ? getCharImageBigHTML(bossKey, 160) : `<div style="font-size:80px;">${bossAbility?.icon || '⭐'}</div>`}
+      <h2 style="color:var(--gold-bright);font-size:18px;letter-spacing:2px;font-family:'Press Start 2P','Galmuri11',monospace;margin:10px 0;">${boss.name}</h2>
+      <div style="font-size:13px;color:var(--text);max-width:80%;text-align:center;line-height:1.7;margin:10px 0;">${boss.desc}</div>
+      <div style="font-size:12px;color:var(--cyan);margin-top:14px;font-style:italic;">"${boss.sigDialogue}"</div>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:18px;">바이인 $${buyIn.toLocaleString()} · 시도 ${career.bossAttempts[bossKey]}회</div>
+    `, 4500, true);
+  }, 200);
+
+  // 4.5초 후 핸드 시작
+  setTimeout(() => {
+    bossNewHand();
+  }, 4800);
+}
+
+// 보스전 전용 newHand — 카드 분배 X, 미리 정해진 카드 사용
+function bossNewHand() {
+  state.handNumber = 1;
+  career.handsPlayed++;
+  state.pot = 0;
+  state.communityCards = [];
+  state.currentBet = state.bb;
+  state.lastRaiseSize = state.bb;
+  state.winners = null;
+
+  // 블라인드 자동 포스트
+  const me = state.players[0], boss = state.players[1];
+  me.cards = [...state.players[0].cards];  // already set
+  boss.cards = [...state.players[1].cards];
+  me.folded = false; me.allIn = false; me.currentBet = 0; me.totalBet = 0; me.hasActed = false;
+  boss.folded = false; boss.allIn = false; boss.currentBet = 0; boss.totalBet = 0; boss.hasActed = false;
+
+  // SB = me, BB = boss
+  postBlind(0, state.sb);
+  postBlind(1, state.bb);
+  state.currentPlayerIdx = 0;  // me first (SB acts first preflop in heads-up)
+  state.street = 'preflop';
+
+  state.handTrack = {
+    preflopRaises: 0, preflopAggressorIdx: -1, preflopCallersBeforePlayer: 0,
+    playerVolPreflop: false, playerCbetOpp: false,
+    playerCheckedThisStreet: false, playerStartStack: me.stack, handStartPot: state.bb + state.sb,
+    decisions: []
+  };
+
+  log(`<b>★ 보스전 vs ${boss.name} ★</b>`, true);
+  saveCareer();
+  render();
+
+  // 첫 모놀로그
+  setTimeout(() => triggerMonologue(classifyPreflopHand(me.cards), { force: true }), 800);
+
+  scheduleNextAction();
+}
+
+// 보스전에서 advanceStreet 시 미리 정해진 보드 사용
+function bossAdvanceBoard(currentStreet) {
+  if (!state._bossMode) return false;
+  const boss = BOSS_HANDS[state._bossKey];
+  if (!boss) return false;
+  if (currentStreet === 'preflop') {
+    state.communityCards = boss.boardFlop.map(parseCardCode);
+    return true;
+  } else if (currentStreet === 'flop') {
+    state.communityCards.push(parseCardCode(boss.boardTurn));
+    return true;
+  } else if (currentStreet === 'turn') {
+    state.communityCards.push(parseCardCode(boss.boardRiver));
+    return true;
+  }
+  return false;
+}
+
+// 보스전 결과 처리
+function bossHandComplete(meWonShowdown) {
+  const bossKey = state._bossKey;
+  const boss = BOSS_HANDS[bossKey];
+  if (!boss) return;
+
+  if (meWonShowdown) {
+    // 격파 성공
+    career.bossesBeaten = career.bossesBeaten || [];
+    if (!career.bossesBeaten.includes(bossKey)) career.bossesBeaten.push(bossKey);
+    career.bankroll += boss.reward.cash;
+    if (boss.reward.xp) {
+      ensureAbilities();
+      for (const [stat, amt] of Object.entries(boss.reward.xp)) {
+        if (stat === 'all') {
+          for (const k of Object.keys(ABILITY_DEFS)) gainXP(k, amt, '보스 격파');
+        } else gainXP(stat, amt, '보스 격파');
+      }
+    }
+    saveCareer();
+    // 격파 시네마틱
+    setTimeout(() => {
+      triggerChampionKOCinematic(bossKey);
+    }, 1500);
+    setTimeout(() => {
+      showModal(`<div style="text-align:center;padding:20px;">
+        <h2 style="color:var(--gold-bright);">⚔️ 보스 격파!</h2>
+        <p style="font-size:13px;color:var(--text);line-height:1.7;margin:14px 0;">${boss.successNarrative}</p>
+        <div style="background:var(--bg-card-2);padding:14px;border-radius:8px;margin:14px 0;">
+          <div style="font-size:13px;color:var(--gold-bright);font-weight:700;">💰 +$${boss.reward.cash.toLocaleString()}</div>
+          <div style="font-size:12px;color:var(--text-dim);margin-top:6px;">${Object.entries(boss.reward.xp).map(([k,v]) => k === 'all' ? `모든 능력 +${v}` : `${ABILITY_DEFS[k]?.icon || ''} +${v}`).join(' · ')}</div>
+        </div>
+        <button class="btn-primary" onclick="closeModal();leaveTable();">로비로 →</button>
+      </div>`);
+    }, 8000);
+  } else {
+    // 패배
+    setTimeout(() => {
+      showModal(`<div style="text-align:center;padding:20px;">
+        <h2 style="color:var(--red);">패배</h2>
+        <p style="font-size:13px;color:var(--text);line-height:1.7;margin:14px 0;">${boss.failNarrative}</p>
+        <p style="font-size:11px;color:var(--text-dim);margin:10px 0;">시도: ${career.bossAttempts[bossKey] || 1}회 · 다시 도전 가능</p>
+        <button class="btn-primary" onclick="closeModal();leaveTable();">로비로 →</button>
+      </div>`);
+    }, 2500);
+  }
+}
+
+// 보스전 진입 메뉴
+function openBossChallenge() {
+  ensureBossProgress();
+  const playerCash = career.bankroll;
+
+  let html = `<h3>⚔️ 챔피언 도전 모드</h3>
+  <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">스토리 명장면을 재현 — 정해진 카드로 보스와 단일 핸드 대결. <b>격파하면 능력 흡수 + 보상.</b></p>
+  <div style="background:linear-gradient(135deg,rgba(255,46,146,0.18),rgba(212,175,55,0.06));border:2px solid var(--red);border-radius:8px;padding:12px;text-align:center;margin-bottom:14px;">
+    <div style="font-size:11px;letter-spacing:3px;color:var(--red);font-family:'Press Start 2P','Galmuri11',monospace;">격파 진행도</div>
+    <div style="font-weight:800;font-size:22px;color:var(--gold-bright);margin-top:4px;">${career.bossesBeaten.length} / ${Object.keys(BOSS_HANDS).length}</div>
+  </div>`;
+
+  for (const [key, boss] of Object.entries(BOSS_HANDS)) {
+    const beaten = career.bossesBeaten.includes(key);
+    const attempts = career.bossAttempts[key] || 0;
+    const canAfford = playerCash >= boss.minBuyIn;
+    const champ = SPECIAL_ABILITIES[key];
+    const color = champ ? getRarityColor(champ.rarity) : 'var(--text-dim)';
+    const charVisual = STORY_CHARS[key] ? getCharImageHTML(key, 56, true) : `<div style="font-size:36px;width:56px;height:56px;display:flex;align-items:center;justify-content:center;">${champ?.icon || '⭐'}</div>`;
+
+    html += `<div style="background:${beaten ? 'rgba(110,208,126,0.08)' : 'var(--bg-card-2)'};border:2px solid ${beaten ? 'var(--green)' : (canAfford ? color : 'var(--border)')};border-radius:8px;padding:12px;margin:8px 0;${!canAfford && !beaten ? 'opacity:0.5;' : ''}">
+      <div style="display:flex;gap:12px;align-items:center;">
+        <div>${charVisual}</div>
+        <div style="flex:1;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-weight:700;font-size:13px;color:${beaten ? 'var(--green)' : color};">${boss.name} ${beaten ? '✓ 격파' : ''}</div>
+            ${attempts > 0 ? `<span style="font-size:10px;color:var(--text-dim);">${attempts}회 시도</span>` : ''}
+          </div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;line-height:1.4;">${boss.desc}</div>
+          <div style="font-size:11px;color:var(--gold-bright);margin-top:4px;">💰 +$${boss.reward.cash.toLocaleString()} · 바이인 $${boss.minBuyIn.toLocaleString()}</div>
+        </div>
+        <button onclick="closeModal();startBossChallenge('${key}')" ${!canAfford ? 'disabled' : ''} style="padding:10px 14px;font-size:12px;font-weight:700;background:${canAfford ? 'var(--red)' : 'var(--bg-darker)'};color:${canAfford ? '#fff' : 'var(--text-dim)'};border:none;border-radius:6px;cursor:${canAfford ? 'pointer' : 'not-allowed'};">
+          ${beaten ? '재도전' : '도전 ⚔️'}
+        </button>
+      </div>
+    </div>`;
+  }
+
+  html += `<div style="text-align:center;margin-top:14px;"><button onclick="closeModal()">닫기</button></div>`;
+  showModal(html);
+}
+
 function openChampionCodex() {
   ensureCareer();
   ensureAbilities();
@@ -8833,6 +9497,7 @@ function openMainMenu() {
         { icon: '🎯', label: `일일 챌린지${chReady > 0 ? ` (${chReady} 보상 가능!)` : ''}`, desc: '매일 3개, 자정 갱신', action: 'openChallengesMenu()', highlight: chReady > 0 },
         { icon: '📅', label: 'Day 캠페인 진행도', desc: '10일 RPG 스토리 + 챔피언 만남', action: 'openDayCampaign()' },
         { icon: '⚔️', label: '챔피언 도감', desc: '만난 전설 + 흡수 가능 능력', action: 'openChampionCodex()' },
+        { icon: '⚔️', label: '챔피언 도전 모드 (v41 신규)', desc: '8명 보스 — 스토리 명장면 재현 보스전', action: 'openBossChallenge()' },
         { icon: '🏆', label: '트로피 도감', desc: '18개 베뉴 트로피 — 브론즈/실버/골드', action: 'openTrophyCodex()' },
         { icon: '👥', label: '등장인물 관계도', desc: '주인공 김민준을 둘러싼 14명의 인물', action: 'openCharacterRelations()' },
         { icon: '📜', label: '서브이벤트 도감', desc: '40개 짧은 컷씬 + 선택지 분기 기록', action: 'openSubEventCodex()' }
