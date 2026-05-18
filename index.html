@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v41 ★ BOSS CHALLENGE + SHARE CARD + VENUE THEMING</title>
+<title>NEON HOLDEM v41.1 ★ CARD PIP FIX (CSS GRID)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -496,28 +496,37 @@
   .card .corner-br { font-size: 9px; line-height: 1; transform: rotate(180deg); align-self: flex-end; }
   .card .center-suit { text-align: center; font-size: 16px; line-height: 1; }
 
-  /* === Card face pip patterns (v40.2 — Bicycle 표준 비례) === */
+  /* === Card face pip grid (v41.1 — CSS Grid 정통 포커 카드) === */
   .card .pip-grid {
     flex: 1;
-    position: relative;
     width: 100%;
-    min-height: 32px;  /* 손 카드(52×72)에서도 face 영역 확보 */
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: repeat(5, 1fr);
+    align-items: center;
+    justify-items: center;
+    padding: 2px 4px;
+    box-sizing: border-box;
+    min-height: 36px;
   }
   .card .pip-grid .pip {
-    position: absolute;
     font-size: 9px;
     line-height: 1;
-    transform-origin: center;
-    /* transform은 inline style에서 직접 처리 (translate + 옵션 rotate) */
     user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .card .pip-grid .pip.flip {
+    transform: rotate(180deg);
   }
 
   /* Larger pips for community cards (78×110) */
-  .community-cards .card .pip-grid { min-height: 70px; }
-  .community-cards .card .pip-grid .pip { font-size: 16px; font-weight: 700; }
+  .community-cards .card .pip-grid { min-height: 76px; padding: 4px 6px; }
+  .community-cards .card .pip-grid .pip { font-size: 15px; font-weight: 700; }
 
   /* Winner reveal cards (큰 카드) */
-  .winner-cards-row .card .pip-grid .pip { font-size: 18px; font-weight: 700; }
+  .winner-cards-row .card .pip-grid .pip { font-size: 17px; font-weight: 700; }
 
   /* Mini pips for showdown reveals */
   .showdown-hand-mini .card .pip-grid .pip { font-size: 7px; }
@@ -4193,31 +4202,82 @@ function scheduleNextAction() {
 }
 
 // ===================== Rendering =====================
-// Pip 위치 — Bicycle 표준 포커 카드 비례 (% 좌표).
-// 카드 face 영역에서 [top%, left%] — 카드 외곽 침범 X, 좌우 1/4, 3/4 위치.
-// 절반(top>50%)은 자동으로 180도 회전 (실제 카드와 동일).
-const PIP_POSITIONS = {
-  '2':  [[18,50], [82,50]],
-  '3':  [[18,50], [50,50], [82,50]],
-  '4':  [[18,28], [18,72], [82,28], [82,72]],
-  '5':  [[18,28], [18,72], [50,50], [82,28], [82,72]],
-  '6':  [[18,28], [18,72], [50,28], [50,72], [82,28], [82,72]],
-  '7':  [[18,28], [18,72], [34,50], [50,28], [50,72], [82,28], [82,72]],
-  '8':  [[18,28], [18,72], [34,50], [50,28], [50,72], [66,50], [82,28], [82,72]],
-  '9':  [[18,28], [18,72], [38,28], [38,72], [50,50], [62,28], [62,72], [82,28], [82,72]],
-  '10': [[18,28], [18,72], [28,50], [38,28], [38,72], [62,28], [62,72], [72,50], [82,28], [82,72]]
+// Pip 레이아웃 — 4행 × 3열 CSS Grid 사용 (정통 포커 카드 패턴).
+// 각 카드는 12개 셀 중 정확한 위치에 pip 배치.
+// 행: 1=top, 2=mid-top, 3=mid-bot, 4=bottom (4 또는 5는 카드별)
+// 'P' = pip, 'p' = pip (작게 — 9, 10에서 안쪽), '.' = 빈 셀
+const PIP_LAYOUTS = {
+  '2':  '.P.|...|...|.P.',                          // 4행 × 3열
+  '3':  '.P.|...|.P.|.P.',
+  '4':  'P.P|...|...|P.P',
+  '5':  'P.P|...|.P.|P.P',
+  '6':  'P.P|...|P.P|P.P',
+  '7':  'P.P|.P.|P.P|P.P',
+  '8':  'P.P|.P.|P.P|.P.',                          // top-mid + bot-mid 추가
+  '9':  'P.P|P.P|.P.|P.P',                          // 9 — special
+  '10': 'P.P|.P.|.P.|P.P'                           // 10 — top-mid + bot-mid + top corners + bottom corners + center pairs
 };
 
+// 더 정확한 5행 × 3열 패턴 (Bicycle 표준)
+const PIP_GRID = {
+  '2':  ['...', '.P.', '...', '.P.', '...'],         // top, bot
+  '3':  ['.P.', '...', '.P.', '...', '.P.'],         // top, mid, bot
+  '4':  ['P.P', '...', '...', '...', 'P.P'],         // 4 corners
+  '5':  ['P.P', '...', '.P.', '...', 'P.P'],         // 4 corners + center
+  '6':  ['P.P', '...', 'P.P', '...', 'P.P'],         // 2x3
+  '7':  ['P.P', '.P.', 'P.P', '...', 'P.P'],         // 6 + top-center
+  '8':  ['P.P', '.P.', 'P.P', '.P.', 'P.P'],         // 6 + top + bot center
+  '9':  ['P.P', 'P.P', '.P.', 'P.P', 'P.P'],         // 4 corners (double) + center
+  '10': ['P.P', '.P.', 'P.P', '.P.', 'P.P']          // = 8 ? need 10
+};
+
+// 실제 10: 위 4개 + 아래 4개 + 중간 2개 (10개)
+// 정확한 표준 10: row1: P.P, row2: P.P, row3: .P. , row4: P.P, row5: P.P → 9개. 부족
+// 10 = 4×2(corners) + 4×2(mid-quarters) + 2(centers between) → row1: P.P, row2: PPP, row3: ..., row4: PPP, row5: P.P? 이러면 10
+// 표준 10 layout (Bicycle): 4 corners + 2 mid-rows of P.P + top-mid pip + bot-mid pip
+PIP_GRID['10'] = ['P.P', '.P.', 'P.P', '.P.', 'P.P']; // 5+5? need 10
+// Re-think: standard Bicycle 10 = 10 pips arranged as:
+//   row1: P . P
+//   row2: . P .
+//   row3: P . P  (or split)
+//   row4: . P .
+//   row5: P . P
+// Counting: 2+1+2+1+2 = 8. Need 10.
+// Actually Bicycle 10:
+//   row1: P . P
+//   row2: P . P
+//   row3: . P .
+//   row4: P . P
+//   row5: P . P
+// That's 2+2+1+2+2 = 9. Still not 10.
+// True Bicycle 10 layout:
+//   row1: P . P
+//   row2: P . P  ← top quad
+//   row3: . . .
+//   row4: P . P  ← bottom quad
+//   row5: P . P
+// Plus 2 in middle column (small):
+//   row2.5: . P .
+//   row4.5: . P .
+// To fit 5-row grid:
+PIP_GRID['9'] = ['P.P', 'P.P', '.P.', 'P.P', 'P.P'];  // 9 pips
+PIP_GRID['10'] = ['P.P', 'PPP', '...', 'PPP', 'P.P']; // 10 pips: 2+3+0+3+2 = 10 ✓
+
 function renderPipFace(rank, suit, color) {
-  const positions = PIP_POSITIONS[rank];
-  if (!positions) return '';
-  let pips = '';
-  for (const [top, left] of positions) {
-    // Bottom half pips rotate 180° (real card design)
-    const rotate = top > 50 ? ' rotate(180deg)' : '';
-    pips += `<span class="pip" style="top:${top}%;left:${left}%;transform:translate(-50%,-50%)${rotate};">${suit}</span>`;
+  const layout = PIP_GRID[rank];
+  if (!layout) return '';
+  let cells = '';
+  for (let row = 0; row < 5; row++) {
+    const cols = layout[row];
+    const flip = row >= 3; // bottom rows rotate 180
+    for (let col = 0; col < 3; col++) {
+      const ch = cols[col];
+      if (ch === 'P') {
+        cells += `<span class="pip${flip ? ' flip' : ''}" style="grid-row:${row+1};grid-column:${col+1};">${suit}</span>`;
+      }
+    }
   }
-  return `<div class="pip-grid">${pips}</div>`;
+  return `<div class="pip-grid">${cells}</div>`;
 }
 
 // J/Q/K figures (simple SVG pixel-art silhouettes)
