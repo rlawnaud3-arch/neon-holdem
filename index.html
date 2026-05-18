@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v41.2 ★ CARD SIZE-AWARE PIPS</title>
+<title>NEON HOLDEM v42.1 ★ REAL PLAYING CARD IMAGES</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -471,10 +471,140 @@
   .community-cards .card .center-suit { font-size: 32px; }
   .community-cards { gap: 10px; min-height: 120px; margin: 12px 0; }
   @keyframes card-pop {
-    0% { transform: scale(0.7); opacity: 0; }
-    100% { transform: scale(1); opacity: 1; }
+    0% { transform: scale(0.4) rotateY(180deg); opacity: 0; }
+    50% { transform: scale(1.1) rotateY(0); opacity: 1; }
+    100% { transform: scale(1) rotateY(0); opacity: 1; }
   }
+  /* v42-A: 카드 슬라이딩 분배 — 가운데에서 좌석으로 */
+  @keyframes card-deal-from-center {
+    0% {
+      transform: translate(0, -200px) scale(0.3) rotate(-15deg);
+      opacity: 0;
+      filter: brightness(2);
+    }
+    40% {
+      opacity: 1;
+      filter: brightness(1.5);
+    }
+    100% {
+      transform: translate(0, 0) scale(1) rotate(0);
+      opacity: 1;
+      filter: brightness(1);
+    }
+  }
+  .card.card-dealing {
+    animation: card-deal-from-center 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  /* === v42-C: 인터랙션 피드백 === */
+  /* 모든 버튼에 active scale + 트랜지션 */
+  button, .action-btn, .dock-btn, .venue-card {
+    transition: transform 0.12s ease-out, box-shadow 0.2s ease-out, background 0.15s ease-out, border-color 0.15s ease-out;
+  }
+  button:active:not(:disabled),
+  .action-btn:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+  .dock-btn:active:not(:disabled) {
+    transform: scale(0.96) translateY(1px);
+  }
+
+  /* 액션 버튼 — 누를 때 글로우 */
+  .action-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.4), 0 0 20px currentColor;
+  }
+  .action-btn-fold:hover:not(:disabled) { box-shadow: 0 6px 16px rgba(0,0,0,0.4), 0 0 16px var(--red); }
+  .action-btn-call:hover:not(:disabled) { box-shadow: 0 6px 16px rgba(0,0,0,0.4), 0 0 16px var(--cyan); }
+  .action-btn-raise:hover:not(:disabled) { box-shadow: 0 6px 16px rgba(0,0,0,0.4), 0 0 20px var(--gold-bright); }
+  .action-btn-allin:hover:not(:disabled) { box-shadow: 0 6px 16px rgba(0,0,0,0.4), 0 0 20px var(--red); animation: allin-pulse 1.5s ease-in-out infinite; }
+  @keyframes allin-pulse {
+    0%, 100% { box-shadow: 0 6px 16px rgba(0,0,0,0.4), 0 0 16px var(--red); }
+    50% { box-shadow: 0 6px 16px rgba(0,0,0,0.4), 0 0 28px var(--red); }
+  }
+
+  /* 베뉴 카드 hover */
+  .venue-card:not(.locked):hover {
+    transform: translateY(-3px) scale(1.01);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 16px rgba(255,217,61,0.2);
+  }
+  .venue-card:active:not(.locked) {
+    transform: translateY(-1px) scale(0.99);
+  }
+
+  /* Dock 버튼 — 부드러운 라이즈 */
+  .dock-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4), 0 0 10px rgba(245,200,73,0.2);
+  }
+
+  /* 손 카드 hover — 살짝 들어올림 (player만) */
+  .seat .seat-cards .card {
+    transition: transform 0.18s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .seat.you .seat-cards:hover .card {
+    transform: translateY(-4px);
+  }
+
+  /* 슬라이더 thumb hover */
+  .bet-slider:hover::-webkit-slider-thumb {
+    transform: scale(1.15);
+    box-shadow: 0 0 18px var(--gold-bright), 0 2px 6px rgba(0,0,0,0.6);
+  }
+  .bet-slider:hover::-moz-range-thumb {
+    transform: scale(1.15);
+    box-shadow: 0 0 18px var(--gold-bright), 0 2px 6px rgba(0,0,0,0.6);
+  }
+
+  /* 모달 입장 애니메이션 (이미 있는 카드 팝과 비슷) */
+  .modal-content {
+    animation: modal-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes modal-pop {
+    0% { transform: scale(0.92) translateY(10px); opacity: 0; }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+  }
+
+  /* 자금 변화 강조 (when bankroll-display has .changing class) */
+  .bankroll-amount.changing,
+  #bankroll-display.changing,
+  #bankroll-game.changing {
+    animation: bankroll-flash 0.6s ease-out;
+  }
+  @keyframes bankroll-flash {
+    0% { transform: scale(1); color: var(--gold-bright); }
+    50% { transform: scale(1.15); color: var(--neon-amber); text-shadow: 0 0 16px var(--gold-bright); }
+    100% { transform: scale(1); color: var(--gold-bright); }
+  }
+  .bankroll-amount.gain { color: var(--green) !important; }
+  .bankroll-amount.loss { color: var(--red) !important; }
   .card.red { color: #d63030; }
+
+  /* === v42.1: 실제 카드 이미지 (deckofcardsapi) === */
+  .card.card-image {
+    padding: 0 !important;
+    background: white;
+    display: block;
+    overflow: hidden;
+  }
+  .card.card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .card-fallback {
+    width: 100%; height: 100%;
+    background: #f7eed3;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 4px;
+    color: #1a1a1a;
+    font-family: 'Press Start 2P', 'Galmuri11', monospace;
+    font-size: 9px;
+  }
+  .card-fallback.red { color: #d63030; }
+  .card-fallback .corner-tl { font-size: 9px; line-height: 1; }
+  .card-fallback .corner-br { font-size: 9px; line-height: 1; transform: rotate(180deg); align-self: flex-end; }
   .card.placeholder {
     background: transparent; border: 2px dashed var(--border);
     box-shadow: none; animation: none;
@@ -2013,6 +2143,61 @@
     transform: scale(1.15);
   }
 
+  /* === TABLET (601-1024px) — iPad 등 (v42-D) === */
+  @media (min-width: 601px) and (max-width: 1024px) {
+    body { padding: 16px; font-size: 14px; }
+    /* 게임 보드 — 3-column 그리드 유지하되 더 컴팩트 */
+    .game-board { grid-template-columns: 1fr 2fr 1fr; gap: 10px; }
+    .seats-bottom { grid-template-columns: repeat(5, 1fr); gap: 8px; }
+    /* 카드 약간 크게 */
+    .card { width: 56px; height: 78px; }
+    .community-cards .card { width: 84px; height: 118px; }
+    /* 베뉴 그리드 2열 */
+    .venue-grid { grid-template-columns: 1fr 1fr; gap: 14px; }
+    /* 액션 dock 더 균형있게 */
+    .action-dock { display: grid !important; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    /* 베팅 sizer — 약간 넓게 */
+    .bet-sizer { padding: 14px 16px; }
+    .bet-amount-main { font-size: 20px; }
+    .action-btn { min-height: 64px; }
+  }
+
+  /* === LANDSCAPE MOBILE (가로 모드, ≤900px AND height < 500px) === */
+  @media (max-width: 900px) and (max-height: 500px) and (orientation: landscape) {
+    body { padding: 4px; }
+    .game-board {
+      grid-template-columns: 1fr 1.5fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 4px;
+    }
+    .seat-tl { grid-column: 1; grid-row: 1; }
+    .seat-tr { grid-column: 3; grid-row: 1; }
+    .seat-ml { grid-column: 1; grid-row: 2; }
+    .seat-mr { grid-column: 3; grid-row: 2; }
+    .table-center { grid-column: 2; grid-row: 1 / 3; min-height: 180px; padding: 12px 8px; }
+    .seats-bottom {
+      grid-column: 1 / -1;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+      margin-top: 4px;
+    }
+    .game-header { padding: 4px 8px !important; font-size: 11px; }
+    .card { width: 38px; height: 54px; padding: 2px; font-size: 8px; }
+    .community-cards .card { width: 50px; height: 70px; }
+    .community-cards .card .pip-grid .pip { font-size: 10px; }
+    .pot-amount { font-size: 16px !important; }
+    .action-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 100;
+    }
+    .bet-sizer { padding: 4px 8px; gap: 4px; }
+    .bet-amount-main { font-size: 14px; }
+    .action-btn { min-height: 42px; padding: 4px; }
+    .action-btn-label { font-size: 11px; }
+    .action-btn-amount { font-size: 9px; }
+  }
+
   /* Responsive - smaller screens */
   @media (max-width: 900px) {
     .game-board {
@@ -2746,7 +2931,11 @@ function renderLobby() {
     // First-time lobby tutorial (only after intro is seen)
     checkTutorial('lobby_first');
   }
-  document.getElementById('bankroll-display').textContent = career.bankroll.toLocaleString();
+  if (typeof animateNumber === 'function') {
+    animateNumber(document.getElementById('bankroll-display'), career.bankroll);
+  } else {
+    document.getElementById('bankroll-display').textContent = career.bankroll.toLocaleString();
+  }
   document.getElementById('hands-played').textContent = career.handsPlayed;
   document.getElementById('biggest-win').textContent = career.biggestWin.toLocaleString();
   // Lobby avatar + name
@@ -4401,6 +4590,17 @@ function renderFigureFace(rank, suit, color) {
   return `<svg class="card-figure" viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">${figureSvg}</svg>`;
 }
 
+// v42.1: 진짜 트럼프 카드 이미지 사용 — deckofcardsapi.com
+// rank: A, 2-9, 0 (=10), J, Q, K | suit: S, H, D, C
+function cardImageURL(card) {
+  if (!card) return null;
+  const rank = card.rank === '10' ? '0' : card.rank;
+  const suitMap = { '♠': 'S', '♥': 'H', '♦': 'D', '♣': 'C' };
+  const suitChar = suitMap[card.suit];
+  if (!suitChar) return null;
+  return `https://deckofcardsapi.com/static/img/${rank}${suitChar}.png`;
+}
+
 function cardHTML(card, hidden = false, isPlayerCard = false) {
   if (!card) return '<div class="card placeholder"></div>';
   if (hidden) {
@@ -4410,27 +4610,33 @@ function cardHTML(card, hidden = false, isPlayerCard = false) {
     }
     return '<div class="card back"></div>';
   }
+
+  // v42.1: 실제 트럼프 카드 이미지 우선, fallback으로 기존 SVG
+  const imgURL = cardImageURL(card);
   const colorClass = card.color === 'red' ? 'red' : '';
   const color = card.color === 'red' ? 'red' : 'black';
+  const cornerRank = card.rank === '10' ? 'T' : card.rank;
 
-  // Face content varies by rank
-  let face;
-  if (card.rank === 'A') {
-    // Ace — large central suit with subtle glow
-    face = `<div class="card-ace">${card.suit}</div>`;
-  } else if (card.rank === 'K' || card.rank === 'Q' || card.rank === 'J') {
-    // Picture cards — SVG figure
-    face = renderFigureFace(card.rank, card.suit, color);
-  } else {
-    // Number cards 2-10 — pip pattern
-    face = renderPipFace(card.rank, card.suit, color);
+  // Fallback face (이미지 로딩 실패 시 사용)
+  let fallbackFace;
+  if (card.rank === 'A') fallbackFace = `<div class="card-ace">${card.suit}</div>`;
+  else if (card.rank === 'K' || card.rank === 'Q' || card.rank === 'J') fallbackFace = renderFigureFace(card.rank, card.suit, color);
+  else fallbackFace = renderPipFace(card.rank, card.suit, color);
+
+  if (imgURL) {
+    // 이미지 우선 시도, onerror 시 fallback HTML로
+    const fallbackHTML = `<div class="card-fallback ${colorClass}"><div class="corner-tl">${cornerRank}<br>${card.suit}</div>${fallbackFace}<div class="corner-br">${cornerRank}<br>${card.suit}</div></div>`;
+    return `<div class="card card-image">
+      <img src="${imgURL}" alt="${card.rank}${card.suit}"
+        onerror="this.style.display='none';this.parentElement.insertAdjacentHTML('beforeend',this.dataset.fallback);"
+        data-fallback='${fallbackHTML.replace(/'/g, "&apos;")}' />
+    </div>`;
   }
 
-  // 카드 코너 표시 — '10'은 'T'로 (회전 시 'OT'가 되는 문제 + 포커 표준)
-  const cornerRank = card.rank === '10' ? 'T' : card.rank;
+  // 이미지 URL 못 만들면 fallback SVG
   return `<div class="card ${colorClass}">
     <div class="corner-tl">${cornerRank}<br>${card.suit}</div>
-    ${face}
+    ${fallbackFace}
     <div class="corner-br">${cornerRank}<br>${card.suit}</div>
   </div>`;
 }
@@ -4602,8 +4808,9 @@ function render() {
     dayBadge.textContent = `DAY ${prog.day}`;
     if (dayMini) dayMini.textContent = `${prog.handInDay}/${prog.totalInDay > 99999 ? '∞' : prog.totalInDay} (${Math.round(prog.pct)}%)`;
   }
-  document.getElementById('pot-amount').textContent = state.pot.toLocaleString();
-  document.getElementById('bankroll-game').textContent = career.bankroll.toLocaleString();
+  // v42-E: 카운트업 애니메이션 — 자금 변화 시 부드럽게 카운트
+  animateNumber(document.getElementById('pot-amount'), state.pot);
+  animateNumber(document.getElementById('bankroll-game'), career.bankroll);
 
   const streetMap = {preflop:'프리플랍', flop:'플랍', turn:'턴', river:'리버', showdown:'쇼다운', handover:'핸드 종료', preHand:'준비 중'};
   document.getElementById('street-display').textContent = streetMap[state.street] || '';
@@ -6617,39 +6824,92 @@ function sfxTrophy() {
 }
 
 // ===================== CHIP ANIMATION =====================
+// v42-E: 숫자 카운트업 애니메이션
+function animateNumber(el, target, duration = 600) {
+  if (!el) return;
+  const current = parseInt((el.textContent || '0').replace(/[^0-9-]/g, '')) || 0;
+  if (current === target) return;
+  if (Math.abs(target - current) < 5) {
+    // 작은 차이는 즉시
+    el.textContent = target.toLocaleString();
+    return;
+  }
+  // 큰 변화는 카운트업/다운
+  const start = performance.now();
+  const delta = target - current;
+  // 변화 강조 (flash)
+  el.classList.add('changing');
+  if (delta > 0) el.classList.add('gain');
+  else el.classList.add('loss');
+  function tick(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+    const value = Math.round(current + delta * eased);
+    el.textContent = value.toLocaleString();
+    if (t < 1) requestAnimationFrame(tick);
+    else {
+      el.textContent = target.toLocaleString();
+      setTimeout(() => el.classList.remove('changing', 'gain', 'loss'), 600);
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
 function animateChipsToPot(fromSeatIdx, amount) {
   const seat = document.getElementById('seat-' + fromSeatIdx);
   const pot = document.querySelector('.header-pot');
   if (!seat || !pot) return;
   const seatRect = seat.getBoundingClientRect();
   const potRect = pot.getBoundingClientRect();
-  const chipCount = Math.min(5, Math.max(1, Math.floor(Math.log10(Math.max(amount, 10)))));
+  // v42-B: 베팅 크기에 비례하는 칩 개수 (1~12)
+  const chipCount = Math.min(12, Math.max(2, Math.ceil(Math.log10(Math.max(amount, 10)) * 2.5)));
   for (let i = 0; i < chipCount; i++) {
-    setTimeout(() => createFlyingChip(seatRect, potRect), i * 60);
+    setTimeout(() => createFlyingChip(seatRect, potRect, i, chipCount), i * 45);
   }
   sfxChip();
 }
 
-function createFlyingChip(seatRect, potRect) {
+function createFlyingChip(seatRect, potRect, idx = 0, total = 1) {
   const chip = document.createElement('div');
   chip.className = 'flying-chip';
-  chip.textContent = '◉';
-  const startX = seatRect.left + seatRect.width / 2 + (Math.random() - 0.5) * 24;
-  const startY = seatRect.top + seatRect.height / 2;
-  const endX = potRect.left + potRect.width / 2;
-  const endY = potRect.top + potRect.height / 2;
+  // v42-B: 칩 색상 — 베팅 크기에 따라 다른 가치의 칩
+  const chipColors = ['#ffffff', '#ff5b5b', '#3ee8ff', '#a8ff7a', '#ffd93d', '#b14eff'];
+  const color = chipColors[idx % chipColors.length];
+  chip.textContent = '⬤';
+  chip.style.color = color;
+  chip.style.textShadow = `0 0 8px ${color}, 0 0 3px white`;
+  // 약간 다른 시작 위치 (스택에서 튀어나오는 느낌)
+  const startX = seatRect.left + seatRect.width / 2 + (Math.random() - 0.5) * 28;
+  const startY = seatRect.top + seatRect.height / 2 + (Math.random() - 0.5) * 8;
+  const endX = potRect.left + potRect.width / 2 + (Math.random() - 0.5) * 16;
+  const endY = potRect.top + potRect.height / 2 + (Math.random() - 0.5) * 8;
   chip.style.left = startX + 'px';
   chip.style.top = startY + 'px';
   document.body.appendChild(chip);
   chip.offsetHeight;
   const dx = endX - startX;
   const dy = endY - startY;
+  // 곡선 경로 (위로 튀어오르듯)
+  const midY = -Math.abs(dy) * 0.3 - 20;
   requestAnimationFrame(() => {
-    chip.style.transition = 'transform 0.55s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.55s';
-    chip.style.transform = `translate(-50%, -50%) translate(${dx}px, ${dy}px) scale(0.4)`;
+    chip.style.transition = 'transform 0.65s cubic-bezier(0.4, -0.1, 0.2, 1.1), opacity 0.65s';
+    chip.style.transform = `translate(-50%, -50%) translate(${dx}px, ${dy}px) scale(0.5) rotate(${(Math.random()-0.5)*360}deg)`;
     chip.style.opacity = '0';
   });
-  setTimeout(() => chip.remove(), 650);
+  setTimeout(() => chip.remove(), 750);
+}
+
+// v42-B: 빅팟 승리 시 칩 폭우 (winner에게 떨어짐)
+function animateChipsToWinner(toSeatIdx, amount) {
+  const seat = document.getElementById('seat-' + toSeatIdx);
+  const pot = document.querySelector('.header-pot');
+  if (!seat || !pot) return;
+  const seatRect = seat.getBoundingClientRect();
+  const potRect = pot.getBoundingClientRect();
+  const chipCount = Math.min(20, Math.max(5, Math.ceil(Math.log10(Math.max(amount, 100)) * 4)));
+  for (let i = 0; i < chipCount; i++) {
+    setTimeout(() => createFlyingChip(potRect, seatRect, i, chipCount), i * 35);
+  }
 }
 
 // ===================== CHAT =====================
@@ -7103,6 +7363,8 @@ function triggerBigPotImpact(amount, isHumanWinner) {
   triggerScreenShake();
   triggerGoldRain(40);
   duckBGM(2500);
+  // v42-B: 칩 폭우 to winner (seat 0 = 인간)
+  setTimeout(() => animateChipsToWinner(0, amount), 200);
   // Fullscreen cinematic for 100BB+ super-big pots
   if (state && amount >= (state.bb || 10) * 100) {
     setTimeout(() => triggerBigPotCinematic(amount), 600);
