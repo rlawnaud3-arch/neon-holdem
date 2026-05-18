@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v34 ★ CINEMATIC MOMENTS (DEBT CLEAR · KO · BIG POT · CITY)</title>
+<title>NEON HOLDEM v34.1 ★ CINEMATIC PREVIEW MENU</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -7037,6 +7037,175 @@ function openCharacterRelations() {
   showModal(html);
 }
 
+// ===================== CINEMATIC PREVIEW (v34.1) =====================
+// 클릭 한 번으로 모든 시네마틱 / 캐릭터 컷 / Day 스토리 즉시 확인
+function openCinematicPreview() {
+  const previews = [
+    {
+      title: '💰 빚 청산 카운트다운',
+      desc: '1억 빚 → 0원. 박준영 등장. 카타르시스 최대.',
+      action: 'triggerDebtClearedCinematic()',
+      tag: 'CINEMATIC',
+      color: 'var(--gold-bright)'
+    },
+    {
+      title: '⚔️ 챔피언 KO — Phil Ivey',
+      desc: 'Phil Ivey 격파 슬로우모 + 능력 흡수',
+      action: "triggerChampionKOCinematic('ivey')",
+      tag: 'CINEMATIC',
+      color: 'var(--red)'
+    },
+    {
+      title: '⚔️ 챔피언 KO — Doyle Brunson',
+      desc: 'Doyle Brunson 격파 + 엔딩급 능력 흡수',
+      action: "triggerChampionKOCinematic('brunson')",
+      tag: 'CINEMATIC',
+      color: 'var(--gold-bright)'
+    },
+    {
+      title: '💎 빅팟 100BB+ 풀스크린',
+      desc: '+$50,000 카운트업 + 골드 비',
+      action: 'triggerBigPotCinematic(50000)',
+      tag: 'CINEMATIC',
+      color: 'var(--gold-bright)'
+    },
+    {
+      title: '🌃 도시 전환 — 강남',
+      desc: '핑크 네온 강남 스카이라인',
+      action: "triggerDayTransitionCinematic('seoul', 2)",
+      tag: 'CITY',
+      color: 'var(--pink)'
+    },
+    {
+      title: '🌃 도시 전환 — 마카오',
+      desc: '골드 마카오 카지노 도시',
+      action: "triggerDayTransitionCinematic('macau', 6)",
+      tag: 'CITY',
+      color: 'var(--gold-bright)'
+    },
+    {
+      title: '🌃 도시 전환 — 벨라지오',
+      desc: '퍼플 라스베가스 분수',
+      action: "triggerDayTransitionCinematic('bellagio', 7)",
+      tag: 'CITY',
+      color: 'var(--purple)'
+    },
+    {
+      title: '🌃 도시 전환 — WSOP',
+      desc: '앰버 WSOP 무대',
+      action: "triggerDayTransitionCinematic('wsop', 8)",
+      tag: 'CITY',
+      color: 'var(--neon-amber)'
+    },
+    {
+      title: '🌃 도시 전환 — 트라이튼',
+      desc: '다이아 하이스테이크',
+      action: "triggerDayTransitionCinematic('triton', 9)",
+      tag: 'CITY',
+      color: 'var(--gold-foil)'
+    },
+    {
+      title: '👔 박준영 카톡 (Version 2)',
+      desc: '"어때 형, 재밌어?" 카톡 컷',
+      action: "showSubEvent(SUB_EVENTS.find(e => e.id === 'pub_5h'))",
+      tag: 'CHARACTER',
+      color: 'var(--cyan)'
+    },
+    {
+      title: '👔 박준영 눈물 (Version 3)',
+      desc: 'Day 9 빚 청산 통화 — "형, 정말 해냈구나"',
+      action: 'renderDayStorySlide(9, 2)',
+      tag: 'CHARACTER',
+      color: 'var(--cyan)'
+    },
+    {
+      title: '🇰🇷 김연수 첫 만남 (Day 3)',
+      desc: 'AA vs 76s 패배 — "넌 봤어"',
+      action: 'renderDayStorySlide(3, 3)',
+      tag: 'CHARACTER',
+      color: 'var(--gold-bright)'
+    },
+    {
+      title: '🍺 김 사장 환영 (Day 1)',
+      desc: '"처음이야? 천천히 해"',
+      action: 'renderDayStorySlide(1, 1)',
+      tag: 'CHARACTER',
+      color: 'var(--cyan)'
+    },
+    {
+      title: '🎬 인트로 1컷 — 코인 트레이더',
+      desc: '"200만원으로 시작했다"',
+      action: 'showIntroStory(0)',
+      tag: 'INTRO',
+      color: 'var(--gold-bright)'
+    },
+    {
+      title: '🎬 인트로 2컷 — 청산',
+      desc: '"50배 레버리지. 3번 청산. 빚 1억"',
+      action: 'showIntroStory(1)',
+      tag: 'INTRO',
+      color: 'var(--red)'
+    },
+    {
+      title: '🎓 30핸드 초보자 졸업',
+      desc: '"이제 실력으로 승부할 때"',
+      action: 'career.tutorial.first30_done=false;career.handsPlayed=Math.max(30,career.handsPlayed);checkBeginner30Milestone()',
+      tag: 'MILESTONE',
+      color: 'var(--neon-lime)'
+    },
+    {
+      title: '🏆 트로피 획득 — 동네 펍 골드',
+      desc: '동네 챔피언 트로피 시상식',
+      action: "grantTrophy('pub', 'gold')",
+      tag: 'TROPHY',
+      color: '#ffd93d'
+    },
+    {
+      title: '👑 결승 무대 (Day 10 마지막 컷)',
+      desc: 'Doyle Brunson과 모든 전설들',
+      action: 'renderDayStorySlide(10, 3)',
+      tag: 'EPIC',
+      color: 'var(--gold-bright)'
+    }
+  ];
+
+  // Group by tag
+  const groups = {};
+  for (const p of previews) {
+    if (!groups[p.tag]) groups[p.tag] = [];
+    groups[p.tag].push(p);
+  }
+  const groupLabels = {
+    CINEMATIC: '🎬 메인 시네마틱 (v34 신규)',
+    CITY:      '🌃 도시 전환 시네마틱 (6 베뉴)',
+    CHARACTER: '👥 캐릭터 컷씬',
+    INTRO:     '📖 인트로 컷씬',
+    MILESTONE: '🎯 마일스톤 컷씬',
+    TROPHY:    '🏆 트로피 시상식',
+    EPIC:      '👑 엔딩 컷씬'
+  };
+
+  let html = `<h3>🎬 시네마틱 미리보기</h3>
+  <p style="font-size:12px;color:var(--text-dim);margin-bottom:14px;">버튼 클릭 시 즉시 컷씬이 재생됩니다. <b>실제 진행에는 영향 없음</b> (트로피 시상식 제외).</p>`;
+
+  for (const [tag, items] of Object.entries(groups)) {
+    html += `<h4 style="color:var(--gold-bright);margin-top:18px;font-size:13px;letter-spacing:1px;">${groupLabels[tag]}</h4>`;
+    html += '<div style="display:grid;grid-template-columns:1fr;gap:8px;">';
+    for (const p of items) {
+      html += `<button onclick="closeModal();setTimeout(()=>{${p.action}},250)" style="text-align:left;padding:12px 14px;background:var(--bg-card-2);border:1px solid ${p.color};border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:13px;color:${p.color};">${p.title}</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;line-height:1.4;">${p.desc}</div>
+        </div>
+        <div style="font-size:11px;color:${p.color};">▶ 재생</div>
+      </button>`;
+    }
+    html += '</div>';
+  }
+  html += `<div style="text-align:center;margin-top:18px;"><button onclick="closeModal()">닫기</button></div>`;
+  showModal(html);
+}
+
 // ===================== SUB-EVENT CODEX =====================
 function openSubEventCodex() {
   ensureSubEvents();
@@ -7235,7 +7404,8 @@ function openMainMenu() {
         { icon: '💾', label: `슬롯 관리 (현재 ${currentSlot})`, desc: '캐리어 3개 독립 진행', action: 'openSlotPicker()' },
         { icon: '☁️', label: '클라우드 동기화', desc: 'Firebase 연결', action: 'manualCloudSync()' },
         { icon: '📁', label: 'JSON 저장/불러오기', desc: '파일로 백업', action: 'openBackupMenu()' },
-        { icon: '⚙️', label: '사운드 & 설정', desc: 'BGM/SFX 볼륨, BGM 트랙', action: 'openSettings()' }
+        { icon: '⚙️', label: '사운드 & 설정', desc: 'BGM/SFX 볼륨, BGM 트랙', action: 'openSettings()' },
+        { icon: '🎬', label: '시네마틱 미리보기', desc: '4종 컷씬 + 도시 전환 + 캐릭터 컷 즉시 확인', action: 'openCinematicPreview()' }
       ]
     }
   ];
