@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v43 ★ ABILITY RADAR (OCTAGON) + AI ABILITY CLICK + BGM FIX</title>
+<title>NEON HOLDEM v43.1 ★ MANUAL CARD PEEK (TAP TO REVEAL)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -494,6 +494,66 @@
   }
   .card.card-dealing {
     animation: card-deal-from-center 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  /* === v43.1: 수동 쪼기 (face-down + click to reveal) === */
+  .card.card-peekable {
+    background: linear-gradient(135deg, #4a2b7a 0%, #2a1a4a 100%);
+    border: 2.5px solid var(--gold-foil);
+    color: transparent;
+    cursor: pointer;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.6), 0 0 20px rgba(255,217,61,0.3);
+    transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s;
+    animation: peek-pulse 1.4s ease-in-out infinite;
+  }
+  .card.card-peekable::before {
+    content: '';
+    position: absolute; inset: 4px;
+    background-image: repeating-linear-gradient(45deg, transparent 0, transparent 4px, rgba(255,217,61,0.12) 4px, rgba(255,217,61,0.12) 8px);
+    border-radius: 4px;
+    pointer-events: none;
+  }
+  .card.card-peekable .peek-hint {
+    position: relative;
+    z-index: 2;
+    color: var(--gold-bright);
+    font-size: 14px;
+    font-weight: 800;
+    font-family: 'Press Start 2P', 'Galmuri11', monospace;
+    letter-spacing: 2px;
+    text-shadow: 0 0 8px rgba(255,217,61,0.6);
+    background: rgba(0,0,0,0.45);
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+  .card.card-peekable:hover {
+    transform: translateY(-8px) scale(1.08) rotate(-3deg);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.7), 0 0 32px rgba(255,217,61,0.6);
+    animation: none;
+  }
+  .card.card-peekable:active {
+    transform: translateY(-4px) scale(1.04);
+  }
+  @keyframes peek-pulse {
+    0%, 100% { box-shadow: 0 4px 12px rgba(0,0,0,0.6), 0 0 16px rgba(255,217,61,0.25); }
+    50% { box-shadow: 0 4px 12px rgba(0,0,0,0.6), 0 0 28px rgba(255,217,61,0.55); }
+  }
+  /* 두 번째 카드는 살짝 다른 방향으로 hover */
+  .seat-cards.my-cards .card.card-peekable:nth-child(2):hover {
+    transform: translateY(-8px) scale(1.08) rotate(3deg);
+  }
+  /* 클릭한 카드 flip 애니메이션 */
+  .card.card-peekable.peek-flipping {
+    animation: peek-flip 0.5s cubic-bezier(0.4, 0.0, 0.2, 1.1) forwards;
+  }
+  @keyframes peek-flip {
+    0% { transform: rotateY(0deg) translateY(0) scale(1); }
+    50% { transform: rotateY(90deg) translateY(-10px) scale(1.15); filter: brightness(1.5); }
+    100% { transform: rotateY(180deg) translateY(0) scale(1); }
   }
 
   /* === v42.3: 내 카드 크게 + 쪼는 맛 flip 애니메이션 === */
@@ -3630,18 +3690,9 @@ function newHand() {
   saveCareer();
   render();
 
-  // v42.3: 내 카드 쪼는 맛 flip 애니메이션 — render 직후 추가
-  setTimeout(() => {
-    const myCardsEl = document.querySelector('#seat-0 .seat-cards.my-cards');
-    if (myCardsEl) {
-      myCardsEl.classList.add('dealing-squeeze');
-      // 카드 분배 사운드 (squeeze 시작 + 각 카드 flip)
-      setTimeout(() => sfxCardSlide(), 200);
-      setTimeout(() => sfxCardSlide(), 600);
-      // 애니메이션 끝나면 클래스 제거 (다음 핸드에서 자연스럽게 다시 발동)
-      setTimeout(() => myCardsEl.classList.remove('dealing-squeeze'), 1700);
-    }
-  }, 50);
+  // v43.1: 카드 face-down으로 깔림 (수동 쪼기) — 분배 사운드만
+  setTimeout(() => sfxCardSlide(), 200);
+  setTimeout(() => sfxCardSlide(), 500);
 
   // 김민준 모놀로그 — 핸드 시작 시 prelfop 코멘트 (50% 확률)
   // v42.3: 카드 쪼는 애니메이션(1.7초) 끝나고 발동
@@ -3661,11 +3712,11 @@ function newHand() {
     }, 1100);
   } else if (Math.random() < 0.10) {
     // 베뉴 분위기 모놀로그 (드물게)
-    setTimeout(() => triggerMonologue(venueMonologueCategory()), 1900);
+    setTimeout(() => triggerMonologue(venueMonologueCategory()), 1200);
   }
 
-  // v42.3: 카드 쪼는 애니메이션(1.7초) 후 AI 액션 시작
-  setTimeout(scheduleNextAction, 1750);
+  // v43.1: 카드 face-down으로 깔렸으니 빠르게 진행 (사용자가 차례에서 reveal)
+  setTimeout(scheduleNextAction, 700);
 }
 
 function postBlind(idx, amount) {
@@ -4530,7 +4581,11 @@ function scheduleNextAction() {
   if (aiThinkingTimer) { clearTimeout(aiThinkingTimer); aiThinkingTimer = null; }
   if (state.currentPlayerIdx < 0) return;
   const p = state.players[state.currentPlayerIdx];
-  if (p.isHuman) return;
+  if (p.isHuman) {
+    // v43.1: 내 차례인데 카드 안 봤으면 자동 reveal (안전장치)
+    setTimeout(() => autoRevealIfNeeded(), 100);
+    return;
+  }
   const personality = PERSONALITIES[p.personalityType];
   // Faster thinking: 300-1000ms (was 600-2600ms)
   const baseTime = 300 + (1 - personality.aggression) * 500;
@@ -4906,11 +4961,20 @@ function renderPlayerCard(p, i) {
         else if (state.communityCards.length >= 3) myS = postflopStrength(p.cards, state.communityCards);
         if (myS >= 75) strongClass = ' strong-hand';
       }
-      // v42.3: 내 카드는 크게 + flip squeeze 가능
+      // v42.3 / v43.1: 내 카드는 크게 + 수동 쪼기 (face-down → click to reveal)
       const myClass = p.isHuman ? ' my-cards' : '';
       const handKey = p.cards.map(c => c.rank + c.suit).join('');
-      cardsHTML = `<div class="seat-cards${strongClass}${myClass}" data-hand="${handKey}" style="display:flex;gap:6px;margin-top:6px;">
-        ${cardHTML(p.cards[0])}${cardHTML(p.cards[1])}</div>`;
+      if (p.isHuman && state.handTrack) {
+        // 카드별 peeked 상태
+        state.handTrack.cardsPeeked = state.handTrack.cardsPeeked || [false, false];
+        const peeked = state.handTrack.cardsPeeked;
+        const c0HTML = peeked[0] ? cardHTML(p.cards[0]) : `<div class="card card-peekable" onclick="revealMyCard(0)"><div class="peek-hint">탭</div></div>`;
+        const c1HTML = peeked[1] ? cardHTML(p.cards[1]) : `<div class="card card-peekable" onclick="revealMyCard(1)"><div class="peek-hint">탭</div></div>`;
+        cardsHTML = `<div class="seat-cards${strongClass}${myClass}" data-hand="${handKey}" style="display:flex;gap:6px;margin-top:6px;">${c0HTML}${c1HTML}</div>`;
+      } else {
+        cardsHTML = `<div class="seat-cards${strongClass}${myClass}" data-hand="${handKey}" style="display:flex;gap:6px;margin-top:6px;">
+          ${cardHTML(p.cards[0])}${cardHTML(p.cards[1])}</div>`;
+      }
     }
   } else if (!p.busted && p.cards.length > 0 && !p.folded) {
     cardsHTML = `<div style="display:flex;gap:4px;margin-top:6px;">
@@ -11911,6 +11975,44 @@ function unequipSpecial() {
 }
 
 // === Ability menu UI ===
+// v43.1: 내 카드 수동 reveal (쪼는 맛)
+function revealMyCard(idx) {
+  if (!state || !state.handTrack) return;
+  state.handTrack.cardsPeeked = state.handTrack.cardsPeeked || [false, false];
+  if (state.handTrack.cardsPeeked[idx]) return;
+  state.handTrack.cardsPeeked[idx] = true;
+  // 사운드 + 살짝 flip 후 render
+  sfxCardSlide();
+  // 클릭한 카드에 flip 애니메이션 클래스 살짝 추가
+  const myCardsEl = document.querySelector('#seat-0 .seat-cards.my-cards');
+  if (myCardsEl) {
+    const targetEl = myCardsEl.children[idx];
+    if (targetEl) {
+      targetEl.classList.add('peek-flipping');
+      setTimeout(() => render(), 400);
+    } else {
+      render();
+    }
+  } else {
+    render();
+  }
+}
+
+// 자기 차례 직전 자동 reveal (안전장치 — 깜빡한 경우)
+function autoRevealIfNeeded() {
+  if (!state || !state.handTrack) return;
+  state.handTrack.cardsPeeked = state.handTrack.cardsPeeked || [false, false];
+  const me = state.players[0];
+  if (!me || me.busted || me.folded) return;
+  // 내 차례인데 안 봤으면 자동 reveal
+  if (state.currentPlayerIdx === 0) {
+    let needRender = false;
+    if (!state.handTrack.cardsPeeked[0]) { state.handTrack.cardsPeeked[0] = true; needRender = true; }
+    if (!state.handTrack.cardsPeeked[1]) { state.handTrack.cardsPeeked[1] = true; needRender = true; }
+    if (needRender) render();
+  }
+}
+
 // === v43: AI 능력치 계산 — skill + personality에서 추정 ===
 function getAiAbilities(p) {
   if (!p) return {};
