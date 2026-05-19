@@ -2,11 +2,14 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v43.2 ★ PROFILE MODAL (TAP AVATAR)</title>
+<title>NEON HOLDEM v44 ★ MOBILE UI COMPLETE REDESIGN</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -2381,167 +2384,381 @@
   }
 
   /* ========== MOBILE (≤600px) ========== */
+  /* ============================================================
+     📱 MOBILE FIRST REDESIGN (v44) — ≤600px
+     ============================================================ */
   @media (max-width: 600px) {
     body {
-      padding: 6px;
+      padding: 4px !important;
       font-size: 13px;
+      overflow-x: hidden;
     }
-    h1 { font-size: 22px !important; letter-spacing: 2px !important; }
-    h2 { font-size: 16px !important; }
+    h1 { font-size: 20px !important; letter-spacing: 2px !important; }
+    h2 { font-size: 15px !important; }
     h3 { font-size: 14px !important; }
+    h4 { font-size: 13px !important; }
 
-    /* Bigger tap targets — Apple's HIG min is 44px */
+    /* === 모든 버튼: Apple HIG 44px === */
     button, .btn-primary, .btn-success, .btn-danger {
       min-height: 44px;
       padding: 10px 14px;
       font-size: 13px;
     }
 
-    /* Lobby — compact dock */
+    /* ============ LOBBY ============ */
+    #lobby-screen { padding-bottom: 24px; }
+
+    /* 헤더 영역 — 캐릭터 + 자금 */
+    .bankroll-banner {
+      flex-direction: column !important;
+      align-items: stretch !important;
+      gap: 10px !important;
+      padding: 12px !important;
+      border-radius: 10px !important;
+    }
+    .bankroll-banner > div:first-child { width: 100%; }
+    .bankroll-banner > div:nth-child(2) {
+      text-align: center !important;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .bankroll-banner > div:nth-child(2) > div {
+      font-size: 11px !important;
+      flex: 1 1 calc(50% - 4px);
+      background: rgba(0,0,0,0.2);
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .bankroll-banner > div:nth-child(2) > button {
+      min-height: 36px;
+      flex: 1 1 calc(50% - 4px);
+      font-size: 11px !important;
+    }
+    .bankroll-amount { font-size: 24px !important; }
+
+    /* Day 진행 + 초보자 럭 배너 */
+    #day-progress-banner > div,
+    #beginner-luck-banner > div {
+      padding: 10px 12px !important;
+      font-size: 11px !important;
+    }
+
+    /* 메인 메뉴 dock — 2열 그리드 */
     .action-dock {
       display: grid !important;
-      grid-template-columns: repeat(3, 1fr) !important;
-      gap: 6px !important;
+      grid-template-columns: repeat(4, 1fr) !important;
+      gap: 5px !important;
+      margin-bottom: 10px !important;
     }
-    .dock-btn { padding: 10px 6px !important; }
-    .dock-icon { font-size: 22px !important; }
-    .dock-label { font-size: 10px !important; }
-
-    /* Bankroll banner shrink */
-    .bankroll-banner {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 8px;
-      padding: 12px !important;
+    .dock-btn {
+      padding: 8px 4px !important;
+      min-height: 56px !important;
     }
-    .bankroll-amount { font-size: 22px !important; }
+    .dock-icon { font-size: 20px !important; }
+    .dock-label { font-size: 9px !important; line-height: 1.2; }
+    .dock-badge {
+      min-width: 16px !important;
+      height: 16px !important;
+      font-size: 10px !important;
+    }
 
-    /* Venue cards full-width */
+    /* 베뉴 카드 — 1열, 가로형 컴팩트 */
     .venue-grid {
       grid-template-columns: 1fr !important;
-      gap: 10px !important;
+      gap: 8px !important;
     }
-    .venue-card { padding: 14px !important; }
-    .venue-card .icon { font-size: 36px !important; }
+    .venue-card {
+      padding: 12px 14px !important;
+      display: grid !important;
+      grid-template-columns: auto 1fr !important;
+      grid-template-rows: auto auto auto !important;
+      column-gap: 12px !important;
+      row-gap: 4px !important;
+    }
+    .venue-card .icon {
+      font-size: 40px !important;
+      grid-row: 1 / 4;
+    }
+    .venue-card h3 { font-size: 14px !important; margin: 0 !important; }
+    .venue-card .stakes { font-size: 11px !important; }
+    .venue-card .desc { font-size: 10px !important; grid-column: 1 / 3; }
+    .venue-card .req { font-size: 10px !important; grid-column: 1 / 3; }
 
-    /* Game board — 2-column tighter */
-    .game-board {
-      grid-template-columns: 1fr 1fr !important;
-      gap: 6px !important;
-    }
-    .seats-bottom {
-      grid-template-columns: repeat(2, 1fr) !important;
-      gap: 6px !important;
-    }
-    .seat, [class^="seat-"] {
-      padding: 6px !important;
-      font-size: 11px !important;
-      min-height: 70px;
-    }
-    .seat .name, .seat-name { font-size: 11px !important; }
-    .seat .stack, .seat-stack { font-size: 12px !important; }
-
-    /* Cards bigger on mobile so they're readable */
-    .card, .community-card, .hole-card {
-      font-size: 16px !important;
-    }
-    .community-cards {
-      gap: 4px !important;
-      flex-wrap: wrap;
-    }
-
-    /* Pot display compact */
-    .header-pot { padding: 8px !important; }
-    .pot-amount { font-size: 18px !important; }
-
-    /* Game header stacked */
+    /* ============ GAME ============ */
+    /* 헤더 — 1줄 압축 */
     .game-header {
-      grid-template-columns: 1fr !important;
+      display: grid !important;
+      grid-template-columns: 1fr auto 1fr !important;
       gap: 6px !important;
-      padding: 8px !important;
+      padding: 8px 10px !important;
+      align-items: center !important;
+      border-radius: 8px !important;
     }
     .header-left, .header-right {
-      flex-direction: row;
-      justify-content: space-between;
-      width: 100%;
+      flex-direction: column !important;
+      align-items: flex-start !important;
+      gap: 2px !important;
     }
-    .leave-btn { font-size: 11px !important; padding: 6px 10px !important; }
+    .header-right { align-items: flex-end !important; }
+    .venue-info { font-size: 12px !important; gap: 4px !important; }
+    .venue-info strong { font-size: 12px !important; }
+    .header-meta {
+      flex-direction: column;
+      gap: 1px !important;
+      font-size: 10px !important;
+    }
+    .header-meta span { font-size: 10px !important; }
+    .header-pot {
+      padding: 6px 10px !important;
+      text-align: center !important;
+      background: rgba(255,217,61,0.1) !important;
+      border-radius: 6px !important;
+    }
+    .pot-label { font-size: 9px !important; }
+    .pot-amount { font-size: 18px !important; }
+    .bankroll-info { font-size: 10px !important; }
+    .bankroll-info .bankroll-value { font-size: 13px !important; }
+    .leave-btn {
+      font-size: 10px !important;
+      padding: 4px 8px !important;
+      min-height: 32px !important;
+    }
+    #day-badge {
+      font-size: 8px !important;
+      padding: 1px 5px !important;
+      margin-left: 4px !important;
+    }
 
-    /* Sticky action bar at bottom — always reachable */
-    .action-bar {
-      position: sticky;
-      bottom: 0;
-      z-index: 100;
-      background: rgba(10,8,23,0.96);
-      backdrop-filter: blur(8px);
-      padding: 8px !important;
-      border-top: 2px solid var(--gold-foil);
-      box-shadow: 0 -8px 24px rgba(0,0,0,0.6);
+    /* === 핵심: 게임 보드 모바일 레이아웃 ===
+       9-seat을 모바일에 맞춰 3행 그리드:
+         row1: AI 자리 4명 (위)
+         row2: 테이블 + 보드 카드 (가운데)
+         row3: AI 자리 4명 (아래)
+       내 자리(seat-0)는 별도 — 액션 바 위 */
+    .game-board {
+      display: grid !important;
+      grid-template-columns: repeat(4, 1fr) !important;
+      grid-template-rows: auto auto auto !important;
+      gap: 4px !important;
+      padding: 4px !important;
     }
-    .action-bar button {
-      min-height: 52px !important;
+    /* 위쪽 AI 자리 */
+    .seat-tl { grid-column: 1; grid-row: 1; }
+    .seat-tr { grid-column: 4; grid-row: 1; }
+    /* 가운데 테이블 */
+    .table-center {
+      grid-column: 1 / -1 !important;
+      grid-row: 2 !important;
+      min-height: 160px !important;
+      padding: 10px 8px !important;
+      border-radius: 24px !important;
+    }
+    /* 좌우 측면 AI */
+    .seat-ml { grid-column: 2; grid-row: 1; }
+    .seat-mr { grid-column: 3; grid-row: 1; }
+    /* 하단 AI 자리 — 4열 균등 */
+    .seats-bottom {
+      grid-column: 1 / -1 !important;
+      grid-row: 3 !important;
+      display: grid !important;
+      grid-template-columns: repeat(4, 1fr) !important;
+      gap: 4px !important;
+    }
+    .seats-bottom > div:nth-child(n+5) { display: none; }
+
+    /* 자리 카드 컴팩트 */
+    .player-card {
+      padding: 5px 4px !important;
+      min-height: 60px !important;
+      font-size: 10px !important;
+      border-radius: 6px !important;
+    }
+    .player-card .player-name {
+      font-size: 10px !important;
+      gap: 3px !important;
+    }
+    .player-card .player-name span:first-child { font-size: 10px !important; }
+    .player-card .player-info { font-size: 11px !important; font-weight: 700; }
+    .player-card .player-bet {
+      font-size: 9px !important;
+      padding: 1px 4px !important;
+    }
+    .personality-tag {
+      font-size: 8px !important;
+      padding: 1px 3px !important;
+    }
+    .read-bubble { font-size: 9px !important; padding: 2px 5px !important; }
+    .action-bubble { font-size: 10px !important; padding: 2px 6px !important; }
+
+    /* AI 자리의 카드 (등카드) 더 작게 */
+    .seat-cards:not(.my-cards) .card,
+    .player-card .card-mini {
+      width: 22px !important;
+      height: 30px !important;
+    }
+
+    /* 커뮤니티 카드 - 모바일 size */
+    .community-cards {
+      gap: 4px !important;
+      min-height: 70px !important;
+      flex-wrap: nowrap;
+    }
+    .community-cards .card {
+      width: 44px !important;
+      height: 62px !important;
+      font-size: 10px !important;
+    }
+    .community-cards .card .corner-tl,
+    .community-cards .card .corner-br { font-size: 9px !important; }
+    .community-cards .card .pip-grid .pip { font-size: 10px !important; }
+    .community-cards .card .card-ace { font-size: 24px !important; }
+
+    .table-street { font-size: 11px !important; margin-bottom: 6px !important; }
+    .table-status { font-size: 11px !important; }
+    .table-spade { display: none; }
+
+    /* === 내 카드 영역 — 게임보드 아래 별도 큰 영역 === */
+    .seat-cards.my-cards {
+      gap: 10px !important;
+      margin-top: 12px !important;
+      justify-content: center !important;
+    }
+    .seat-cards.my-cards .card {
+      width: 80px !important;
+      height: 116px !important;
+    }
+    .seat-cards.my-cards .card .corner-tl,
+    .seat-cards.my-cards .card .corner-br { font-size: 12px !important; }
+    .card.card-peekable .peek-hint { font-size: 16px !important; padding: 6px 14px !important; }
+
+    /* === 액션 바 — sticky 하단 === */
+    .action-bar, #action-panel {
+      position: sticky !important;
+      bottom: 0 !important;
+      z-index: 100 !important;
+      background: linear-gradient(180deg, rgba(10,8,23,0.85), rgba(10,8,23,0.98)) !important;
+      backdrop-filter: blur(12px);
+      padding: 8px 6px !important;
+      border-top: 2px solid var(--gold-foil) !important;
+      box-shadow: 0 -8px 24px rgba(0,0,0,0.7);
+      margin: 0 -4px !important;
+    }
+
+    /* 베팅 sizer 모바일 압축 */
+    .bet-sizer {
+      padding: 6px 8px !important;
+      gap: 5px !important;
+      border-radius: 8px !important;
+    }
+    .bet-amount-display { padding: 0 2px !important; }
+    .bet-amount-main { font-size: 16px !important; }
+    .bet-amount-bb { font-size: 10px !important; }
+    .bet-slider { height: 32px !important; }
+    .bet-slider::-webkit-slider-thumb { width: 28px !important; height: 28px !important; margin-top: -11px !important; }
+    .bet-slider::-moz-range-thumb { width: 28px !important; height: 28px !important; }
+    .bet-step-row { gap: 6px !important; }
+    .bet-step-btn { min-width: 44px !important; min-height: 40px !important; font-size: 14px !important; }
+    .bet-step-row input[type="number"] {
+      min-height: 40px !important;
       font-size: 14px !important;
-      flex: 1;
+      max-width: 100px !important;
+    }
+    .bet-sizer .quick-bets button {
+      min-height: 38px !important;
+      font-size: 12px !important;
+      padding: 4px 2px !important;
     }
 
-    /* Modal — full screen on mobile */
+    /* 액션 버튼 4개 — 그리드 압축 */
+    .action-row {
+      display: grid !important;
+      grid-template-columns: repeat(4, 1fr) !important;
+      gap: 4px !important;
+    }
+    .action-btn {
+      min-height: 56px !important;
+      padding: 4px 2px !important;
+    }
+    .action-btn-label { font-size: 12px !important; }
+    .action-btn-amount { font-size: 10px !important; }
+    .action-btn .shortcut { display: none !important; }
+
+    /* === 모달 — 풀스크린에 가까운 === */
+    .modal-overlay { padding: 0 !important; }
     .modal-content {
-      width: 96vw !important;
-      max-width: 96vw !important;
-      max-height: 88vh !important;
+      width: 100vw !important;
+      max-width: 100vw !important;
+      max-height: 100vh !important;
+      height: 100vh !important;
       padding: 14px !important;
       font-size: 13px !important;
+      border-radius: 0 !important;
+      overflow-y: auto;
+      box-sizing: border-box;
     }
-    .modal-content h2, .modal-content h3 {
-      font-size: 16px !important;
+    .modal-content h2, .modal-content h3 { font-size: 16px !important; }
+    .modal-content h4 { font-size: 13px !important; }
+
+    /* 닫기 버튼 sticky top-right */
+    .modal-content > div:last-child > button[onclick*="closeModal"] {
+      position: sticky;
+      bottom: 0;
+      width: 100%;
+      min-height: 48px !important;
+      background: var(--bg-card-2);
+      margin-top: 12px;
     }
 
-    /* Intro story — fits small screens */
-    .modal-content div[style*="font-size:72px"] {
-      font-size: 56px !important;
-    }
-    .modal-content div[style*="font-size:15px"] {
-      font-size: 13px !important;
-      line-height: 1.7 !important;
-    }
-
-    /* Story slide buttons stacked + wider */
+    /* 인트로 스토리 슬라이드 */
+    .modal-content div[style*="font-size:72px"] { font-size: 48px !important; }
+    .modal-content div[style*="font-size:15px"] { font-size: 13px !important; line-height: 1.7 !important; }
     .modal-content div[style*="display:flex"][style*="justify-content:center"] button {
       min-height: 48px !important;
       padding: 12px 16px !important;
       font-size: 13px !important;
     }
 
-    /* Streak toast — narrower, doesn't overflow */
-    .stat-card, .ability-card, .item-card {
-      padding: 10px !important;
-      font-size: 12px !important;
-    }
-
-    /* Hide some decorative elements */
-    .table-spade { display: none; }
-
-    /* Chat bubble smaller */
-    .chat-bubble { font-size: 11px !important; padding: 4px 8px !important; }
-
-    /* Famous announcement */
+    /* 채팅 버블 */
+    .chat-bubble { font-size: 11px !important; padding: 3px 7px !important; }
     .famous-announcement {
-      width: 90vw !important;
-      padding: 12px !important;
+      width: 92vw !important;
+      padding: 10px 14px !important;
     }
-    .famous-announcement .name { font-size: 15px !important; }
+    .famous-announcement .name { font-size: 14px !important; }
+    .famous-announcement .flair { font-size: 10px !important; }
 
-    /* Bottom action dock spacing */
-    .action-dock { margin-bottom: 12px !important; }
+    /* 모놀로그 말풍선 */
+    .monologue-bubble {
+      bottom: 80px !important;
+      max-width: 92vw !important;
+      font-size: 12px !important;
+      padding: 10px 14px !important;
+    }
+
+    /* 시네마틱 오버레이 */
+    .debt-counter { font-size: 32px !important; }
+    .big-pot-text { font-size: 38px !important; }
+    .big-pot-amount { font-size: 26px !important; }
+    .ability-stream { font-size: 14px !important; }
+    .day-transition-text { font-size: 18px !important; }
+
+    /* 자리 클릭 hover 제거 (모바일) */
+    .player-card:hover { transform: none !important; }
   }
 
   /* ========== TINY MOBILE (≤380px) ========== */
   @media (max-width: 380px) {
-    h1 { font-size: 18px !important; }
-    .dock-icon { font-size: 18px !important; }
-    .dock-label { font-size: 9px !important; }
-    .action-bar button { font-size: 12px !important; }
+    h1 { font-size: 17px !important; }
+    .dock-icon { font-size: 17px !important; }
+    .dock-label { font-size: 8px !important; }
     .pot-amount { font-size: 16px !important; }
+    .action-btn-label { font-size: 11px !important; }
+    .action-btn-amount { font-size: 9px !important; }
+    .community-cards .card { width: 40px !important; height: 56px !important; }
+    .seat-cards.my-cards .card { width: 72px !important; height: 104px !important; }
+    .player-card { min-height: 54px !important; }
   }
 </style>
 </head>
