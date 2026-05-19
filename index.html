@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v50.3 ★ HEADSUP SNG + LONDON + REBUY/EV FIX + MACAU VIP MP3</title>
+<title>NEON HOLDEM v50.4 ★ LOBBY THEME + MACAU VIP MP3 + MANUAL BGM OVERRIDE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -3987,6 +3987,8 @@ function leaveTable() {
   document.body.removeAttribute('data-boss');
   state = null;
   renderLobby();
+  // v50.4: 로비 복귀 시 로비 테마송 자동 전환
+  if (typeof autoSwitchVenueBGM === 'function') autoSwitchVenueBGM('lobby');
 
   // 세션 종료 공유 카드 (몇 핸드 이상 플레이한 경우만)
   if (sessionStats.handsPlayed >= 3 || sessionStats.isBoss) {
@@ -7325,9 +7327,15 @@ function openBGMSettings() {
       <span style="font-weight:700;font-size:15px;">BGM 재생 <span style="color:${bgmEnabled ? 'var(--green)' : 'var(--text-dim)'};font-size:13px;">(${bgmEnabled ? 'ON' : 'OFF'})</span></span>
     </label>
   </div>
-  <div style="margin-bottom:8px;font-weight:700;font-size:14px;">트랙 선택</div>
+  <div style="margin-bottom:8px;font-weight:700;font-size:14px;display:flex;justify-content:space-between;align-items:center;">
+    <span>트랙 선택</span>
+    ${_bgmManualOverride
+      ? `<button onclick="setBgmAutoMode(true);openBGMSettings();" style="font-size:11px;padding:4px 10px;background:var(--bg-card-2);">↻ 베뉴별 자동 전환 켜기</button>`
+      : `<span style="font-size:10px;color:var(--text-dim);">베뉴 입장 시 자동 전환 중</span>`
+    }
+  </div>
   ${BGM_TRACK_LIST.map(t => `
-    <div onclick="changeBGMTrack('${t.id}').then(() => openBGMSettings())"
+    <div onclick="pickBGMTrackManually('${t.id}')"
          style="display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer;border:2px solid ${currentTrack === t.id ? 'var(--gold-bright)' : 'var(--border)'};margin:8px 0;border-radius:8px;background:${currentTrack === t.id ? 'rgba(255,217,61,0.08)' : 'transparent'};transition:all 0.15s;">
       <div style="font-size:28px;">${t.icon}</div>
       <div style="flex:1;">
@@ -7338,6 +7346,22 @@ function openBGMSettings() {
   `).join('')}
   <div style="text-align:center;margin-top:14px;"><button onclick="closeModal()">닫기</button></div>`;
   showModal(html);
+}
+
+// v50.4: 사용자 수동 트랙 선택 — 자동 전환 끔
+function pickBGMTrackManually(trackId) {
+  setBgmAutoMode(false);
+  changeBGMTrack(trackId).then(() => openBGMSettings());
+}
+
+function setBgmAutoMode(autoOn) {
+  _bgmManualOverride = !autoOn;
+  try { localStorage.setItem('holdem-bgm-manual', _bgmManualOverride ? '1' : '0'); } catch (e) {}
+  // 자동 모드로 돌리면 현재 베뉴/로비에 맞게 즉시 전환
+  if (autoOn) {
+    const vid = state?.venue?.id || 'lobby';
+    autoSwitchVenueBGM(vid);
+  }
 }
 
 function toggleBGMFromModal(checked) {
@@ -12698,6 +12722,7 @@ function computePersonalityRead(p) {
 
 // ===================== VENUE-SPECIFIC BGM MAPPING =====================
 const VENUE_BGM = {
+  lobby: 'lobby-neon',  // v50.4: 로비 — 네온 홀덤 테마송 MP3
   pub: 'funky',
   seoul: 'lofi',
   macau: 'macau-vip',  // v50.3: 마카오 — 실제 VIP Room MP3
@@ -12707,10 +12732,15 @@ const VENUE_BGM = {
   triton: 'minimal'
 };
 
+// v50.4: 사용자가 수동으로 트랙 선택했으면 자동 전환 안 함
+let _bgmManualOverride = false;
+try { _bgmManualOverride = localStorage.getItem('holdem-bgm-manual') === '1'; } catch (e) {}
+
 function autoSwitchVenueBGM(venueId) {
   const targetTrack = VENUE_BGM[venueId] || 'funky';
   if (currentTrack === targetTrack) return;
   if (!bgmEnabled) return;  // user has BGM off
+  if (_bgmManualOverride) return;  // v50.4: 수동 선택 보존
   changeBGMTrack(targetTrack);
 }
 
@@ -14962,6 +14992,10 @@ function updateCloudStatus(errMsg) {
 loadCareer();
 renderLobby();
 initFirebase();
+// v50.4: 앱 시작 시 로비 테마송 매핑 (실제 재생은 첫 클릭 후 — 브라우저 자동재생 정책)
+if (typeof autoSwitchVenueBGM === 'function') {
+  setTimeout(() => autoSwitchVenueBGM('lobby'), 300);
+}
 </script>
 </body>
 </html>
