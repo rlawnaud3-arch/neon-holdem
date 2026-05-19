@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v49 ★ GTO SOLVER + COACH MODE + WEEKLY REPORT</title>
+<title>NEON HOLDEM v50.3 ★ HEADSUP SNG + LONDON + REBUY/EV FIX + MACAU VIP MP3</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -3267,6 +3267,15 @@ const VENUES = [
     mix: { PRO: 0.45, GTO_BOT: 0.30, TAG: 0.15, LAG: 0.07, ROCK: 0.03 }
   },
   {
+    // v50: 신규 베뉴 — 런던 GUKPT (WSOP와 트라이튼 사이)
+    id: 'london', name: '🇬🇧 런던 GUKPT', emoji: '🇬🇧',
+    desc: '런던 그랜드 투어, 8-handed. 유럽 LAG + 영국 그라인더 믹스, 압박 강함.',
+    sb: 1000, bb: 2500, buyIn: 250000, requiredBankroll: 250000, unlockBankroll: 500000,
+    seats: 8, useKoreanNames: false, skillRange: [0.85, 0.95],
+    // 런던: PRO + LAG 비율 높음 (유럽 톤), GTO도 일정 수준
+    mix: { PRO: 0.35, LAG: 0.25, TAG: 0.20, GTO_BOT: 0.15, ROCK: 0.05 }
+  },
+  {
     id: 'triton', name: '💎 트라이튼 하이스테이크', emoji: '💎',
     desc: '월드 클래스, 8-handed. 거의 GTO 솔버 수준.',
     sb: 2000, bb: 5000, buyIn: 500000, requiredBankroll: 500000, unlockBankroll: 1000000,
@@ -3667,6 +3676,281 @@ function enterVenue(venueId) {
   newHand();
 }
 
+// ===================== v50: HEADS-UP SNG (1v1 토너먼트) =====================
+const HEADSUP_TIERS = {
+  low:  { buyIn: 500, startStack: 1500, sb: 10, bb: 20, label: '🥉 Low Stakes', desc: '낮은 스테이크 — 입문용', minBankroll: 500 },
+  mid:  { buyIn: 5000, startStack: 15000, sb: 50, bb: 100, label: '🥈 Mid Stakes', desc: '중급 — 진짜 1대1 실력 테스트', minBankroll: 5000 },
+  high: { buyIn: 50000, startStack: 150000, sb: 500, bb: 1000, label: '🥇 High Stakes', desc: '하이 스테이크 — 풀 보상', minBankroll: 50000 }
+};
+
+// 핸드 수에 따라 블라인드 단계 — SnG 표준 (mult = 베이스 SB/BB의 배수)
+const HEADSUP_BLIND_LEVELS = [
+  { handAt: 0,  mult: 1.0 },
+  { handAt: 8,  mult: 1.5 },
+  { handAt: 16, mult: 2.0 },
+  { handAt: 24, mult: 3.0 },
+  { handAt: 32, mult: 4.0 },
+  { handAt: 40, mult: 5.0 },
+  { handAt: 50, mult: 8.0 },
+  { handAt: 60, mult: 12.0 },
+  { handAt: 75, mult: 20.0 },
+  { handAt: 90, mult: 30.0 }
+];
+
+// SnG 상대 후보 — 각 챔피언으로 선택 가능 (난이도 자동 매칭)
+function getHeadsUpOpponentChoices(tier) {
+  const baseCandidates = {
+    low: ['김도균', '정명원', '천재준', 'Erik Seidel'],
+    mid: ['D. Negreanu', 'P. Hellmuth', 'Sam Trickett', 'Tom Dwan'],
+    high: ['Phil Ivey', 'Doyle Brunson', 'Stu Ungar', 'Phil Galfond', 'Jason Koon']
+  };
+  const names = baseCandidates[tier] || baseCandidates.low;
+  return names.map(name => {
+    const fp = FAMOUS_PLAYERS.find(p => p.name === name);
+    return fp || null;
+  }).filter(Boolean);
+}
+
+function enterHeadsUpSnG(tierKey, opponentName) {
+  const tier = HEADSUP_TIERS[tierKey];
+  if (!tier) return;
+  if (career.bankroll < tier.buyIn) {
+    alert(`자금 부족 — 최소 $${tier.buyIn.toLocaleString()} 필요`);
+    return;
+  }
+  const opp = FAMOUS_PLAYERS.find(p => p.name === opponentName);
+  if (!opp) return;
+
+  career.bankroll -= tier.buyIn;
+  saveCareer();
+
+  // SnG는 pseudo-venue로 처리 — 기존 newHand 시스템 그대로 사용
+  const sngVenue = {
+    id: 'headsup_' + tierKey,
+    name: `⚔️ 헤즈업 SnG vs ${opp.emoji} ${opp.name}`,
+    emoji: '⚔️',
+    sb: tier.sb, bb: tier.bb,
+    buyIn: tier.buyIn,
+    seats: 2,
+    useKoreanNames: false,
+    skillRange: [opp.skill, opp.skill],
+    mix: { [opp.personality]: 1.0 },  // 상대는 무조건 챔피언 성향
+    isHeadsUp: true
+  };
+
+  const you = {
+    name: career.playerName || '나', isHuman: true,
+    personalityType: 'HUMAN', skill: 1, tilt: 0,
+    stack: tier.startStack, buyInsTotal: tier.startStack,
+    cards: [], folded: false, allIn: false,
+    currentBet: 0, totalBet: 0, hasActed: false, busted: false, handResult: null
+  };
+  const opponent = {
+    name: opp.emoji + ' ' + opp.name,
+    isHuman: false, isFamous: true, famousData: opp,
+    personalityType: opp.personality, skill: opp.skill, tilt: 0,
+    stack: tier.startStack, buyInsTotal: tier.startStack,
+    cards: [], folded: false, allIn: false,
+    currentBet: 0, totalBet: 0, hasActed: false, busted: false,
+    handResult: null, lastWonAmount: 0, _famousRef: opp
+  };
+
+  state = {
+    venue: sngVenue, players: [you, opponent],
+    bb: tier.bb, sb: tier.sb,
+    pot: 0, deck: [], communityCards: [],
+    street: 'preHand', currentPlayerIdx: -1,
+    dealerIdx: -1, sbIdx: -1, bbIdx: -1,
+    currentBet: 0, lastRaiseSize: tier.bb,
+    handNumber: 0, log: [],
+    winners: null, sessionPnL: 0,
+    sessionInvested: tier.buyIn,
+    // SnG 전용
+    sngTier: tierKey,
+    sngStartStack: tier.startStack,
+    sngBlindLevel: 0,
+    sngPrize: tier.buyIn * 2,
+    sngOpponentKey: opp.name
+  };
+
+  document.getElementById('lobby-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display = 'block';
+  document.getElementById('venue-name').textContent = `⚔️ HU vs ${opp.name}`;
+  document.getElementById('blinds-display').textContent = `$${tier.sb}/$${tier.bb} · 상금 $${(tier.buyIn*2).toLocaleString()}`;
+
+  document.body.setAttribute('data-venue', 'headsup');
+  document.body.removeAttribute('data-boss');
+
+  setTimeout(() => {
+    updateBgmIcon();
+    autoSwitchVenueBGM('triton');
+  }, 100);
+
+  newHand();
+}
+
+// 매 핸드 시작 시 SnG 블라인드 레벨업 체크
+function checkSngBlindLevelUp() {
+  if (!state || !state.venue?.isHeadsUp) return;
+  const handsPlayed = state.handNumber || 0;
+  let newLevel = 0;
+  for (let i = HEADSUP_BLIND_LEVELS.length - 1; i >= 0; i--) {
+    if (handsPlayed >= HEADSUP_BLIND_LEVELS[i].handAt) {
+      newLevel = i;
+      break;
+    }
+  }
+  if (newLevel !== state.sngBlindLevel) {
+    state.sngBlindLevel = newLevel;
+    const tier = HEADSUP_TIERS[state.sngTier];
+    const mult = HEADSUP_BLIND_LEVELS[newLevel].mult;
+    state.sb = Math.round(tier.sb * mult);
+    state.bb = Math.round(tier.bb * mult);
+    state.venue.sb = state.sb;
+    state.venue.bb = state.bb;
+    log(`★ 블라인드 상승: $${state.sb.toLocaleString()}/$${state.bb.toLocaleString()}`, true, true);
+    const bdEl = document.getElementById('blinds-display');
+    if (bdEl) bdEl.textContent = `$${state.sb.toLocaleString()}/$${state.bb.toLocaleString()} · 상금 $${state.sngPrize.toLocaleString()}`;
+  }
+}
+
+// SnG bust 체크 — 한 명이 0이 되면 즉시 종료
+function checkSngBustResult() {
+  if (!state || !state.venue?.isHeadsUp) return false;
+  const me = state.players[0];
+  const opp = state.players[1];
+  if (me.stack <= 0 && !state._sngEnded) {
+    state._sngEnded = true;
+    setTimeout(() => showSngResult(false), 800);
+    return true;
+  }
+  if (opp.stack <= 0 && !state._sngEnded) {
+    state._sngEnded = true;
+    setTimeout(() => showSngResult(true), 800);
+    return true;
+  }
+  return false;
+}
+
+function showSngResult(won) {
+  const tier = HEADSUP_TIERS[state.sngTier];
+  const prize = won ? state.sngPrize : 0;
+  if (won) {
+    career.bankroll += prize;
+    // 보상 + XP
+    gainXP('mental', 80, 'SnG 우승');
+    gainXP('pressure', 60, 'HU 압박 마스터');
+    gainXP('insight', 40, 'HU 1대1 read');
+  } else {
+    gainXP('mental', 20, 'SnG 경험');
+  }
+  // SnG 기록 적립
+  career.sngStats = career.sngStats || { total: 0, wins: 0, winnings: 0 };
+  career.sngStats.total++;
+  if (won) {
+    career.sngStats.wins++;
+    career.sngStats.winnings += prize - tier.buyIn;
+  } else {
+    career.sngStats.winnings -= tier.buyIn;
+  }
+  saveCareer();
+
+  const opp = state.players[1];
+  const html = `<div style="text-align:center;padding:20px;">
+    <div style="font-size:14px;color:${won ? 'var(--gold-bright)' : 'var(--red)'};letter-spacing:4px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:14px;">
+      ${won ? '★ 승리 ★' : '✗ 패배 ✗'}
+    </div>
+    <div style="font-size:64px;margin-bottom:10px;">${won ? '🏆' : '💀'}</div>
+    <h2 style="color:${won ? 'var(--gold-bright)' : 'var(--text)'};font-size:18px;margin:8px 0;">
+      ${won ? `${opp.name} 격파!` : `${opp.name}에게 패배`}
+    </h2>
+    <div style="font-size:13px;color:var(--text-dim);margin:14px 0;line-height:1.8;">
+      ${tier.label} · ${state.handNumber}핸드<br>
+      ${won
+        ? `상금 <b style="color:var(--gold-bright);font-size:18px;">+$${prize.toLocaleString()}</b> 획득<br>
+           순이익 <b style="color:#5db95d;">+$${(prize - tier.buyIn).toLocaleString()}</b>`
+        : `손실 <b style="color:var(--red);">-$${tier.buyIn.toLocaleString()}</b><br>
+           멘탈 +20 XP 획득 (실력 성장)`
+      }
+    </div>
+    <div style="font-size:11px;color:var(--text-dim);margin-top:18px;">총 SnG 전적: ${career.sngStats.wins}승 ${career.sngStats.total - career.sngStats.wins}패 · 순이익 ${career.sngStats.winnings >= 0 ? '+' : ''}$${career.sngStats.winnings.toLocaleString()}</div>
+    <button class="btn-primary" onclick="closeModal();leaveTable();" style="margin-top:18px;padding:12px 28px;">로비로 →</button>
+  </div>`;
+  showModal(html);
+  if (won && typeof sfxFanfare === 'function') sfxFanfare();
+}
+
+// 로비에서 SnG 메뉴 열기
+function openHeadsUpSngMenu() {
+  ensureCareer();
+  career.sngStats = career.sngStats || { total: 0, wins: 0, winnings: 0 };
+  const tierCards = Object.entries(HEADSUP_TIERS).map(([key, t]) => {
+    const affordable = career.bankroll >= t.buyIn;
+    return `<div style="background:var(--bg-card-2);border:1px solid var(--border-light);border-radius:8px;padding:14px;margin-bottom:10px;${affordable ? '' : 'opacity:0.5;'}">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
+        <div>
+          <div style="font-weight:800;font-size:14px;">${t.label}</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${t.desc}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:11px;color:var(--text-dim);">바이인</div>
+          <div style="font-weight:800;color:var(--gold-bright);">$${t.buyIn.toLocaleString()}</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-bottom:8px;">
+        <span>시작 스택: ${(t.startStack/t.bb).toFixed(0)}BB</span>
+        <span>SB/BB: $${t.sb}/$${t.bb}</span>
+        <span>상금: $${(t.buyIn*2).toLocaleString()}</span>
+      </div>
+      ${affordable
+        ? `<button class="btn-primary" style="width:100%;font-size:12px;" onclick="closeModal();selectHeadsUpOpponent('${key}');">→ 상대 선택</button>`
+        : `<div style="font-size:11px;color:var(--red);text-align:center;padding:6px;">자금 부족 (현재 $${career.bankroll.toLocaleString()})</div>`
+      }
+    </div>`;
+  }).join('');
+
+  const html = `<div style="padding:10px;">
+    <h3>⚔️ 헤즈업 SnG (1대1 토너먼트)</h3>
+    <div style="font-size:12px;color:var(--text-dim);margin-bottom:14px;line-height:1.6;">
+      유명 챔피언과 1대1 매치. 블라인드 8핸드마다 상승, 한 명 bust → 게임 종료.<br>
+      <b>시간 안 들고 굵게</b> — 짧은 세션 추천.
+    </div>
+    ${tierCards}
+    ${career.sngStats.total > 0 ? `<div style="background:var(--bg-card-2);border-radius:6px;padding:10px;margin-top:14px;font-size:11px;color:var(--text-dim);text-align:center;">
+      📊 통산 ${career.sngStats.wins}승 ${career.sngStats.total - career.sngStats.wins}패 · 승률 ${Math.round(career.sngStats.wins / career.sngStats.total * 100)}% · 순이익 ${career.sngStats.winnings >= 0 ? '+' : ''}$${career.sngStats.winnings.toLocaleString()}
+    </div>` : ''}
+    <div style="text-align:center;margin-top:14px;"><button onclick="closeModal()">닫기</button></div>
+  </div>`;
+  showModal(html);
+}
+
+function selectHeadsUpOpponent(tierKey) {
+  const opponents = getHeadsUpOpponentChoices(tierKey);
+  const tier = HEADSUP_TIERS[tierKey];
+  const cards = opponents.map(opp => `
+    <button onclick="closeModal();enterHeadsUpSnG('${tierKey}', '${opp.name.replace(/'/g, "\\'")}');"
+      style="text-align:left;background:var(--bg-card-2);border:1px solid var(--border-light);border-radius:8px;padding:12px;width:100%;margin-bottom:8px;cursor:pointer;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-weight:700;font-size:13px;">${opp.emoji} ${opp.name}</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${opp.flair}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:10px;color:var(--text-dim);">스킬</div>
+          <div style="font-weight:800;color:${opp.skill >= 0.95 ? 'var(--red)' : opp.skill >= 0.90 ? 'var(--gold-bright)' : 'var(--cyan)'};font-size:14px;">${Math.round(opp.skill*100)}</div>
+        </div>
+      </div>
+    </button>
+  `).join('');
+
+  showModal(`<div style="padding:10px;">
+    <h3>${tier.label} — 상대 선택</h3>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:14px;">스킬 높을수록 어려움. 격파 시 추가 보너스 XP.</div>
+    ${cards}
+    <div style="text-align:center;margin-top:8px;"><button onclick="closeModal();openHeadsUpSngMenu();">← 뒤로</button></div>
+  </div>`);
+}
+
 function leaveTable() {
   if (state.street !== 'preHand' && state.street !== 'showdown' && state.street !== 'handover') {
     if (!confirm('진행 중인 핸드가 있습니다. 떠나면 자동 폴드됩니다. 계속하시겠습니까?')) return;
@@ -3958,8 +4242,8 @@ function newHand() {
     log(`${prefix} 새 플레이어 ${state.players[seatIdx].name} 입장 (${PERSONALITIES[personalityType].label})`, false, true);
   }
 
-  // Check if you're busted
-  if (state.players[0].stack === 0) {
+  // v50.1: 본인 bust 체크 강화 — stack=0 이거나 busted=true 둘 다 검사
+  if (state.players[0].stack <= 0 || state.players[0].busted) {
     return showRebuyModal();
   }
 
@@ -3984,6 +4268,13 @@ function newHand() {
   if (career.bankroll >= 100000000 && !career._debtClearedShown) {
     setTimeout(() => triggerDebtClearedCinematic(), 1200);
   }
+  // v50: SnG 모드 — bust 체크 (이전 핸드 결과 기반), 블라인드 레벨업
+  if (state.venue?.isHeadsUp) {
+    if (typeof checkSngBustResult === 'function' && checkSngBustResult()) return;
+    if (typeof checkSngBlindLevelUp === 'function') checkSngBlindLevelUp();
+    // bust된 플레이어는 어차피 모달이 뜨므로 다음 핸드 진행 안 함
+  }
+
   state.pot = 0;
   state.communityCards = [];
   state.deck = createDeck();
@@ -4129,8 +4420,19 @@ function showRebuyModal() {
 function rebuyMe() {
   career.bankroll -= state.venue.buyIn;
   state.sessionInvested += state.venue.buyIn;
-  state.players[0].stack = state.venue.buyIn;
-  state.players[0].buyInsTotal += state.venue.buyIn;
+  const me = state.players[0];
+  me.stack = state.venue.buyIn;
+  me.buyInsTotal += state.venue.buyIn;
+  // v50.1: 리바이 시 busted/folded/allIn 플래그 모두 리셋 (안 풀면 다음 핸드부터 자동 폴드 버그)
+  me.busted = false;
+  me.folded = false;
+  me.allIn = false;
+  me.currentBet = 0;
+  me.totalBet = 0;
+  me.hasActed = false;
+  me.cards = [];
+  me.handResult = null;
+  me.tilt = Math.min(1, (me.tilt || 0) + 0.20); // 리바이는 약간의 틸트 부여
   saveCareer();
   closeModal();
   newHand();
@@ -4601,7 +4903,15 @@ function endHandByFold(winner) {
   // v48: AI 성향 추적 마무리 — 핸드-레벨 카운터 확정
   if (typeof finalizeAIMemoryAtHandEnd === 'function') finalizeAIMemoryAtHandEnd();
 
-  setTimeout(autoNextHand, 2500);
+  // v50.1: 본인 bust 시 리바이 모달 직접 스케줄링 (특별 이벤트 모달에 막히지 않게)
+  if (state.players[0].stack <= 0) {
+    setTimeout(() => {
+      const hasModal = document.getElementById('modal-container').innerHTML !== '';
+      if (!hasModal && state.players[0].stack <= 0) showRebuyModal();
+    }, 2800);
+  } else {
+    setTimeout(autoNextHand, 2500);
+  }
 }
 
 function showdown() {
@@ -4784,7 +5094,15 @@ function showdown() {
   // v48: AI 성향 추적 마무리
   if (typeof finalizeAIMemoryAtHandEnd === 'function') finalizeAIMemoryAtHandEnd();
 
-  setTimeout(autoNextHand, 4000);
+  // v50.1: 본인 bust 체크 — 쇼다운 후 즉시 리바이 트리거 (다른 모달 안 떴을 때만)
+  if (state.players[0].stack <= 0) {
+    setTimeout(() => {
+      const hasModal = document.getElementById('modal-container').innerHTML !== '';
+      if (!hasModal && state.players[0].stack <= 0) showRebuyModal();
+    }, 4300);
+  } else {
+    setTimeout(autoNextHand, 4000);
+  }
 }
 
 function calculatePots() {
@@ -5827,10 +6145,25 @@ function recordDecision(p, action, amount) {
   const potOdds = toCall > 0 ? toCall / (state.pot + toCall) : 0;
   const recommendation = getRecommendation(p, strength, toCall, potOdds);
   // v45.1: EV 분석 — 선택한 액션의 EV + 대안 EV
+  // v50.2 BUG FIX: action 라벨이 '오픈 레이즈'/'C-벳'/'쓰리벳'/'체크' 등으로 들어오면
+  //               evOpts의 'fold'/'call'/'raise' 키에 매칭이 안 돼서 chosenEV=0이 되던 버그 수정
   const evOpts = state._currentEVOptions || {};
+  // 액션 라벨 → EV 키 정규화
+  const normalizeEvKey = (a) => {
+    const s = String(a || '').toLowerCase();
+    if (s === 'fold' || s.includes('폴드')) return 'fold';
+    if (s === 'check' || s.includes('체크')) return 'call'; // 체크는 toCall=0인 콜과 같은 EV
+    if (s === 'call' || s.includes('콜')) return 'call';
+    // raise/bet 계열 — 오픈/3-bet/4-bet/C-벳/동크/베팅/레이즈/체크레이즈/스퀴즈
+    if (s === 'raise' || s === 'bet' || s.includes('레이즈') || s.includes('베팅') ||
+        s.includes('벳') || s.includes('오픈') || s.includes('스퀴즈') || s.includes('체크레이즈') ||
+        s.includes('동크')) return 'raise';
+    return null;
+  };
+  const evKey = normalizeEvKey(action);
   let chosenEV = 0, bestEV = 0, bestAction = action;
-  if (evOpts.fold !== undefined) {
-    chosenEV = evOpts[action] !== undefined ? evOpts[action] : 0;
+  if (evOpts.fold !== undefined && evKey) {
+    chosenEV = evOpts[evKey] !== undefined ? evOpts[evKey] : 0;
     // 가장 좋은 옵션 찾기
     const options = [
       { name: 'fold', ev: evOpts.fold },
@@ -6514,12 +6847,18 @@ const FAMOUS_PLAYERS = [
   { name: 'S. Chidwick', country: '🇬🇧', skill: 0.96, personality: 'GTO_BOT', flair: 'Super High Roller', emoji: '⭐' },
   { name: 'Bryn Kenney', country: '🇺🇸', skill: 0.94, personality: 'LAG', flair: 'All-Time Money List #1', emoji: '👑' },
   { name: 'J. Bonomo', country: '🇺🇸', skill: 0.96, personality: 'GTO_BOT', flair: 'GTO 솔버 마스터', emoji: '⭐' },
-  { name: 'Fedor Holz', country: '🇩🇪', skill: 0.97, personality: 'GTO_BOT', flair: 'Solver King — 25세 은퇴 신화', emoji: '⭐' }
+  { name: 'Fedor Holz', country: '🇩🇪', skill: 0.97, personality: 'GTO_BOT', flair: 'Solver King — 25세 은퇴 신화', emoji: '⭐' },
+  // v50: 새 챔피언 5명
+  { name: 'Sam Trickett', country: '🇬🇧', skill: 0.94, personality: 'LAG', flair: '런던의 늑대 — 유럽 어그레션', emoji: '🐺' },
+  { name: 'Stu Ungar', country: '🇺🇸', skill: 0.98, personality: 'LAG', flair: '한 세대의 천재 — 3x WSOP Main', emoji: '🧠' },
+  { name: 'Erik Seidel', country: '🇺🇸', skill: 0.95, personality: 'TAG', flair: '8 브레이슬릿 — Old School Grinder', emoji: '📿' },
+  { name: 'Jason Koon', country: '🇺🇸', skill: 0.96, personality: 'GTO_BOT', flair: '트라이튼의 학자', emoji: '🎓' },
+  { name: 'Phil Galfond', country: '🇺🇸', skill: 0.97, personality: 'PRO', flair: 'Run It Once — GTO 교육자', emoji: '🌀' }
 ];
 
 const FAMOUS_CHANCE = {
   pub: 0.01, seoul: 0.02, macau: 0.04,
-  vegas: 0.08, wsop: 0.15, triton: 0.30
+  vegas: 0.08, wsop: 0.15, london: 0.22, triton: 0.30
 };
 
 function trySpawnFamous(venue) {
@@ -6844,15 +7183,27 @@ function toggleBGM() {
     bgmEnabled = false;
     if (bgmTimer) { clearTimeout(bgmTimer); bgmTimer = null; }
     if (window.Tone && Tone.Transport) Tone.Transport.pause();
+    // v50.3: 외부 MP3도 정지
+    if (externalAudioEl) {
+      try { externalAudioEl.pause(); } catch (e) {}
+    }
     if (state) log('🔇 BGM OFF', false, true);
   } else {
     bgmEnabled = true;
-    if (window.Tone && Tone.Transport && toneSetupDone) {
+    // v50.3: 외부 트랙이 현재 트랙이면 그것 재생, 아니면 Tone
+    const track = BGM_TRACK_LIST.find(t => t.id === currentTrack);
+    if (track && track.external) {
+      if (externalAudioEl) {
+        try { externalAudioEl.play().catch(()=>{}); } catch (e) {}
+      } else {
+        setupExternalBGM(track.external);
+      }
+    } else if (window.Tone && Tone.Transport && toneSetupDone) {
       Tone.Transport.start();
     } else {
       scheduleBGMChord();
     }
-    if (state) log('🔊 BGM ON · 펑키 카지노 라운지 🎷', false, true);
+    if (state) log(`🔊 BGM ON · ${track ? track.icon + ' ' + track.name : '펑키 카지노 라운지 🎷'}`, false, true);
   }
   try { localStorage.setItem('holdem-bgm', bgmEnabled ? '1' : '0'); } catch (e) {}
   updateBgmIcon();
@@ -6865,7 +7216,11 @@ const BGM_TRACK_LIST = [
   { id: 'pub',     icon: '🍺', name: '홀덤펍 어쿠스틱', desc: '동네 펍 무드 — 어쿠스틱 기타 + 부드러운 베이스 + 브러시' },
   { id: 'vegas',   icon: '🎰', name: '라스베가스 디스코', desc: '70s 펑크 디스코 — 4-on-floor + 신스 스탭 + 슬롯 벨' },
   { id: 'lofi',    icon: '🌙', name: 'Lo-Fi Jazz',     desc: '비닐 크래클 + 워킹베이스 + 브러시 드럼' },
-  { id: 'minimal', icon: '🎹', name: '미니멀 피아노',  desc: '집중 모드 — 부드러운 코드만 천천히' }
+  { id: 'minimal', icon: '🎹', name: '미니멀 피아노',  desc: '집중 모드 — 부드러운 코드만 천천히' },
+  // v50.3: 외부 MP3 트랙 — Macau VIP Room
+  { id: 'macau-vip', icon: '🎺', name: '마카오 VIP Room', desc: '실제 라운지 녹음 — 차이니즈 카지노 분위기 ★ 어디서나 재생 가능', external: 'audio/macau-vip.mp3' },
+  // v50.4: 로비 테마송 — Neon Holdem 오리지널
+  { id: 'lobby-neon', icon: '🌃', name: '네온 홀덤 (로비 테마)', desc: '게임 타이틀 송 — 사이버 네온 무드 ★ 어디서나 재생 가능', external: 'audio/lobby-neon.mp3' }
 ];
 let currentTrack = 'funky';
 try {
@@ -6879,6 +7234,9 @@ let tonePiano = null, toneBass = null, toneDrum = null, toneSparkle = null;
 let toneChordIdx = 0, toneBeatIdx = 0;
 let bgmSynths = [];  // track all synths/effects for disposal
 
+// v50.3: 외부 MP3 트랙 시스템
+let externalAudioEl = null;
+
 function disposeBGM() {
   try {
     if (window.Tone && Tone.Transport) {
@@ -6891,7 +7249,42 @@ function disposeBGM() {
     toneSetupDone = false;
     toneChordIdx = 0;
     toneBeatIdx = 0;
+    // v50.3: 외부 오디오 정지
+    if (externalAudioEl) {
+      try {
+        externalAudioEl.pause();
+        externalAudioEl.currentTime = 0;
+      } catch (e) {}
+      externalAudioEl = null;
+    }
   } catch (e) {}
+}
+
+// v50.3: 외부 MP3 트랙 재생
+async function setupExternalBGM(src) {
+  if (externalAudioEl) {
+    try { externalAudioEl.pause(); } catch (e) {}
+    externalAudioEl = null;
+  }
+  const audio = new Audio(src);
+  audio.loop = true;
+  audio.volume = 0.55;  // 합성 트랙과 비슷한 레벨
+  audio.preload = 'auto';
+  externalAudioEl = audio;
+  // 재생 시도
+  try {
+    await audio.play();
+  } catch (e) {
+    // 브라우저 자동 재생 차단됨 — 첫 클릭 이벤트에서 다시 시도
+    const retry = () => {
+      if (!externalAudioEl) return;
+      externalAudioEl.play().catch(() => {});
+      document.removeEventListener('click', retry);
+      document.removeEventListener('keydown', retry);
+    };
+    document.addEventListener('click', retry, { once: true });
+    document.addEventListener('keydown', retry, { once: true });
+  }
 }
 
 async function changeBGMTrack(trackId) {
@@ -6903,10 +7296,15 @@ async function changeBGMTrack(trackId) {
     updateBgmIcon();
   }
   disposeBGM();
+  const track = BGM_TRACK_LIST.find(t => t.id === trackId);
   try {
-    await setupToneBGM();
-    if (state) {
-      const track = BGM_TRACK_LIST.find(t => t.id === trackId);
+    // v50.3: 외부 MP3 vs 합성 트랙 분기
+    if (track && track.external) {
+      await setupExternalBGM(track.external);
+    } else {
+      await setupToneBGM();
+    }
+    if (state && track) {
       log(`🎵 ${track.icon} ${track.name}`, false, true);
     }
   } catch (e) {
@@ -10121,6 +10519,25 @@ const VENUE_TROPHIES = {
       reward: { cash: 1000000, xp: { all: 50 }, item: null, cardBack: 'wsop' }
     }
   },
+  // v50: 런던 GUKPT 트로피
+  london: {
+    venueName: '런던 GUKPT', color: '#5078b8',
+    bronze: {
+      icon: '🥉', name: '런던 입성', desc: '50핸드 + 수익 +$250,000',
+      cond: { hands: 50, profit: 250000 },
+      reward: { cash: 200000, xp: { pressure: 150 }, item: null, cardBack: null }
+    },
+    silver: {
+      icon: '🥈', name: '런던의 도전자', desc: '150핸드 + Sam Trickett 격파',
+      cond: { hands: 150, beatChampion: 'trickett' },
+      reward: { cash: 700000, xp: { bluff: 200, pressure: 100 }, item: null, cardBack: null }
+    },
+    gold: {
+      icon: '🥇', name: '런던의 늑대', desc: '300핸드 + Erik Seidel 격파',
+      cond: { hands: 300, beatChampion: 'seidel' },
+      reward: { cash: 2500000, xp: { all: 80 }, item: null, cardBack: 'london' }
+    }
+  },
   triton: {
     venueName: '트라이튼 하이스테이크', color: '#f5c542',
     bronze: {
@@ -11226,6 +11643,7 @@ function openMainMenu() {
         { icon: '📅', label: 'Day 캠페인 진행도', desc: '10일 RPG 스토리 + 챔피언 만남', action: 'openDayCampaign()' },
         { icon: '⚔️', label: '챔피언 도감', desc: '만난 전설 + 흡수 가능 능력', action: 'openChampionCodex()' },
         { icon: '⚔️', label: '챔피언 도전 모드 (v41 신규)', desc: '8명 보스 — 스토리 명장면 재현 보스전', action: 'openBossChallenge()' },
+        { icon: '⚔️', label: '헤즈업 SnG (v50 신규)', desc: '1대1 토너먼트 — 챔피언 단판 매치', action: 'openHeadsUpSngMenu()' },
         { icon: '🏆', label: '트로피 도감', desc: '18개 베뉴 트로피 — 브론즈/실버/골드', action: 'openTrophyCodex()' },
         { icon: '👥', label: '등장인물 관계도', desc: '주인공 김민준을 둘러싼 14명의 인물', action: 'openCharacterRelations()' },
         { icon: '📜', label: '서브이벤트 도감', desc: '40개 짧은 컷씬 + 선택지 분기 기록', action: 'openSubEventCodex()' }
@@ -12282,9 +12700,10 @@ function computePersonalityRead(p) {
 const VENUE_BGM = {
   pub: 'funky',
   seoul: 'lofi',
-  macau: 'lofi',
+  macau: 'macau-vip',  // v50.3: 마카오 — 실제 VIP Room MP3
   vegas: 'funky',
   wsop: 'funky',
+  london: 'minimal',  // v50: 런던 — 미니멀 (영국 정통 톤)
   triton: 'minimal'
 };
 
@@ -12296,6 +12715,15 @@ function autoSwitchVenueBGM(venueId) {
 }
 
 function duckBGM(durationMs = 1500) {
+  // v50.3: 외부 MP3 트랙 덕킹
+  if (externalAudioEl) {
+    const origVol = externalAudioEl.volume;
+    externalAudioEl.volume = origVol * 0.2;
+    setTimeout(() => {
+      if (externalAudioEl) externalAudioEl.volume = origVol;
+    }, durationMs);
+    return;
+  }
   if (!bgmGain) return;
   const originalVol = bgmGain.gain.value;
   bgmGain.gain.setValueAtTime(originalVol, audioCtx.currentTime);
@@ -12968,6 +13396,32 @@ const SPECIAL_ABILITIES = {
     name: '젊은 신동', icon: '🚀', owner: 'Fedor Holz', rarity: 'legendary',
     desc: '모든 능력 XP 1.5배 — 빠른 성장',
     effects: { xpMultiplier: 1.5 }
+  },
+  // === v50: 새 챔피언 5명 ===
+  trickett: {
+    name: '런던의 늑대', icon: '🐺', owner: 'Sam Trickett', rarity: 'epic',
+    desc: '압박 +25, 블러프 +10 — 유럽 어그레션의 정수',
+    effects: { pressure: 25, bluff: 10 }
+  },
+  ungar: {
+    name: '포커 천재', icon: '🧠', owner: 'Stu Ungar', rarity: 'legendary',
+    desc: '모든 능력 +8 — 한 세대에 한 번 나오는 천재',
+    effects: { all: 8, intuition: true }
+  },
+  seidel: {
+    name: '8 브레이슬릿', icon: '📿', owner: 'Erik Seidel', rarity: 'epic',
+    desc: '인내심 +20, 멘탈 +15 — 침착함과 지속력의 화신',
+    effects: { patience: 20, mental: 15 }
+  },
+  koon: {
+    name: '트라이튼의 학자', icon: '🎓', owner: 'Jason Koon', rarity: 'epic',
+    desc: '수학 +20, 통찰력 +15 — 현대 하이스테이크 마스터',
+    effects: { math: 20, insight: 15 }
+  },
+  galfond: {
+    name: '런잇원스 (Run It Once)', icon: '🌀', owner: 'Phil Galfond', rarity: 'legendary',
+    desc: '수학 +25, 코치 모드 정확도 ↑ — GTO 교육자의 명료함',
+    effects: { math: 25, coachClarity: true }
   }
 };
 
