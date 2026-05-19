@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v45.1 ★ EV ANALYSIS IN POST-HAND REVIEW</title>
+<title>NEON HOLDEM v47 ★ REALISTIC CASH GAME AI (4-BET LIMIT + VENUE MIX + POSITION)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -3127,48 +3127,55 @@ const KOREAN_NAMES = ['민준','서윤','지호','하준','도윤','시우','은
 const FOREIGN_NAMES = ['Mike','Sarah','Daniel','Chen','Tatiana','Alex','Jose','Aoki','Phil','Vanessa','Doyle','Tom','Maria','Igor','Kimo','Elias','Brad','Stu','Negi','Polk','Ivey','Hellmuth','Galfond','Petrangelo','Nguyen','Foxen','Bonomo','Holz','Adams','Linus'];
 
 // ===================== Venues =====================
+// v47: 실제 오프라인 캐쉬게임 톤 — 베뉴별 mix 재설계
 const VENUES = [
   {
     id: 'pub', name: '🍻 동네 홀덤펍', emoji: '🍻',
-    desc: '동네 캐쉬게임, 9-handed. 림프 + 콜 위주 초보들.',
+    desc: '동네 캐쉬게임, 9-handed. 거의 모두가 림프+콜. 4-bet 없음.',
     sb: 1, bb: 2, buyIn: 200, requiredBankroll: 200, unlockBankroll: 0,
-    seats: 9, useKoreanNames: true, skillRange: [0.22, 0.48],
-    mix: { CALL_STATION: 0.45, LOOSE_PASSIVE: 0.30, ROCK: 0.10, TAG: 0.08, LAG: 0.04, MANIAC: 0.03 }
+    seats: 9, useKoreanNames: true, skillRange: [0.18, 0.42],
+    // 펍: 콜링 천국 — LAG/MANIAC 거의 없음, 폴드도 약함
+    mix: { CALL_STATION: 0.50, LOOSE_PASSIVE: 0.30, ROCK: 0.12, TAG: 0.06, LAG: 0.02 }
   },
   {
     id: 'seoul', name: '🃏 강남 홀덤바', emoji: '🃏',
-    desc: '강남 중급 홀덤바, 9-handed. 룰 아는 사람도 섞임.',
+    desc: '강남 중급 홀덤바, 9-handed. 룰 아는 그라인더 + 일부 콜링.',
     sb: 5, bb: 10, buyIn: 1000, requiredBankroll: 1000, unlockBankroll: 2000,
-    seats: 9, useKoreanNames: true, skillRange: [0.38, 0.62],
-    mix: { CALL_STATION: 0.20, LOOSE_PASSIVE: 0.25, TAG: 0.25, LAG: 0.15, ROCK: 0.10, MANIAC: 0.03, GTO_BOT: 0.02 }
+    seats: 9, useKoreanNames: true, skillRange: [0.40, 0.65],
+    // 강남: TAG 위주, 콜링 일부, LAG 가끔
+    mix: { TAG: 0.40, CALL_STATION: 0.20, LOOSE_PASSIVE: 0.15, ROCK: 0.12, LAG: 0.10, GTO_BOT: 0.03 }
   },
   {
     id: 'macau', name: '🌴 마카오 캐쉬', emoji: '🌴',
-    desc: '아시아 최고 그라인더들, 9-handed. 중-고급 정석 플레이.',
+    desc: '아시아 강자들, 9-handed. TAG/GTO 위주, 가끔 LAG.',
     sb: 25, bb: 50, buyIn: 5000, requiredBankroll: 5000, unlockBankroll: 10000,
-    seats: 9, useKoreanNames: false, skillRange: [0.55, 0.78],
-    mix: { TAG: 0.35, LAG: 0.25, GTO_BOT: 0.20, ROCK: 0.10, LOOSE_PASSIVE: 0.07, MANIAC: 0.03 }
+    seats: 9, useKoreanNames: false, skillRange: [0.58, 0.80],
+    // 마카오: TAG + GTO 위주, 콜링 매우 적음
+    mix: { TAG: 0.40, GTO_BOT: 0.25, LAG: 0.12, PRO: 0.10, ROCK: 0.08, LOOSE_PASSIVE: 0.05 }
   },
   {
     id: 'vegas', name: '🎰 라스베가스 벨라지오', emoji: '🎰',
-    desc: '벨라지오 캐쉬게임 9-handed. 미국 레귤러 + 레크리에이션.',
+    desc: '벨라지오 캐쉬 9-handed. 균형잡힌 프로 + 가끔 레크.',
     sb: 100, bb: 200, buyIn: 20000, requiredBankroll: 20000, unlockBankroll: 40000,
-    seats: 9, useKoreanNames: false, skillRange: [0.65, 0.85],
-    mix: { TAG: 0.3, LAG: 0.3, GTO_BOT: 0.2, PRO: 0.1, LOOSE_PASSIVE: 0.05, ROCK: 0.05 }
+    seats: 9, useKoreanNames: false, skillRange: [0.68, 0.87],
+    // 벨라지오: PRO/GTO 위주, 정통적, LAG도 조심스럽게
+    mix: { PRO: 0.30, GTO_BOT: 0.30, TAG: 0.22, LAG: 0.10, ROCK: 0.05, LOOSE_PASSIVE: 0.03 }
   },
   {
     id: 'wsop', name: '🏆 WSOP 캐쉬게임', emoji: '🏆',
-    desc: 'WSOP 캐쉬 9-handed. GTO 근접 플레이어들.',
+    desc: 'WSOP 캐쉬 9-handed. 진짜 프로들, GTO 근접.',
     sb: 500, bb: 1000, buyIn: 100000, requiredBankroll: 100000, unlockBankroll: 200000,
-    seats: 9, useKoreanNames: false, skillRange: [0.78, 0.92],
-    mix: { GTO_BOT: 0.35, PRO: 0.25, TAG: 0.2, LAG: 0.15, ROCK: 0.05 }
+    seats: 9, useKoreanNames: false, skillRange: [0.80, 0.93],
+    // WSOP: PRO 위주, 콜링 0%
+    mix: { PRO: 0.45, GTO_BOT: 0.30, TAG: 0.15, LAG: 0.07, ROCK: 0.03 }
   },
   {
     id: 'triton', name: '💎 트라이튼 하이스테이크', emoji: '💎',
-    desc: '월드 클래스 프로들, 8-handed. GTO 솔버 수준 정확도.',
+    desc: '월드 클래스, 8-handed. 거의 GTO 솔버 수준.',
     sb: 2000, bb: 5000, buyIn: 500000, requiredBankroll: 500000, unlockBankroll: 1000000,
-    seats: 8, useKoreanNames: false, skillRange: [0.88, 0.97],
-    mix: { GTO_BOT: 0.5, PRO: 0.4, TAG: 0.1 }
+    seats: 8, useKoreanNames: false, skillRange: [0.90, 0.98],
+    // 트라이튼: PRO/GTO만, TAG 살짝
+    mix: { PRO: 0.60, GTO_BOT: 0.35, TAG: 0.05 }
   }
 ];
 const WIN_GOAL = 5000000;
@@ -4640,6 +4647,9 @@ function showdown() {
         saveCareer();
         checkTrophyProgress();
         checkSubEvents();
+        // v46: 특별 핸드 이벤트 (윤서아 동반자 등장)
+        const myWinAmtForEvent = state.winners.filter(w => w.player === me).reduce((s, w) => s + w.amount, 0);
+        checkSpecialHandEvents(meWonShowdown, me.cards, state.communityCards, me.handResult, myWinAmtForEvent);
       }
     }
   }
@@ -4726,16 +4736,43 @@ function aiDecide(p) {
 
   // Thresholds adjusted by tilt
   const callThr = personality.callThr - (tilt * 12);
-  const raiseThr = personality.raiseThr - (tilt * 18);
+  let raiseThr = personality.raiseThr - (tilt * 18);
 
   const toCall = state.currentBet - p.currentBet;
   const potOdds = toCall > 0 ? toCall / (state.pot + toCall) : 0;
   const goodPotOdds = potOdds > 0 && potOdds < 0.22;
 
-  // Bluff? (reduced during beginner period to make play more predictable)
-  const bluffFreq = personality.bluffFreq * (1 - luck.aiBluffPenalty);
-  const bluffMaybe = Math.random() < (bluffFreq + tilt * 0.25);
-  const isBluff = bluffMaybe && effStrength < 35 && state.street !== 'preflop';
+  // === v47: 실제 캐쉬게임 톤 — 4-bet/5-bet 제한 ===
+  // 프리플랍 raise 횟수에 따라 raise 임계점 강화
+  const preflopRaises = (state.handTrack && state.handTrack.preflopRaises) || 0;
+  if (state.street === 'preflop') {
+    if (preflopRaises === 0) {
+      // 오픈 레이즈 — 정상 raiseThr
+    } else if (preflopRaises === 1) {
+      // 3-bet — strength 75+ (강한 핸드만)
+      raiseThr = Math.max(raiseThr, 75 - (skill - 0.5) * 10);
+    } else if (preflopRaises === 2) {
+      // 4-bet — strength 87+ (AA/KK/QQ/AK 정도만)
+      raiseThr = Math.max(raiseThr, 87 - (skill - 0.5) * 8);
+    } else if (preflopRaises === 3) {
+      // 5-bet — strength 93+ (AA/KK만)
+      raiseThr = Math.max(raiseThr, 93);
+    } else {
+      // 6-bet+ — 거의 안 함 (AA만)
+      raiseThr = 97;
+    }
+  }
+
+  // === v47: 프리플랍 블러프 50% 감소 (실제 포커는 프리플랍 블러프 거의 없음) ===
+  let bluffFreq = personality.bluffFreq * (1 - luck.aiBluffPenalty);
+  if (state.street === 'preflop') {
+    bluffFreq *= 0.4; // 프리플랍 블러프는 매우 낮게
+    if (preflopRaises >= 2) bluffFreq *= 0.3; // 4-bet 이상은 블러프 거의 X
+  }
+  const bluffMaybe = Math.random() < (bluffFreq + tilt * 0.15);
+  // 프리플랍 블러프는 strength 50+ 라이트 핸드만 (76s, A2s 등 — 진짜 약한 핸드 블러프 X)
+  const bluffStrengthLimit = state.street === 'preflop' ? 50 : 35;
+  const isBluff = bluffMaybe && effStrength < bluffStrengthLimit && effStrength > (state.street === 'preflop' ? 25 : 0);
 
   // Decision branches
   if (effStrength > raiseThr || (isBluff && p.stack > 0)) {
@@ -4764,13 +4801,19 @@ function getPositionFactor(p) {
   const idx = state.players.indexOf(p);
   const dealerIdx = state.dealerIdx;
   const totalPlayers = state.players.filter(x => !x.busted).length;
-  // Distance from dealer (0 = dealer, higher = earlier position)
+  // BTN으로부터의 거리 (0=BTN, 큰 숫자=얼리 포지션)
   let dist = (idx - dealerIdx + state.players.length) % state.players.length;
-  if (dist > totalPlayers / 2) dist = totalPlayers - dist;
-  // Late position (close to dealer) gets boost
-  if (dist <= 1) return 1.15;
-  if (dist <= 2) return 1.05;
-  if (dist >= totalPlayers - 2) return 0.9;
+  // v47: 포지션 가중치 강화 — 실제 캐쉬게임처럼 얼리 포지션은 매우 타이트
+  // BTN/CO 후반 포지션: strength 1.15~1.20 boost (오픈 레인지 넓음)
+  // MP: 1.0 (정상)
+  // UTG/UTG+1: 0.75~0.85 (매우 타이트)
+  if (dist === 0) return 1.20;          // BTN
+  if (dist === 1 || dist === 2) return 0.95; // SB/BB (다소 정상)
+  if (dist === 3) return 1.15;          // CO (Late)
+  if (dist === 4) return 1.08;          // HJ
+  if (dist === 5) return 1.00;          // MP
+  if (dist === 6) return 0.88;          // LJ / MP+
+  if (dist >= 7) return 0.78;           // UTG (가장 타이트)
   return 1.0;
 }
 
@@ -8661,7 +8704,9 @@ const STORY_CHARS = {
   // === 서브이벤트 신규 인물 (v32) ===
   mother:    { name: '어머니', role: '걱정 많은 엄마', emoji: '👩‍🦳', relationship: '가족' },
   reporter:  { name: '한국 기자', role: 'WSOP 취재', emoji: '🎤', relationship: '단발성' },
-  oldself:   { name: '60세 김민준', role: '미래의 자기', emoji: '👴', relationship: '회상' }
+  oldself:   { name: '60세 김민준', role: '미래의 자기', emoji: '👴', relationship: '회상' },
+  // === 동반자 캐릭터 (v46) ===
+  seoa:      { name: '윤서아', role: '럭셔리 동반자', emoji: '💋', relationship: '동반자' }
 };
 
 // === 캐릭터 이미지 시스템 (v33 — PNG 통일 + variant 지원) ===
@@ -8945,6 +8990,182 @@ function checkSubEvents() {
       return; // one event per check (prevents stacking)
     }
   }
+}
+
+// ===================== SPECIAL HAND EVENTS (v46) =====================
+// 동반자 윤서아가 특별한 핸드/모먼트에 등장
+const SPECIAL_HAND_EVENTS = {
+  royal_flush: {
+    icon: '👑', title: '로얄 플러시!',
+    text: '"오빠... 진짜 영화 같다."<br><br>로얄 플러시. 인생에 한 번 나올까 말까.',
+    char: 'seoa', charVariant: 'wow',
+    reward: { cash: 10000, xp: { insight: 100, math: 50 } }
+  },
+  straight_flush: {
+    icon: '✨', title: '스트레이트 플러시',
+    text: '"이런 핸드... 어디서 봤어?"<br><br>스트레이트 플러시. 카드의 마법.',
+    char: 'seoa',
+    reward: { cash: 5000, xp: { math: 60 } }
+  },
+  four_kind: {
+    icon: '🎴', title: '포카드!',
+    text: '"넷 다 똑같아? 말도 안 돼."<br><br>포카드. 운명의 한 수.',
+    char: 'seoa',
+    reward: { cash: 3000, xp: { exploit: 50 } }
+  },
+  nut_flush: {
+    icon: '♠️', title: 'A 너트 플러시',
+    text: '"에이스 하이 플러시... 이거 못 깨는 거 맞지?"<br><br>최강의 플러시.',
+    char: 'seoa',
+    reward: { cash: 1500, xp: { insight: 40 } }
+  },
+  ace_fullhouse: {
+    icon: '🃏', title: '에이스 풀하우스',
+    text: '"이건 진짜 위험한 핸드네."<br><br>에이스 풀. 무자비.',
+    char: 'seoa',
+    reward: { cash: 1000, xp: { exploit: 40 } }
+  },
+  first_straight_win: {
+    icon: '🎯', title: '첫 스트레이트 승리',
+    text: '"스트레이트! 짜릿하지?"<br><br>5장이 연결되는 마법.',
+    char: 'seoa',
+    reward: { cash: 500, xp: { math: 30 } }
+  },
+  hero_call_win: {
+    icon: '💎', title: '히어로 콜 성공',
+    text: '"이게... 히어로 콜이야."<br><br>모든 걸 걸고 읽었어. 정답.',
+    char: 'seoa', charVariant: 'wow',
+    reward: { cash: 2000, xp: { insight: 80, mental: 50 } }
+  },
+  bigpot_100bb: {
+    icon: '💰', title: '100BB+ 빅팟',
+    text: '"이게... 진짜 큰 돈이네."<br><br>100BB 이상의 팟. 진짜 한 방.',
+    char: 'seoa',
+    reward: { cash: 1500, xp: { pressure: 50 } }
+  },
+  three_streak: {
+    icon: '🔥', title: '3연승',
+    text: '"오빠 오늘 컨디션이 좋네."<br><br>3연승. 흐름이 왔어.',
+    char: 'seoa',
+    reward: { cash: 300 }
+  },
+  seven_streak: {
+    icon: '⚡', title: '7연승!',
+    text: '"이건... 흐름이 아니라 신탁이야."<br><br>7연승. 카드의 신.',
+    char: 'seoa', charVariant: 'wow',
+    reward: { cash: 3000, xp: { all: 30 } }
+  },
+  first_meeting: {
+    icon: '💋', title: '첫 만남 — 윤서아',
+    text: '마카오 베네시안 라운지.<br>한국인 모델 <b style="color:var(--gold-bright);">윤서아</b>가 다가왔다.<br><br>"한국 분이세요? 강해 보이시네요."<br>"...같이 따라다녀도 될까요?"',
+    char: 'seoa', bigImage: true,
+    reward: { xp: { mental: 30 } }
+  }
+};
+
+// 핸드 결과 후 특별 이벤트 체크
+function checkSpecialHandEvents(meWonShowdown, myCards, board, handResult, winAmount) {
+  ensureSubEvents();
+  career._specialHandFired = career._specialHandFired || {};
+
+  // 윤서아 첫 만남 — 마카오 30핸드 후 자동
+  if (state?.venue?.id === 'macau' && (career.venueStats?.macau?.hands || 0) >= 30
+      && !career._specialHandFired.first_meeting) {
+    career._specialHandFired.first_meeting = Date.now();
+    saveCareer();
+    setTimeout(() => showSpecialHandEvent('first_meeting'), 1500);
+    return;
+  }
+
+  if (!meWonShowdown || !handResult) return;
+  const rank = handResult[0]; // 1=high, 2=pair, ... 9=royal
+  const topCard = handResult[1];
+
+  // 우선순위 — 가장 희귀한 것부터
+  let eventKey = null;
+
+  if (rank === 9 && topCard === 14) eventKey = 'royal_flush';
+  else if (rank === 9) eventKey = 'straight_flush';
+  else if (rank === 8) eventKey = 'four_kind';
+  else if (rank === 7 && topCard === 14) eventKey = 'ace_fullhouse';
+  else if (rank === 6 && topCard === 14) eventKey = 'nut_flush';
+  else if (rank === 5 && !career._specialHandFired.first_straight_win) {
+    eventKey = 'first_straight_win';
+  }
+
+  // 핸드 결과 외 — 빅팟, 연승 (이건 매번 발동 가능)
+  if (winAmount && state?.bb && winAmount >= state.bb * 100) {
+    if (!career._specialHandFired.bigpot_100bb || Math.random() < 0.3) {
+      eventKey = eventKey || 'bigpot_100bb';
+    }
+  }
+
+  // 연승 체크
+  const streak = career.streak?.current || 0;
+  if (streak === 7 && !career._specialHandFired.seven_streak) {
+    eventKey = 'seven_streak';
+  } else if (streak === 3 && !career._specialHandFired.three_streak) {
+    eventKey = 'three_streak';
+  }
+
+  if (!eventKey) return;
+
+  // 한 번만 발동하는 이벤트는 체크
+  const oneTimers = ['royal_flush', 'four_kind', 'ace_fullhouse', 'first_straight_win',
+                     'first_meeting', 'three_streak', 'seven_streak'];
+  if (oneTimers.includes(eventKey) && career._specialHandFired[eventKey]) return;
+
+  career._specialHandFired[eventKey] = Date.now();
+  saveCareer();
+  setTimeout(() => showSpecialHandEvent(eventKey), 1500);
+}
+
+function showSpecialHandEvent(eventKey) {
+  const event = SPECIAL_HAND_EVENTS[eventKey];
+  if (!event) return;
+
+  // 보상 적용
+  if (event.reward) {
+    if (event.reward.cash) career.bankroll += event.reward.cash;
+    if (event.reward.xp) {
+      ensureAbilities();
+      for (const [stat, xp] of Object.entries(event.reward.xp)) {
+        if (stat === 'all') {
+          for (const k of Object.keys(ABILITY_DEFS)) gainXP(k, xp, '특별 모먼트');
+        } else gainXP(stat, xp, '특별 모먼트');
+      }
+    }
+    saveCareer();
+  }
+
+  const ch = STORY_CHARS[event.char] || {};
+  const charVisual = event.bigImage
+    ? (typeof getCharImageBigHTML === 'function' ? getCharImageBigHTML(event.char, 180, event.charVariant || '') : `<div style="font-size:80px;">${ch.emoji || '✨'}</div>`)
+    : (typeof getCharImageHTML === 'function' ? getCharImageHTML(event.char, 80, true, event.charVariant || '') : `<div style="font-size:48px;">${ch.emoji || '✨'}</div>`);
+
+  const rewardHTML = event.reward
+    ? `<div style="font-size:11px;color:var(--gold-bright);margin-top:10px;">
+        ${event.reward.cash ? `💰 +$${event.reward.cash.toLocaleString()}` : ''}
+        ${event.reward.xp ? Object.entries(event.reward.xp).map(([s,v]) => s === 'all' ? ` · 모든 능력 +${v}` : ` · ${ABILITY_DEFS[s]?.icon || ''} +${v}`).join('') : ''}
+      </div>`
+    : '';
+
+  const html = `<div style="text-align:center;padding:20px 14px;">
+    <div style="font-size:11px;color:var(--pink);letter-spacing:4px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:14px;">★ SPECIAL MOMENT ★</div>
+    <div style="font-size:54px;margin-bottom:10px;">${event.icon}</div>
+    <h2 style="color:var(--gold-bright);font-size:18px;margin:8px 0;letter-spacing:2px;font-family:'Press Start 2P','Galmuri11',monospace;">${event.title}</h2>
+    ${charVisual}
+    <div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-card-2);border:1px solid var(--pink);padding:4px 10px;border-radius:14px;margin:8px 0;">
+      <span style="font-size:11px;color:var(--pink);font-weight:700;">${ch.name || ''}</span>
+      <span style="font-size:10px;color:var(--text-dim);">· ${ch.role || ''}</span>
+    </div>
+    <div style="font-size:14px;line-height:1.9;color:var(--text);margin:14px 0;font-style:italic;">${event.text}</div>
+    ${rewardHTML}
+    <button class="btn-primary" onclick="closeModal()" style="margin-top:14px;padding:10px 28px;font-size:13px;font-weight:700;">계속 →</button>
+  </div>`;
+  showModal(html);
+  if (typeof sfxFanfare === 'function') sfxFanfare();
+  if (typeof triggerSparkles === 'function') triggerSparkles(15);
 }
 
 let _subChoiceCallback = null;
@@ -9643,6 +9864,13 @@ const CHAR_GROUPS = [
       { key: 'mother',    firstDay: 2,  arc: '걱정 많은 어머니. Day 2 전화, Day 9 빚 청산 후 큰돈 송금에 울음.' },
       { key: 'reporter',  firstDay: 8,  arc: 'WSOP 한국 기자. 너의 첫 미디어 인터뷰. 솔직/신비주의 선택.' },
       { key: 'oldself',   firstDay: 10, arc: '60세 김민준. 게임 클리어 후 회상. "인생은 한 번의 핸드다."' }
+    ]
+  },
+  {
+    title: '💋 럭셔리 동반자',
+    color: 'var(--pink)',
+    chars: [
+      { key: 'seoa',      firstDay: 6,  arc: '윤서아 — 마카오에서 만난 한국 모델. 빅팟/연승/스트레이트 승리 등 특별 모먼트마다 등장.' }
     ]
   }
 ];
