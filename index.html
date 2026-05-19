@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v47 ★ REALISTIC CASH GAME AI (4-BET LIMIT + VENUE MIX + POSITION)</title>
+<title>NEON HOLDEM v48 ★ HIDDEN PERSONALITY + INSIGHT READ + EVENT FREEZE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -1070,6 +1070,65 @@
     border-radius: 3px; margin-top: 4px;
     color: var(--text-dim);
     width: fit-content;
+  }
+  /* v48: 통찰력 기반 단계별 공개 */
+  .personality-tag.tier-hidden {
+    background: rgba(255,255,255,0.04);
+    color: rgba(255,255,255,0.45);
+    border: 1px dashed rgba(255,255,255,0.18);
+    font-style: italic;
+  }
+  .personality-tag.tier-axis1 {
+    background: rgba(94, 168, 255, 0.12);
+    color: #7eb7ff;
+    border: 1px solid rgba(94, 168, 255, 0.35);
+  }
+  .personality-tag.tier-axis2 {
+    background: rgba(160, 120, 255, 0.14);
+    color: #b89bff;
+    border: 1px solid rgba(160, 120, 255, 0.4);
+  }
+  .personality-tag.tier-full {
+    background: rgba(255, 200, 73, 0.16);
+    color: var(--gold-bright);
+    border: 1px solid rgba(255, 200, 73, 0.5);
+    box-shadow: 0 0 6px rgba(255, 200, 73, 0.25);
+  }
+  .personality-tag .read-progress {
+    display: inline-block;
+    width: 18px; height: 3px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 2px;
+    margin-left: 4px;
+    position: relative;
+    top: -2px;
+  }
+  .personality-tag .read-progress::after {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: linear-gradient(90deg, #5ea8ff, var(--gold-bright));
+    border-radius: 2px;
+    width: var(--read-pct, 0%);
+    transition: width 0.4s ease;
+  }
+
+  /* v48: 특별 이벤트 발동 시 테이블 정지/dim */
+  #game-screen.event-freeze {
+    position: relative;
+  }
+  #game-screen.event-freeze::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0.0) 30%, rgba(0,0,0,0.55) 100%);
+    pointer-events: none;
+    z-index: 50;
+    animation: event-freeze-fade 0.6s ease-out;
+  }
+  #game-screen.event-freeze .action-panel,
+  #game-screen.event-freeze .player-card { filter: saturate(0.6) brightness(0.8); transition: filter 0.4s ease; }
+  @keyframes event-freeze-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   /* Hand badge — showdown made-hand display */
@@ -3894,6 +3953,9 @@ function newHand() {
   state.lastRaiseSize = state.bb;
   state.winners = null;
 
+  // v48: 매 핸드 시작 시 AI 메모리 임시 플래그 리셋
+  if (typeof resetAIMemoryHandFlags === 'function') resetAIMemoryHandFlags();
+
   for (const p of state.players) {
     p.cards = []; p.folded = false; p.allIn = false;
     p.currentBet = 0; p.totalBet = 0; p.hasActed = false;
@@ -4052,6 +4114,8 @@ function flashScreen(type) {
 function actFold() {
   const p = state.players[state.currentPlayerIdx];
   trackOpportunities(p);
+  // v48: 액션 직전 컨텍스트
+  const _preRaises = state?.handTrack?.preflopRaises || 0;
   if (p.isHuman) {
     recordDecision(p, 'fold', 0);
     career.stats.folds++;
@@ -4062,7 +4126,7 @@ function actFold() {
   log(`${p.name} 폴드`);
   sfxFold();
   if (p.isHuman) updateChallengeProgress('fold');
-  trackAIMemory(p, 'fold');
+  trackAIMemory(p, 'fold', { street: state.street, preflopRaisesBeforeAction: _preRaises });
   advanceTurn();
 }
 
@@ -4070,6 +4134,8 @@ function actCheckCall() {
   const p = state.players[state.currentPlayerIdx];
   const toCall = state.currentBet - p.currentBet;
   trackOpportunities(p);
+  // v48: AI 액션 직전 preflopRaises 캡처 (3-bet 감지용)
+  const _preRaises = state?.handTrack?.preflopRaises || 0;
   let actionLabel;
 
   if (toCall <= 0) {
@@ -4082,6 +4148,7 @@ function actCheckCall() {
     setLastAction(p, '체크', 'check');
     log(`${p.name} 체크`);
     sfxCheck();
+    trackAIMemory(p, 'check', { street: state.street, preflopRaisesBeforeAction: _preRaises });
   } else {
     const callAmt = Math.min(toCall, p.stack);
     p.stack -= callAmt;
@@ -4109,6 +4176,8 @@ function actCheckCall() {
     }
     const seatIdx = state.players.indexOf(p);
     setTimeout(() => animateChipsToPot(seatIdx, callAmt), 50);
+    // v48: AI 콜 트래킹 (BB가 콜아닌 체크인 경우는 위에서 처리)
+    trackAIMemory(p, 'call', { street: state.street, preflopRaisesBeforeAction: _preRaises });
   }
   p.hasActed = true;
   advanceTurn();
@@ -4133,6 +4202,8 @@ function actRaise(totalBetTarget) {
 
   const raiseSize = finalTotal - state.currentBet;
   trackOpportunities(p);
+  // v48: AI 액션 직전 preflopRaises 캡처 (3-bet 감지)
+  const _preRaisesForAI = state?.handTrack?.preflopRaises || 0;
 
   // Determine poker term for this action
   let actionLabel;
@@ -4202,7 +4273,9 @@ function actRaise(totalBetTarget) {
     updateChallengeProgress('raise');
     if (p.allIn) updateChallengeProgress('allin');
   }
-  trackAIMemory(p, 'raise');
+  // v48: 컨텍스트 포함 트래킹 (preflop raise 직전의 raises count로 3-bet 감지)
+  trackAIMemory(p, prevCurrentBet === 0 ? 'bet' : 'raise',
+    { street: state.street, preflopRaisesBeforeAction: _preRaisesForAI });
   setTimeout(() => animateChipsToPot(state.players.indexOf(p), finalAdd), 50);
   for (const other of state.players) {
     if (other !== p && !other.folded && !other.busted && !other.allIn) other.hasActed = false;
@@ -4474,6 +4547,9 @@ function endHandByFold(winner) {
     }
   }
 
+  // v48: AI 성향 추적 마무리 — 핸드-레벨 카운터 확정
+  if (typeof finalizeAIMemoryAtHandEnd === 'function') finalizeAIMemoryAtHandEnd();
+
   setTimeout(autoNextHand, 2500);
 }
 
@@ -4653,6 +4729,9 @@ function showdown() {
       }
     }
   }
+
+  // v48: AI 성향 추적 마무리
+  if (typeof finalizeAIMemoryAtHandEnd === 'function') finalizeAIMemoryAtHandEnd();
 
   setTimeout(autoNextHand, 4000);
 }
@@ -5281,8 +5360,8 @@ function renderPlayerCard(p, i) {
         // 카드별 peeked 상태
         state.handTrack.cardsPeeked = state.handTrack.cardsPeeked || [false, false];
         const peeked = state.handTrack.cardsPeeked;
-        const c0HTML = peeked[0] ? cardHTML(p.cards[0]) : `<div class="card card-peekable" onclick="revealMyCard(0)"><div class="peek-hint">탭</div></div>`;
-        const c1HTML = peeked[1] ? cardHTML(p.cards[1]) : `<div class="card card-peekable" onclick="revealMyCard(1)"><div class="peek-hint">탭</div></div>`;
+        const c0HTML = peeked[0] ? cardHTML(p.cards[0]) : `<div class="card card-peekable" onclick="event.stopPropagation();revealMyCard(0)"><div class="peek-hint">탭</div></div>`;
+        const c1HTML = peeked[1] ? cardHTML(p.cards[1]) : `<div class="card card-peekable" onclick="event.stopPropagation();revealMyCard(1)"><div class="peek-hint">탭</div></div>`;
         cardsHTML = `<div class="seat-cards${strongClass}${myClass}" data-hand="${handKey}" style="display:flex;gap:6px;margin-top:6px;">${c0HTML}${c1HTML}</div>`;
       } else {
         cardsHTML = `<div class="seat-cards${strongClass}${myClass}" data-hand="${handKey}" style="display:flex;gap:6px;margin-top:6px;">
@@ -5295,10 +5374,26 @@ function renderPlayerCard(p, i) {
   }
   const handLabel = (showCards && p.handResult)
     ? `<div class="hand-badge ${getHandTier(p.handResult)}">${describeHand(p.handResult)}</div>` : '';
-  const personalityLabel = !p.isHuman ?
-    (p.isFamous && p.famousData
-      ? `<div class="personality-tag" style="color:var(--gold-bright);background:rgba(245,200,73,0.15);">${p.famousData.country} ${p.famousData.flair}</div>`
-      : `<div class="personality-tag">${PERSONALITIES[p.personalityType].emoji} ${PERSONALITIES[p.personalityType].label}</div>`) : '';
+  // v48: 통찰력 기반 단계별 공개 — 처음엔 ???로 가림, 핸드 누적되며 공개
+  let personalityLabel = '';
+  if (!p.isHuman) {
+    if (p.isFamous && p.famousData) {
+      // 유명인은 평판으로 항상 공개
+      personalityLabel = `<div class="personality-tag tier-full" style="color:var(--gold-bright);background:rgba(245,200,73,0.15);">${p.famousData.country} ${p.famousData.flair}</div>`;
+    } else {
+      const read = (typeof computePersonalityRead === 'function') ? computePersonalityRead(p) : null;
+      if (read) {
+        const tierClass = read.tier === 0 ? 'tier-hidden'
+                       : read.tier === 1 ? 'tier-axis1'
+                       : read.tier === 2 ? 'tier-axis2'
+                       : 'tier-full';
+        const progress = read.tier < 3
+          ? `<span class="read-progress" style="--read-pct:${read.progressPct}%;"></span>`
+          : '';
+        personalityLabel = `<div class="personality-tag ${tierClass}" title="관찰 ${read.hands}핸드 · 통찰력으로 분석">${read.label}${progress}</div>`;
+      }
+    }
+  }
 
   // Insight read bubble — only show during active hand, not for self/folded/busted/showdown
   let readBubble = '';
@@ -5645,6 +5740,9 @@ function showModal(html) {
 }
 function closeModal() {
   document.getElementById('modal-container').innerHTML = '';
+  // v48: 이벤트 freeze 해제
+  const screenEl = document.getElementById('game-screen');
+  if (screenEl) screenEl.classList.remove('event-freeze');
   // If hand has ended and we're at the table, schedule next hand
   if (state && (state.street === 'showdown' || state.street === 'handover')) {
     setTimeout(() => {
@@ -9124,6 +9222,15 @@ function showSpecialHandEvent(eventKey) {
   const event = SPECIAL_HAND_EVENTS[eventKey];
   if (!event) return;
 
+  // v48: 몰입형 정지 — 게임 화면 dim + BGM 덕킹 + autoNextHand는 modal이 닫힐 때까지 자동 차단됨
+  const screenEl = document.getElementById('game-screen');
+  if (screenEl) screenEl.classList.add('event-freeze');
+  if (typeof duckBGM === 'function') duckBGM(8000);  // 8초간 BGM 죽임 (유저 읽는 시간)
+  // 스페셜 모먼트 사인 사운드
+  if (typeof sfxFanfare === 'function') {
+    try { sfxFanfare(); } catch(e) {}
+  }
+
   // 보상 적용
   if (event.reward) {
     if (event.reward.cash) career.bankroll += event.reward.cash;
@@ -9161,10 +9268,11 @@ function showSpecialHandEvent(eventKey) {
     </div>
     <div style="font-size:14px;line-height:1.9;color:var(--text);margin:14px 0;font-style:italic;">${event.text}</div>
     ${rewardHTML}
-    <button class="btn-primary" onclick="closeModal()" style="margin-top:14px;padding:10px 28px;font-size:13px;font-weight:700;">계속 →</button>
-  </div>`;
+    <div style="font-size:10px;color:var(--text-dim);margin-top:18px;letter-spacing:1px;">— 잠시 음미하고 —</div>
+    <button class="btn-primary" onclick="closeModal()" style="margin-top:8px;padding:12px 32px;font-size:13px;font-weight:700;animation:event-cta-pulse 1.8s ease-in-out infinite;">탭하여 다음 핸드 →</button>
+  </div>
+  <style>@keyframes event-cta-pulse { 0%,100%{transform:scale(1);box-shadow:0 0 0 rgba(255,200,73,0);} 50%{transform:scale(1.04);box-shadow:0 0 14px rgba(255,200,73,0.5);} }</style>`;
   showModal(html);
-  if (typeof sfxFanfare === 'function') sfxFanfare();
   if (typeof triggerSparkles === 'function') triggerSparkles(15);
 }
 
@@ -11609,28 +11717,157 @@ function openDecisionDashboard() {
 }
 
 // ===================== AI MEMORY (in-venue persistence) =====================
+// v48: 통찰력 기반 성향 추정용 풀 스탯 추적
 function getOrCreateAIStats(aiPlayer) {
   if (!aiPlayer._memId) aiPlayer._memId = aiPlayer.name + '_' + Math.random().toString(36).slice(2,8);
   if (!state.aiMemory) state.aiMemory = {};
   if (!state.aiMemory[aiPlayer._memId]) {
     state.aiMemory[aiPlayer._memId] = {
       name: aiPlayer.name,
-      hands: 0, vpipHands: 0, pfrHands: 0,
-      bets: 0, raises: 0, calls: 0, folds: 0,
+      hands: 0,            // 이 자리에서 본 핸드 수
+      vpipHands: 0,        // 자발적으로 돈 넣은 핸드 (콜 또는 레이즈, BB 체크 제외)
+      pfrHands: 0,         // 프리플랍 레이즈한 핸드
+      threeBets: 0,        // 3-bet 횟수
+      threeBetOpps: 0,     // 3-bet 기회 (오픈 직면)
+      // 액션 누적
+      bets: 0, raises: 0, calls: 0, folds: 0, checks: 0,
+      postflopAgg: 0,      // 포스트플랍 베팅/레이즈
+      postflopPass: 0,     // 포스트플랍 체크/콜
+      // 쇼다운
       wonShowdown: 0, lostShowdown: 0,
-      notes: []
+      // 핸드-레벨 임시 플래그 (매 핸드 시작 시 리셋)
+      _thisHand: { vol: false, raised: false, threeBet: false, threeBetOpp: false }
     };
   }
   return state.aiMemory[aiPlayer._memId];
 }
 
-function trackAIMemory(p, action) {
+// 매 핸드 시작 시 임시 플래그 리셋
+function resetAIMemoryHandFlags() {
+  if (!state || !state.aiMemory) return;
+  for (const m of Object.values(state.aiMemory)) {
+    m._thisHand = { vol: false, raised: false, threeBet: false, threeBetOpp: false };
+  }
+}
+
+// 액션 + 컨텍스트 트래킹 (v48)
+function trackAIMemory(p, action, ctx = {}) {
   if (!p || p.isHuman || p.busted) return;
   const mem = getOrCreateAIStats(p);
+  const street = ctx.street || (state && state.street) || 'preflop';
+  const preflopRaises = ctx.preflopRaisesBeforeAction !== undefined
+    ? ctx.preflopRaisesBeforeAction
+    : (state?.handTrack?.preflopRaises || 0);
+
   if (action === 'fold') mem.folds++;
-  else if (action === 'call') mem.calls++;
-  else if (action === 'bet' || action === 'raise') { mem.bets++; }
-  else if (action === 'check') {}
+  else if (action === 'check') {
+    mem.checks++;
+    if (street !== 'preflop') mem.postflopPass++;
+  }
+  else if (action === 'call') {
+    mem.calls++;
+    if (street === 'preflop') {
+      mem._thisHand.vol = true;  // 자발적 돈 투입
+    } else {
+      mem.postflopPass++;
+    }
+  }
+  else if (action === 'bet' || action === 'raise') {
+    if (action === 'raise') mem.raises++; else mem.bets++;
+    if (street === 'preflop') {
+      mem._thisHand.vol = true;
+      mem._thisHand.raised = true;
+      // 3-bet 감지 — 이 액션 직전 preflopRaises === 1 이었으면 본인이 3-bet
+      if (preflopRaises === 1) {
+        mem._thisHand.threeBet = true;
+      }
+    } else {
+      mem.postflopAgg++;
+    }
+  }
+
+  // 3-bet 기회 트래킹 (BB가 아닌데 오픈에 직면했을 때)
+  if (street === 'preflop' && preflopRaises === 1 && !mem._thisHand.threeBetOpp) {
+    mem._thisHand.threeBetOpp = true;
+  }
+}
+
+// 핸드 끝날 때 — 핸드-레벨 카운터 확정
+function finalizeAIMemoryAtHandEnd() {
+  if (!state || !state.aiMemory || !state.players) return;
+  for (const p of state.players) {
+    if (p.isHuman || p.busted || !p._memId) continue;
+    const mem = state.aiMemory[p._memId];
+    if (!mem) continue;
+    mem.hands++;
+    if (mem._thisHand.vol) mem.vpipHands++;
+    if (mem._thisHand.raised) mem.pfrHands++;
+    if (mem._thisHand.threeBet) mem.threeBets++;
+    if (mem._thisHand.threeBetOpp) mem.threeBetOpps++;
+    mem._thisHand = { vol: false, raised: false, threeBet: false, threeBetOpp: false };
+  }
+}
+
+// v48: 통찰력 기반 단계별 성향 공개
+// returns { tier: 0|1|2|3, label, color, hands, threshold1, threshold2, threshold3, progressPct, vpip, pfr, af, threeBetPct }
+function computePersonalityRead(p) {
+  if (!p || p.isHuman) return null;
+  const insight = (typeof getEffectiveAbility === 'function') ? getEffectiveAbility('insight') : 0;
+  // 챔피언/유명인은 항상 공개 (현실에서 평판이 있음)
+  if (p.isFamous) {
+    const pers = PERSONALITIES[p.personalityType] || {};
+    return { tier: 3, label: `${pers.emoji || ''} ${pers.label || ''}`, hands: 999, vpip: null, pfr: null, af: null, progressPct: 100, famous: true };
+  }
+  const mem = (state?.aiMemory && p._memId) ? state.aiMemory[p._memId] : null;
+  const hands = mem?.hands || 0;
+
+  // 임계값 — 통찰력 높을수록 빨리 공개
+  const t1 = Math.max(3, Math.round(15 - insight * 0.12));   // 축1 (tight/wide) — insight 100이면 3핸드
+  const t2 = Math.max(8, Math.round(30 - insight * 0.20));   // 축2 (passive/aggro 추가)
+  const t3 = Math.max(15, Math.round(60 - insight * 0.40));  // 정확한 라벨
+
+  // 스탯 계산 (실제 포커 HUD 스타일)
+  let vpip = null, pfr = null, af = null, threeBetPct = null;
+  if (mem && hands > 0) {
+    vpip = Math.round((mem.vpipHands / hands) * 100);
+    pfr = Math.round((mem.pfrHands / hands) * 100);
+    const totalAgg = mem.postflopAgg || 0;
+    const totalPass = mem.postflopPass || 0;
+    af = totalPass > 0 ? +(totalAgg / totalPass).toFixed(1) : (totalAgg > 0 ? 9.9 : 0);
+    if (mem.threeBetOpps > 0) threeBetPct = Math.round((mem.threeBets / mem.threeBetOpps) * 100);
+  }
+
+  // 진행도 — 다음 tier까지 얼마나 남았나
+  let tier, nextT, prevT;
+  if (hands < t1) { tier = 0; prevT = 0; nextT = t1; }
+  else if (hands < t2) { tier = 1; prevT = t1; nextT = t2; }
+  else if (hands < t3) { tier = 2; prevT = t2; nextT = t3; }
+  else { tier = 3; prevT = t3; nextT = t3; }
+  const progressPct = tier === 3 ? 100 : Math.round(((hands - prevT) / Math.max(1, nextT - prevT)) * 100);
+
+  // 라벨 생성
+  let label;
+  if (tier === 0) {
+    label = `❓ ${hands}/${t1} 핸드 관찰 중`;
+  } else if (tier === 1) {
+    // tight/wide 축만
+    const isWide = (vpip !== null && vpip >= 35);
+    label = isWide ? '📊 와이드' : '📊 타이트';
+  } else if (tier === 2) {
+    // tight/wide × passive/aggro
+    const isWide = (vpip !== null && vpip >= 35);
+    const isAggro = (af !== null && af >= 1.5) || (pfr !== null && pfr >= 22);
+    if (isWide && isAggro) label = '🔥 LAG (와이드/공격)';
+    else if (isWide && !isAggro) label = '🐟 콜링 (와이드/수동)';
+    else if (!isWide && isAggro) label = '🎯 TAG (타이트/공격)';
+    else label = '🗿 ROCK (타이트/수동)';
+  } else {
+    // 풀 공개 — 실제 personality
+    const pers = PERSONALITIES[p.personalityType] || {};
+    label = `${pers.emoji || ''} ${pers.label || ''}`;
+  }
+
+  return { tier, label, hands, t1, t2, t3, progressPct, vpip, pfr, af, threeBetPct };
 }
 
 // ===================== VENUE-SPECIFIC BGM MAPPING =====================
@@ -12707,16 +12944,61 @@ function showAiAbilities(playerIdx) {
   const maxLv = Math.max(30, ...Object.values(abilities));
   const radarSize = Math.min(300, window.innerWidth - 80);
 
+  // v48: 통찰력 기반 관찰 데이터 — 진짜 포커 HUD 스타일
+  const read = (typeof computePersonalityRead === 'function') ? computePersonalityRead(p) : null;
+  const insightLv = (typeof getEffectiveAbility === 'function') ? getEffectiveAbility('insight') : 0;
+  let hudCard = '';
+  if (read && !isFamous) {
+    const statRow = (label, val, suffix = '%') => {
+      if (val === null || val === undefined) return `<div style="text-align:center;"><div style="font-size:10px;color:var(--text-dim);">${label}</div><div style="font-size:14px;color:#666;">—</div></div>`;
+      return `<div style="text-align:center;"><div style="font-size:10px;color:var(--text-dim);">${label}</div><div style="font-size:14px;font-weight:700;color:var(--text);">${val}${suffix}</div></div>`;
+    };
+    // tier별 안내문
+    const tierMsg = read.tier === 0
+      ? `🔍 아직 관찰 부족 — <b>${read.t1}핸드</b>까지 ${read.t1 - read.hands}핸드 남음`
+      : read.tier === 1
+      ? `🔍 1차 분석 완료 — 정확한 라벨까지 ${read.t3 - read.hands}핸드`
+      : read.tier === 2
+      ? `🔎 거의 다 파악함 — ${read.t3 - read.hands}핸드 후 완전 공개`
+      : `✅ 완전 분석됨 — 통찰력 ${insightLv}로 정확히 읽힘`;
+
+    const showRealStats = read.tier >= 1;
+    hudCard = `<div style="background:var(--bg-card-2);border:1px solid var(--border-light);border-radius:8px;padding:10px;margin:10px 0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:11px;color:var(--gold-bright);font-weight:700;letter-spacing:1px;">📊 HUD (통찰력 ${insightLv})</span>
+        <span style="font-size:10px;color:var(--text-dim);">관찰 ${read.hands}핸드</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+        ${statRow('VPIP', showRealStats ? read.vpip : null)}
+        ${statRow('PFR', showRealStats ? read.pfr : null)}
+        ${statRow('3-bet', showRealStats && read.threeBetPct !== null ? read.threeBetPct : null)}
+        ${statRow('AF', read.tier >= 2 && read.af !== null ? read.af : null, '')}
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:8px;text-align:center;line-height:1.5;">${tierMsg}</div>
+      ${read.tier < 3 ? `<div style="height:4px;background:rgba(255,255,255,0.08);border-radius:2px;margin-top:6px;overflow:hidden;">
+        <div style="height:100%;width:${read.progressPct}%;background:linear-gradient(90deg,#5ea8ff,var(--gold-bright));"></div>
+      </div>` : ''}
+    </div>`;
+  }
+
+  // tier별 personality 라벨 공개 정책 — 풀 공개 안 됐으면 ?? 처리
+  const pTagHTML = (() => {
+    if (isFamous) return `<span style="background:var(--bg-card-2);padding:3px 8px;border-radius:4px;">${pers.emoji} ${pers.label}</span>`;
+    if (!read || read.tier < 3) return `<span style="background:var(--bg-card-2);padding:3px 8px;border-radius:4px;color:var(--text-dim);">${read ? read.label : '❓ 관찰 중'}</span>`;
+    return `<span style="background:var(--bg-card-2);padding:3px 8px;border-radius:4px;">${pers.emoji} ${pers.label}</span>`;
+  })();
+
   const html = `<div style="padding:8px;">
-    <h3>${isFamous ? '👑 ' : ''}${p.name} 능력치</h3>
-    <div style="display:flex;gap:10px;align-items:center;font-size:12px;color:var(--text-dim);margin-bottom:10px;">
-      <span style="background:var(--bg-card-2);padding:3px 8px;border-radius:4px;">${pers.emoji} ${pers.label}</span>
-      <span>스킬 ${Math.round(p.skill * 100)}%</span>
-      ${p.tilt > 0.3 ? `<span style="color:var(--red);">😡 틸트 ${Math.round(p.tilt * 100)}%</span>` : ''}
+    <h3>${isFamous ? '👑 ' : ''}${p.name}</h3>
+    <div style="display:flex;gap:10px;align-items:center;font-size:12px;color:var(--text-dim);margin-bottom:10px;flex-wrap:wrap;">
+      ${pTagHTML}
+      ${(!read || read.tier >= 3 || isFamous) ? `<span>스킬 ${Math.round(p.skill * 100)}%</span>` : '<span style="color:#666;">스킬 ???</span>'}
+      ${p.tilt > 0.3 && (read?.tier >= 2 || isFamous) ? `<span style="color:var(--red);">😡 틸트 ${Math.round(p.tilt * 100)}%</span>` : ''}
     </div>
     ${famousCard}
-    <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;text-align:center;">💡 ${pers.desc || ''}</div>
-    ${renderAbilityRadar(abilities, radarSize, maxLv, 'AI 능력치 추정')}
+    ${hudCard}
+    ${(read?.tier >= 3 || isFamous) ? `<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;text-align:center;">💡 ${pers.desc || ''}</div>` : ''}
+    ${(read?.tier >= 2 || isFamous) ? renderAbilityRadar(abilities, radarSize, maxLv, 'AI 능력치 추정') : '<div style="text-align:center;padding:20px;color:var(--text-dim);font-size:12px;line-height:1.8;">🔒 능력치 분석은 더 많은 관찰 후 공개<br>(통찰력을 키우면 빠르게 공개됨)</div>'}
     <div style="text-align:center;margin-top:14px;"><button onclick="closeModal()">닫기</button></div>
   </div>`;
   showModal(html);
