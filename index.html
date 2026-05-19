@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v44 ★ MOBILE UI COMPLETE REDESIGN</title>
+<title>NEON HOLDEM v45.1 ★ EV ANALYSIS IN POST-HAND REVIEW</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -785,6 +785,32 @@
     background: linear-gradient(135deg, #4a2b7a 0%, #2a1a4a 100%);
     border-color: #1a1a1a; color: transparent;
     box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  }
+  /* v45: 베뉴별 카드 뒷면 컬러 */
+  body[data-venue="pub"] .card.back {
+    background: linear-gradient(135deg, #6b4423 0%, #2a1810 100%);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5), 0 0 12px rgba(255,180,80,0.18);
+  }
+  body[data-venue="seoul"] .card.back {
+    background: linear-gradient(135deg, #6b1a4a 0%, #2a0820 100%);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5), 0 0 14px rgba(255,46,146,0.25);
+  }
+  body[data-venue="macau"] .card.back {
+    background: linear-gradient(135deg, #7a4a0e 0%, #3a1c04 100%);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5), 0 0 14px rgba(255,217,61,0.22);
+  }
+  body[data-venue="bellagio"] .card.back {
+    background: linear-gradient(135deg, #4a1a7a 0%, #1a0830 100%);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5), 0 0 16px rgba(177,78,255,0.28);
+  }
+  body[data-venue="wsop"] .card.back {
+    background: linear-gradient(135deg, #7a5a14 0%, #2a1c08 100%);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5), 0 0 16px rgba(255,190,11,0.3);
+  }
+  body[data-venue="triton"] .card.back {
+    background: linear-gradient(135deg, #8a6c1e 0%, #2a200a 100%);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5), 0 0 18px rgba(245,197,66,0.4);
+    border-color: var(--gold-foil);
   }
   .card.back::before {
     content: ''; position: absolute; inset: 4px;
@@ -3654,9 +3680,36 @@ function showSessionSummary(s) {
       </div>
     </div>
 
+    ${(() => {
+      // v45.1: 세션 EV 분석 — 의사결정 기록에서 누적 EV 계산
+      const recent = (career.decisionHistory || []).slice(-s.handsPlayed * 4); // 약 4 결정/핸드
+      if (recent.length < 3) return '';
+      let totalChosenEV = 0, totalBestEV = 0, mistakes = 0, optimal = 0;
+      for (const d of recent) {
+        if (d.chosenEV === undefined || d.bestEV === undefined) continue;
+        totalChosenEV += d.chosenEV;
+        totalBestEV += d.bestEV;
+        if (d.evDelta >= -5) optimal++;
+        else if (d.evDelta < -30) mistakes++;
+      }
+      const evLost = totalBestEV - totalChosenEV;
+      const evColor = evLost <= 100 ? 'var(--green)' : (evLost <= 500 ? 'var(--gold-bright)' : 'var(--red)');
+      return `<div style="background:var(--bg-card-2);border:1px solid ${evColor};border-radius:8px;padding:12px;margin:12px 0;text-align:left;">
+        <div style="font-size:11px;letter-spacing:2px;color:${evColor};font-weight:700;text-transform:uppercase;">📊 EV 분석</div>
+        <div style="font-size:13px;color:var(--text);margin-top:6px;line-height:1.7;">
+          이번 세션 <b>${recent.length}</b>개 결정 중:<br>
+          ✓ 최적 선택: <b style="color:var(--green);">${optimal}</b>개<br>
+          ${mistakes > 0 ? `❌ 큰 실수: <b style="color:var(--red);">${mistakes}</b>개<br>` : ''}
+          이론적 EV 손실: <b style="color:${evColor};">$${Math.round(evLost).toLocaleString()}</b>
+          ${evLost > 200 ? `<div style="font-size:11px;color:var(--text-dim);margin-top:6px;">💡 핸드 리뷰에서 어떤 결정이 EV-였는지 확인해보세요.</div>` : (evLost <= 50 ? `<div style="font-size:11px;color:var(--green);margin-top:6px;">💎 거의 완벽한 의사결정!</div>` : '')}
+        </div>
+      </div>`;
+    })()}
+
     <div style="display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap;">
       <button onclick="downloadShareCard()" class="btn-primary" style="padding:10px 16px;font-size:13px;">📷 이미지 저장</button>
       <button onclick="copyShareText()" style="padding:10px 16px;font-size:13px;">📋 텍스트 복사</button>
+      <button onclick="closeModal();renderRecentHands()" style="padding:10px 16px;font-size:13px;">📖 핸드 리뷰</button>
       <button onclick="closeModal()" style="padding:10px 16px;font-size:13px;">닫기</button>
     </div>
   </div>`;
@@ -5226,8 +5279,15 @@ function renderPlayerCard(p, i) {
 
   const timerBar = isCurrent ? '<div class="timer-bar" style="animation-delay:0s;"></div>' : '';
 
-  // v43: AI 좌석 클릭으로 능력치 보기
-  const clickHandler = !p.isHuman && !p.busted ? `onclick="showAiAbilities(${i})" style="cursor:pointer;position:relative;"` : 'style="position:relative;"';
+  // v43/v45: 좌석 클릭 — AI는 능력치, 본인은 프로필
+  let clickHandler;
+  if (p.isHuman && !p.busted) {
+    clickHandler = `onclick="openProfile()" style="cursor:pointer;position:relative;"`;
+  } else if (!p.isHuman && !p.busted) {
+    clickHandler = `onclick="showAiAbilities(${i})" style="cursor:pointer;position:relative;"`;
+  } else {
+    clickHandler = 'style="position:relative;"';
+  }
   return `<div class="player-card ${isCurrent?'current':''} ${p.folded&&!p.busted?'folded':''} ${p.busted?'busted':''} ${p.isHuman?'you':''} ${p.isFamous?'famous':''} ${isShowdownWinner?'showdown-winner':''}" ${clickHandler}>
     ${timerBar}
     <div class="player-name" style="${p.isHuman ? 'display:flex;align-items:center;gap:8px;' : ''}">
@@ -5338,6 +5398,28 @@ function renderActionPanel() {
   }
   const isStrong = myStrength >= 75;
 
+  // v45: 핸드별 실시간 EV 표시 — 각 액션의 추정 EV 계산
+  // strength 0-100을 win probability로 변환 (간단 휴리스틱)
+  const winProb = Math.max(0.05, Math.min(0.95, myStrength / 100));
+  // 콜 EV = winProb * pot - (1-winProb) * callAmt
+  const callAmt = Math.min(toCall, p.stack);
+  const callEV = toCall > 0 ? Math.round(winProb * state.pot - (1 - winProb) * callAmt) : 0;
+  // 폴드 EV = 0 (안전), 또는 이미 베팅한 게 있으면 -투자금
+  const foldEV = -(p.totalBet || 0);
+  // 레이즈 EV — 매우 거친 추정 (fold equity 가정 0.3)
+  const raiseSize = defaultRaise - p.currentBet;
+  const foldEquity = 0.30;
+  const raiseEV = Math.round(foldEquity * state.pot + (1 - foldEquity) * (winProb * (state.pot + raiseSize) - (1 - winProb) * raiseSize));
+  // 평가 라벨
+  const evLabel = (ev) => {
+    if (ev > 50) return { txt: 'EV+', color: 'var(--green)' };
+    if (ev > 0) return { txt: 'EV·', color: 'var(--gold-bright)' };
+    return { txt: 'EV-', color: 'var(--red)' };
+  };
+  const foldEvL = evLabel(foldEV);
+  const callEvL = evLabel(callEV);
+  const raiseEvL = evLabel(raiseEV);
+
   // Compute bet sizing options
   const halfPot = Math.max(minRaiseTotal, p.currentBet + Math.floor((state.pot + toCall) / 2));
   const fullPot = Math.max(minRaiseTotal, p.currentBet + state.pot + toCall);
@@ -5381,7 +5463,14 @@ function renderActionPanel() {
     </div>`;
   }
 
-  // === ACTION BUTTONS ===
+  // v45.1: EV는 액션 버튼에 표시 안 함 (핸드 리뷰에서만)
+  // state에 현재 옵션별 EV 저장 — 액션 직후 decisions에 기록되도록
+  state._currentEVOptions = {
+    fold: foldEV, call: callEV, raise: raiseEV,
+    callAmt: callAmt, raiseSize: raiseSize, winProb,
+    pot: state.pot, street: state.street
+  };
+
   html += `<div class="action-row">
     <button class="action-btn action-btn-fold" onclick="actFold()">
       <div class="action-btn-label">폴드</div>
@@ -5442,15 +5531,60 @@ function syncRaiseFromInput(val) { syncRaiseDisplays(val); }
 
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
+  // v45: ESC로 모달 닫기 (어디서나)
+  if (e.key === 'Escape') {
+    const modalContainer = document.getElementById('modal-container');
+    if (modalContainer && modalContainer.innerHTML.trim()) {
+      e.preventDefault();
+      closeModal();
+      return;
+    }
+    // 시네마틱 오버레이도 ESC로 닫기
+    const cinematic = document.querySelector('.cinematic-overlay');
+    if (cinematic) {
+      e.preventDefault();
+      closeCinematic();
+      return;
+    }
+  }
+
   if (!state || !state.players || state.currentPlayerIdx < 0) return;
   const p = state.players[state.currentPlayerIdx];
   if (!p || !p.isHuman) return;
-  // Skip if user is typing in an input
+
+  // v45: 슬라이더 입력 중일 때 방향키 큰 폭 조정 (BB 단위로 +5/-5)
+  if (document.activeElement && document.activeElement.id === 'raise-slider') {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      stepRaise(state.bb * 5);
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      stepRaise(-state.bb * 5);
+    }
+    return;
+  }
   if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+
+  // v45: 방향키로 어디서든 베팅 조정 가능 (액션 차례일 때)
+  if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+    if (document.getElementById('raise-amount')) {
+      e.preventDefault();
+      stepRaise(state.bb);
+    }
+    return;
+  }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+    if (document.getElementById('raise-amount')) {
+      e.preventDefault();
+      stepRaise(-state.bb);
+    }
+    return;
+  }
+
   const key = e.key.toLowerCase();
   if (key === 'f') { e.preventDefault(); actFold(); }
   else if (key === 'c') { e.preventDefault(); actCheckCall(); }
-  else if (key === 'r') {
+  else if (key === 'r' || key === 'enter') {
     e.preventDefault();
     const input = document.getElementById('raise-amount');
     if (input) actRaise(parseInt(input.value));
@@ -5500,6 +5634,23 @@ function recordDecision(p, action, amount) {
   const toCall = state.currentBet - p.currentBet;
   const potOdds = toCall > 0 ? toCall / (state.pot + toCall) : 0;
   const recommendation = getRecommendation(p, strength, toCall, potOdds);
+  // v45.1: EV 분석 — 선택한 액션의 EV + 대안 EV
+  const evOpts = state._currentEVOptions || {};
+  let chosenEV = 0, bestEV = 0, bestAction = action;
+  if (evOpts.fold !== undefined) {
+    chosenEV = evOpts[action] !== undefined ? evOpts[action] : 0;
+    // 가장 좋은 옵션 찾기
+    const options = [
+      { name: 'fold', ev: evOpts.fold },
+      { name: 'call', ev: toCall > 0 ? evOpts.call : 0 },
+      { name: 'raise', ev: p.stack > toCall ? evOpts.raise : -999999 }
+    ];
+    const best = options.reduce((a, b) => b.ev > a.ev ? b : a);
+    bestEV = best.ev;
+    bestAction = best.name;
+  }
+  const evDelta = chosenEV - bestEV; // 0이면 최적, 음수면 손해
+
   const decision = {
     street: state.street,
     action, amount,
@@ -5507,8 +5658,12 @@ function recordDecision(p, action, amount) {
     toCall, potOdds,
     pot: state.pot,
     community: [...state.communityCards],
+    cards: p.cards ? p.cards.map(c => c.rank + c.suit) : [],
     recommendation,
-    judgment: judgeDecision(action, recommendation, strength, toCall, potOdds)
+    judgment: judgeDecision(action, recommendation, strength, toCall, potOdds),
+    // v45.1: EV 추가
+    chosenEV, bestEV, bestAction, evDelta,
+    winProb: evOpts.winProb || 0
   };
   state.handTrack.decisions.push(decision);
   recordDecisionForHistory(decision);
@@ -5666,6 +5821,25 @@ function showHandReview(handIdx) {
       }
       const judgmentColor = {good:'#27ae60', ok:'#f39c12', bad:'#c0392b'}[d.judgment] || '#888';
       const judgmentIcon = {good:'✓', ok:'△', bad:'✗'}[d.judgment] || '·';
+      // v45.1: EV 분석 표시 (있는 경우만)
+      const actionNameMap = { fold: '폴드', call: '콜/체크', raise: '레이즈' };
+      let evHTML = '';
+      if (d.evDelta !== undefined) {
+        const optimal = d.evDelta >= -5;
+        const evColor = optimal ? '#27ae60' : (d.evDelta > -30 ? '#f39c12' : '#c0392b');
+        const evIcon = optimal ? '🎯' : (d.evDelta > -30 ? '⚠️' : '❌');
+        const winPct = Math.round((d.winProb || 0) * 100);
+        evHTML = `<div style="margin-top:6px;padding:8px 10px;background:${evColor}22;border-left:2px solid ${evColor};border-radius:4px;font-size:12px;color:var(--text);">
+          <div style="font-weight:700;color:${evColor};">${evIcon} EV 분석</div>
+          <div style="margin-top:3px;line-height:1.5;">
+            선택한 액션 EV: <b style="color:${d.chosenEV >= 0 ? '#27ae60' : '#c0392b'};">${d.chosenEV >= 0 ? '+' : ''}$${d.chosenEV.toLocaleString()}</b><br>
+            ${optimal ? `<span style="color:#27ae60;">✓ 최적 선택</span>` :
+              `최적: <b>${actionNameMap[d.bestAction] || d.bestAction}</b> EV <b style="color:${d.bestEV >= 0 ? '#27ae60' : '#c0392b'};">${d.bestEV >= 0 ? '+' : ''}$${d.bestEV.toLocaleString()}</b><br>
+              <span style="color:${evColor};">손실 ${d.evDelta.toLocaleString()} (${d.evDelta < -30 ? '큰 실수' : '약간 손해'})</span>`}<br>
+            <span style="color:var(--text-dim);">예상 승률 ${winPct}%</span>
+          </div>
+        </div>`;
+      }
       html += `<div style="background:rgba(0,0,0,0.3);padding:10px;border-radius:8px;margin:6px 0;border-left:3px solid ${judgmentColor};">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
           <strong>${judgmentIcon} 액션: ${d.action}</strong>
@@ -5677,6 +5851,7 @@ function showHandReview(handIdx) {
         <div style="font-size:13px;margin-top:4px;color:#ffd700;">
           권장: <b>${d.recommendation.action}</b> — ${d.recommendation.reason}
         </div>
+        ${evHTML}
       </div>`;
     }
   }
@@ -7705,10 +7880,12 @@ function showIntroStory(idx) {
     <h3 style="color:var(--gold-bright);font-size:20px;letter-spacing:3px;font-family:'Press Start 2P','Galmuri11',monospace;">${slide.title}</h3>
     <div style="font-size:15px;line-height:2;color:var(--text);margin:24px 0;min-height:140px;">${slide.text}</div>
     <div style="margin:18px 0;">${dots}</div>
-    <div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">
-      ${isFirst ? '<button onclick="skipIntro()" style="font-size:11px;padding:8px 16px;color:var(--text-dim);">건너뛰기</button>' : `<button onclick="showIntroStory(${introSlideIdx-1})" style="font-size:12px;">← 이전</button>`}
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:20px;flex-wrap:wrap;">
+      ${isFirst ? '<button onclick="skipIntro()" class="btn-danger" style="font-size:13px;padding:10px 22px;">건너뛰기 ▶▶</button>' : `<button onclick="showIntroStory(${introSlideIdx-1})" style="font-size:12px;">← 이전</button>`}
+      ${!isFirst ? '<button onclick="skipIntro()" style="font-size:11px;padding:8px 16px;color:var(--text-dim);">건너뛰기</button>' : ''}
       ${isLast ? '<button class="btn-success" onclick="finishIntro()" style="font-size:14px;padding:12px 28px;font-weight:700;">캐리어 시작 ▶</button>' : `<button class="btn-primary" onclick="showIntroStory(${introSlideIdx+1})" style="font-size:14px;padding:12px 24px;">다음 →</button>`}
     </div>
+    <div style="margin-top:10px;font-size:10px;color:var(--text-dim);">ESC = 건너뛰기 · 화살표 = 이전/다음</div>
   </div>`;
   showModal(html);
 }
