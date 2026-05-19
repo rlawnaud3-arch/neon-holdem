@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v50.4 ★ LOBBY THEME + MACAU VIP MP3 + MANUAL BGM OVERRIDE</title>
+<title>NEON HOLDEM v50.6 ★ 5 ORIGINAL BGM TRACKS (LOBBY / PUB / GANGNAM / MACAU / VEGAS)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -7164,7 +7164,15 @@ function initAudioOnFirstClick() {
   if (audioInitDone) return;
   audioInitDone = true;
   ensureAudio();
-  if (bgmEnabled) scheduleBGMChord();
+  // v50.5: 외부 MP3 트랙만 사용 — 첫 클릭 시 현재 트랙 재생
+  if (bgmEnabled) {
+    const track = BGM_TRACK_LIST.find(t => t.id === currentTrack);
+    if (track && track.external) {
+      setupExternalBGM(track.external);
+    } else {
+      scheduleBGMChord();
+    }
+  }
   updateBgmIcon();
 }
 document.addEventListener('click', initAudioOnFirstClick);
@@ -7213,18 +7221,16 @@ function toggleBGM() {
 }
 
 // === BGM Tracks ===
+// v50.6: 오리지널 MP3 5곡
 const BGM_TRACK_LIST = [
-  { id: 'funky',   icon: '🎷', name: 'Funky Casino',   desc: '오션스 일레븐 무드 — 베이스 그루브 + Rhodes + 드럼' },
-  { id: 'pub',     icon: '🍺', name: '홀덤펍 어쿠스틱', desc: '동네 펍 무드 — 어쿠스틱 기타 + 부드러운 베이스 + 브러시' },
-  { id: 'vegas',   icon: '🎰', name: '라스베가스 디스코', desc: '70s 펑크 디스코 — 4-on-floor + 신스 스탭 + 슬롯 벨' },
-  { id: 'lofi',    icon: '🌙', name: 'Lo-Fi Jazz',     desc: '비닐 크래클 + 워킹베이스 + 브러시 드럼' },
-  { id: 'minimal', icon: '🎹', name: '미니멀 피아노',  desc: '집중 모드 — 부드러운 코드만 천천히' },
-  // v50.3: 외부 MP3 트랙 — Macau VIP Room
-  { id: 'macau-vip', icon: '🎺', name: '마카오 VIP Room', desc: '실제 라운지 녹음 — 차이니즈 카지노 분위기 ★ 어디서나 재생 가능', external: 'audio/macau-vip.mp3' },
-  // v50.4: 로비 테마송 — Neon Holdem 오리지널
-  { id: 'lobby-neon', icon: '🌃', name: '네온 홀덤 (로비 테마)', desc: '게임 타이틀 송 — 사이버 네온 무드 ★ 어디서나 재생 가능', external: 'audio/lobby-neon.mp3' }
+  { id: 'lobby-neon',    icon: '🌃', name: '네온 홀덤 (메인 테마)', desc: '게임 오리지널 송 — 사이버 네온 무드', external: 'audio/lobby-neon.mp3' },
+  { id: 'pub-subway',    icon: '🚇', name: 'Subway Last Train',   desc: '동네 펍 — 막차 직전의 묘한 정적',   external: 'audio/pub-subway.mp3' },
+  { id: 'seoul-gangnam', icon: '🥃', name: 'Gangnam Whiskey',     desc: '강남 — 위스키 한 잔과 텍사스 홀덤', external: 'audio/seoul-gangnam.mp3' },
+  { id: 'macau-vip',     icon: '🎺', name: '마카오 VIP Room',     desc: '카지노 라운지 — 차이니즈 무드',     external: 'audio/macau-vip.mp3' },
+  { id: 'vegas-whiskey', icon: '🥂', name: 'Whiskey Dealbreakers', desc: '베가스/WSOP — 딜이 깨지는 순간의 긴장', external: 'audio/vegas-whiskey.mp3' }
 ];
-let currentTrack = 'funky';
+// v50.5: 기본 트랙 — 로비 네온 (합성 트랙 제거됨)
+let currentTrack = 'lobby-neon';
 try {
   const stored = localStorage.getItem('holdem-bgm-track');
   if (stored && BGM_TRACK_LIST.find(t => t.id === stored)) currentTrack = stored;
@@ -7311,10 +7317,10 @@ async function changeBGMTrack(trackId) {
     }
   } catch (e) {
     console.error('BGM setup failed:', e);
-    // Fallback to funky track if specific track fails
-    if (trackId !== 'funky') {
-      currentTrack = 'funky';
-      try { await setupToneBGM(); } catch (e2) { console.error('Fallback also failed:', e2); }
+    // v50.5: 폴백도 사용자 트랙으로
+    if (trackId !== 'lobby-neon') {
+      currentTrack = 'lobby-neon';
+      try { await setupExternalBGM('audio/lobby-neon.mp3'); } catch (e2) { console.error('Fallback also failed:', e2); }
     }
   }
 }
@@ -12721,15 +12727,16 @@ function computePersonalityRead(p) {
 }
 
 // ===================== VENUE-SPECIFIC BGM MAPPING =====================
+// v50.6: 베뉴별 전용 MP3 매핑 (5곡 모두 활용)
 const VENUE_BGM = {
-  lobby: 'lobby-neon',  // v50.4: 로비 — 네온 홀덤 테마송 MP3
-  pub: 'funky',
-  seoul: 'lofi',
-  macau: 'macau-vip',  // v50.3: 마카오 — 실제 VIP Room MP3
-  vegas: 'funky',
-  wsop: 'funky',
-  london: 'minimal',  // v50: 런던 — 미니멀 (영국 정통 톤)
-  triton: 'minimal'
+  lobby:  'lobby-neon',     // 🌃 메인 테마
+  pub:    'pub-subway',     // 🚇 동네 펍 — Subway Last Train
+  seoul:  'seoul-gangnam',  // 🥃 강남 — Gangnam Whiskey
+  macau:  'macau-vip',      // 🎺 마카오 — VIP Room
+  vegas:  'vegas-whiskey',  // 🥂 벨라지오 — Whiskey Dealbreakers
+  wsop:   'vegas-whiskey',  // 🥂 WSOP — Whiskey Dealbreakers (동일 톤)
+  london: 'lobby-neon',     // 🌃 런던 — 메인 테마 (전용 곡 추가 시 교체)
+  triton: 'lobby-neon'      // 🌃 트라이튼 — 메인 테마 (전용 곡 추가 시 교체)
 };
 
 // v50.4: 사용자가 수동으로 트랙 선택했으면 자동 전환 안 함
