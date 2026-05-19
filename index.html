@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v48 ★ HIDDEN PERSONALITY + INSIGHT READ + EVENT FREEZE</title>
+<title>NEON HOLDEM v49 ★ GTO SOLVER + COACH MODE + WEEKLY REPORT</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -1860,6 +1860,44 @@
       max-width: 92vw;
       font-size: 13px;
       padding: 12px 18px;
+    }
+  }
+
+  /* v49: 코치 버블 — 우상단 토스트 스타일 */
+  .coach-bubble {
+    position: fixed;
+    top: 70px;
+    right: 14px;
+    background: linear-gradient(135deg, rgba(20,18,42,0.96), rgba(28,26,52,0.96));
+    border: 2px solid #5db95daa;
+    border-radius: 12px;
+    padding: 10px 14px;
+    color: var(--text);
+    max-width: 320px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.6), 0 0 18px rgba(93,185,93,0.2);
+    z-index: 940;
+    pointer-events: none;
+    animation: coach-slide-in 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    backdrop-filter: blur(8px);
+  }
+  .coach-bubble.fade-out {
+    animation: coach-slide-out 0.6s ease-out forwards;
+  }
+  @keyframes coach-slide-in {
+    0% { transform: translateX(120%); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes coach-slide-out {
+    0% { transform: translateX(0); opacity: 1; }
+    100% { transform: translateX(120%); opacity: 0; }
+  }
+  @media (max-width: 600px) {
+    .coach-bubble {
+      top: 60px;
+      right: 8px;
+      max-width: calc(100vw - 16px);
+      font-size: 11px;
+      padding: 8px 12px;
     }
   }
 
@@ -4117,6 +4155,8 @@ function actFold() {
   // v48: 액션 직전 컨텍스트
   const _preRaises = state?.handTrack?.preflopRaises || 0;
   if (p.isHuman) {
+    // v49: 코치는 GTO 비교를 위해 액션 이전 상태에서 호출
+    if (typeof showCoachFeedback === 'function') showCoachFeedback('fold');
     recordDecision(p, 'fold', 0);
     career.stats.folds++;
   }
@@ -4141,6 +4181,8 @@ function actCheckCall() {
   if (toCall <= 0) {
     actionLabel = '체크';
     if (p.isHuman) {
+      // v49: 코치 — 액션 전 GTO 비교 표시
+      if (typeof showCoachFeedback === 'function') showCoachFeedback('check');
       career.stats.checks++;
       state.handTrack.playerCheckedThisStreet = true;
       recordDecision(p, 'check', 0);
@@ -4157,6 +4199,8 @@ function actCheckCall() {
     state.pot += callAmt;
     actionLabel = '콜';
     if (p.isHuman) {
+      // v49: 코치
+      if (typeof showCoachFeedback === 'function') showCoachFeedback('call');
       career.stats.calls++;
       recordDecision(p, 'call', callAmt);
       if (state.street === 'preflop') {
@@ -4204,6 +4248,11 @@ function actRaise(totalBetTarget) {
   trackOpportunities(p);
   // v48: AI 액션 직전 preflopRaises 캡처 (3-bet 감지)
   const _preRaisesForAI = state?.handTrack?.preflopRaises || 0;
+  // v49: 유저 액션의 GTO 추천을 state mutation 전에 캡처
+  let _preActionGTO = null;
+  if (p.isHuman && typeof gtoRecommend === 'function') {
+    _preActionGTO = gtoRecommend(p);
+  }
 
   // Determine poker term for this action
   let actionLabel;
@@ -4236,6 +4285,8 @@ function actRaise(totalBetTarget) {
 
   // Track player stats
   if (p.isHuman) {
+    // v49: 코치 — pre-action GTO 사용
+    if (typeof showCoachFeedback === 'function') showCoachFeedback(prevCurrentBet === 0 ? 'bet' : 'raise', _preActionGTO);
     if (prevCurrentBet === 0) career.stats.bets++;
     else career.stats.raises++;
     if (state.street === 'preflop') {
@@ -5872,6 +5923,353 @@ function judgeDecision(action, rec, strength, toCall, potOdds) {
   return 'ok';
 }
 
+// ===================== v49: GTO SOLVER (포지션 + 사이징 강화) =====================
+// 9-handed 캐쉬게임 표준 GTO 차트 (단순화 — 핵심 핸드 클래스)
+// VPIP/PFR Range by position (% of hands to play)
+const GTO_POSITION_RANGES = {
+  UTG: { open: 14, threeBet: 5 },
+  UTG1: { open: 16, threeBet: 5 },
+  MP: { open: 18, threeBet: 6 },
+  MP1: { open: 20, threeBet: 7 },
+  HJ: { open: 22, threeBet: 8 },
+  CO: { open: 28, threeBet: 10 },
+  BTN: { open: 45, threeBet: 13 },
+  SB: { open: 35, threeBet: 13 },
+  BB: { open: 0, threeBet: 17 }  // BB defends instead of opens
+};
+
+function getPositionLabel(p) {
+  if (!state || !state.dealerIdx) return 'UTG';
+  const idx = state.players.indexOf(p);
+  const active = state.players.filter(pl => !pl.busted).length;
+  // 거리 계산 — BTN 기준
+  let btnIdx = state.dealerIdx;
+  let dist = 0;
+  let i = btnIdx;
+  while (i !== idx) {
+    i = (i + 1) % state.players.length;
+    if (!state.players[i].busted) dist++;
+    if (dist > 20) break;
+  }
+  // dist 0 = BTN, 1 = SB, 2 = BB, 3 = UTG, 4 = UTG1, ...
+  if (active <= 2) return idx === btnIdx ? 'BTN' : 'BB';
+  const labels6 = ['BTN','SB','BB','UTG','CO','HJ'];
+  const labels9 = ['BTN','SB','BB','UTG','UTG1','MP','MP1','HJ','CO'];
+  const labels = active <= 6 ? labels6 : labels9;
+  return labels[dist] || 'MP';
+}
+
+// GTO 추천 — strength + position + raises 컨텍스트 종합
+// 반환: { action, sizing, reason, confidence }
+function gtoRecommend(p) {
+  if (!p || !state || !p.cards || p.cards.length < 2) return null;
+  const street = state.street;
+  const pos = getPositionLabel(p);
+  const raises = state.handTrack?.preflopRaises || 0;
+  const toCall = state.currentBet - p.currentBet;
+  const potOdds = toCall > 0 ? toCall / (state.pot + toCall) : 0;
+
+  if (street === 'preflop') {
+    const strength = preflopStrength(p.cards);
+    const range = GTO_POSITION_RANGES[pos] || GTO_POSITION_RANGES.MP;
+
+    if (raises === 0) {
+      // 오픈/체크 결정
+      // strength가 (100 - range.open)보다 크면 오픈 — 예: BTN open 45%면 strength >= 55면 오픈
+      const threshold = 100 - range.open;
+      if (strength >= threshold) {
+        return { action: '오픈 레이즈', sizing: '2.5BB', reason: `${pos} 오픈 ${range.open}% 레인지 포함`, confidence: 'high' };
+      }
+      return { action: '폴드', sizing: null, reason: `${pos} 오픈 레인지 밖 (강도 ${Math.round(strength)} < ${threshold})`, confidence: 'high' };
+    }
+    if (raises === 1) {
+      // 콜/3-bet/폴드
+      const threeBetThr = 100 - range.threeBet;
+      if (strength >= threeBetThr) {
+        return { action: '3-bet', sizing: '9BB (IP) / 11BB (OOP)', reason: `${pos} 3-bet 레인지 ${range.threeBet}% 포함`, confidence: 'high' };
+      }
+      // 콜 레인지 — open + 10~15% 더 (suited connectors 등)
+      const callThr = 100 - range.open - 8;
+      if (strength >= callThr && pos !== 'UTG') {
+        return { action: '콜', sizing: null, reason: `${pos} 플랫콜 레인지 (suited/connector)`, confidence: 'medium' };
+      }
+      return { action: '폴드', sizing: null, reason: `오픈에 약함 (강도 ${Math.round(strength)})`, confidence: 'high' };
+    }
+    if (raises === 2) {
+      // 3-bet 직면 → 4-bet/콜/폴드
+      if (strength >= 92) return { action: '4-bet', sizing: '24BB', reason: 'AA-KK 4-bet 레인지', confidence: 'high' };
+      if (strength >= 85) return { action: '콜', sizing: null, reason: 'QQ-JJ, AK 콜 디펜스', confidence: 'medium' };
+      return { action: '폴드', sizing: null, reason: '3-bet에 폴드 권장', confidence: 'high' };
+    }
+    // 4-bet+
+    if (strength >= 95) return { action: '콜/5-bet 올인', sizing: 'All-in', reason: 'AA-KK only', confidence: 'high' };
+    return { action: '폴드', sizing: null, reason: '4-bet+ 액션은 너트만', confidence: 'high' };
+  }
+
+  // === Postflop ===
+  const strength = postflopStrength(p.cards, state.communityCards);
+  const pot = state.pot;
+  const isIP = state.handTrack?.preflopAggressorIdx === state.players.indexOf(p);
+  // c-bet sizing
+  const board = state.communityCards;
+  const boardTexture = analyzeBoardTexture(board);
+
+  if (toCall === 0) {
+    // 베팅 결정
+    if (strength >= 80) {
+      const size = boardTexture === 'wet' ? '75% 팟' : '50% 팟';
+      return { action: '베팅 (밸류)', sizing: size, reason: `너트급 — ${boardTexture === 'wet' ? '웻 보드, 폴라' : '드라이, 머지드'}`, confidence: 'high' };
+    }
+    if (strength >= 55) {
+      const size = boardTexture === 'wet' ? '66% 팟' : '33% 팟';
+      return { action: '베팅 (밸류/프로텍션)', sizing: size, reason: `미디엄 — ${boardTexture} 보드 사이징`, confidence: 'medium' };
+    }
+    if (strength >= 30) {
+      return { action: '체크', sizing: null, reason: '약함, 컨트롤', confidence: 'medium' };
+    }
+    return { action: '체크 (혹은 블러프)', sizing: '33% 팟', reason: '에어 — 블러프 빈도 30%', confidence: 'low' };
+  }
+  // 콜 vs 폴드 vs 레이즈
+  if (strength >= 88) {
+    return { action: '레이즈', sizing: '2.5x', reason: `너트급 — 밸류 레이즈`, confidence: 'high' };
+  }
+  if (strength >= 65) {
+    return { action: '콜', sizing: null, reason: '강한 핸드 콜링', confidence: 'high' };
+  }
+  if (strength >= 35 && potOdds < 0.3) {
+    return { action: '콜', sizing: null, reason: `좋은 팟 오즈 ${(potOdds*100).toFixed(0)}%`, confidence: 'medium' };
+  }
+  if (potOdds < 0.12 && strength >= 20) {
+    return { action: '콜', sizing: null, reason: '거의 공짜 콜', confidence: 'medium' };
+  }
+  return { action: '폴드', sizing: null, reason: `핸드 약함 (강도 ${Math.round(strength)}), 팟 오즈 ${(potOdds*100).toFixed(0)}%`, confidence: 'high' };
+}
+
+function analyzeBoardTexture(board) {
+  if (!board || board.length < 3) return 'unknown';
+  const ranks = board.slice(0,5).filter(c => c).map(c => {
+    const r = c.rank;
+    return r === 'A' ? 14 : r === 'K' ? 13 : r === 'Q' ? 12 : r === 'J' ? 11 : r === '10' ? 10 : parseInt(r);
+  });
+  const suits = board.slice(0,5).filter(c => c).map(c => c.suit);
+  // Wet: flush draw possible, straight possible, paired
+  let wetScore = 0;
+  // Same suit (flush draw)
+  const suitCounts = {};
+  suits.forEach(s => suitCounts[s] = (suitCounts[s]||0)+1);
+  if (Math.max(...Object.values(suitCounts)) >= 2) wetScore += 2;
+  if (Math.max(...Object.values(suitCounts)) >= 3) wetScore += 2;
+  // Straight possibilities
+  const sorted = [...ranks].sort((a,b)=>a-b);
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (sorted[i+1] - sorted[i] <= 4) wetScore += 1;
+  }
+  return wetScore >= 3 ? 'wet' : 'dry';
+}
+
+// ===================== v49: AI COACH MODE =====================
+let _coachEnabled = true;
+try {
+  const stored = localStorage.getItem('holdem-coach');
+  if (stored === '0') _coachEnabled = false;
+} catch (e) {}
+
+function toggleCoach() {
+  _coachEnabled = !_coachEnabled;
+  try { localStorage.setItem('holdem-coach', _coachEnabled ? '1' : '0'); } catch (e) {}
+  return _coachEnabled;
+}
+
+// 유저 액션 직후 호출 — 짧은 GTO 비교 코칭 표시
+// preComputedGTO: state mutation 전에 미리 계산된 추천 (raise/bet 같은 경우)
+function showCoachFeedback(action, preComputedGTO) {
+  if (!_coachEnabled) return;
+  const me = state?.players?.[0];
+  if (!me || !me.isHuman) return;
+
+  const gto = preComputedGTO || gtoRecommend(me);
+  if (!gto) return;
+
+  // 액션 매칭
+  const a = (action || '').toLowerCase();
+  const recA = (gto.action || '').toLowerCase();
+  const myAggr = ['raise','bet','벳','레이즈','벳','벨류','3-bet','4-bet','오픈','c-벳','동크'].some(k => a.includes(k));
+  const myCall = a.includes('콜') || a === 'call';
+  const myCheck = a.includes('체크') || a === 'check';
+  const myFold = a.includes('폴드') || a === 'fold';
+  const recAggr = ['레이즈','베팅','벳','3-bet','4-bet','오픈'].some(k => recA.includes(k));
+  const recCall = recA.includes('콜') && !recAggr;
+  const recCheck = recA.includes('체크') && !recAggr;
+  const recFold = recA.includes('폴드');
+
+  let verdict, color;
+  if ((myAggr && recAggr) || (myCall && recCall) || (myCheck && recCheck) || (myFold && recFold)) {
+    verdict = '✓ 정확'; color = '#5db95d';
+  } else if ((myCall && (recAggr || recCheck)) || (myCheck && recCall)) {
+    verdict = '△ 무난'; color = '#f5c849';
+  } else {
+    verdict = '✗ 더 좋은 선택'; color = '#ff6464';
+  }
+
+  const sizingPart = gto.sizing ? ` <span style="color:#888;">(${gto.sizing})</span>` : '';
+  const html = `<div style="display:flex;align-items:center;gap:8px;">
+    <span style="font-weight:800;color:${color};font-size:13px;">${verdict}</span>
+    <span style="color:rgba(255,255,255,0.85);font-size:11px;">GTO: <b>${gto.action}</b>${sizingPart}</span>
+  </div>
+  <div style="font-size:10px;color:rgba(255,255,255,0.55);margin-top:3px;line-height:1.3;">${gto.reason}</div>`;
+
+  showCoachBubble(html, color);
+}
+
+function showCoachBubble(html, accentColor = '#5db95d') {
+  // Remove existing
+  const existing = document.querySelector('.coach-bubble');
+  if (existing) existing.remove();
+
+  const bubble = document.createElement('div');
+  bubble.className = 'coach-bubble';
+  bubble.style.borderColor = accentColor + 'aa';
+  bubble.innerHTML = `<div style="font-size:9px;letter-spacing:2px;color:${accentColor};margin-bottom:4px;">🎓 AI 코치</div>${html}`;
+  document.body.appendChild(bubble);
+  setTimeout(() => bubble.classList.add('fade-out'), 4500);
+  setTimeout(() => bubble.remove(), 5200);
+}
+
+// ===================== v49: 주간 약점 리포트 =====================
+function getWeeklyReport() {
+  ensureDecisionHistory();
+  const all = career.decisionHistory || [];
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const week = all.filter(d => d.ts >= weekAgo);
+  if (week.length < 10) {
+    return { insufficient: true, total: week.length, need: 10 };
+  }
+
+  // 거리별 + 액션별 분석
+  const byStreet = { preflop: {good:0,ok:0,bad:0,total:0}, flop:{good:0,ok:0,bad:0,total:0}, turn:{good:0,ok:0,bad:0,total:0}, river:{good:0,ok:0,bad:0,total:0} };
+  for (const d of week) {
+    if (byStreet[d.street]) {
+      byStreet[d.street][d.judgment]++;
+      byStreet[d.street].total++;
+    }
+  }
+
+  const scoreOf = (s) => {
+    if (s.total === 0) return null;
+    return Math.round((s.good * 100 + s.ok * 60 + s.bad * 20) / s.total);
+  };
+
+  const streetScores = {
+    preflop: scoreOf(byStreet.preflop),
+    flop: scoreOf(byStreet.flop),
+    turn: scoreOf(byStreet.turn),
+    river: scoreOf(byStreet.river)
+  };
+  const overall = Math.round(week.reduce((s,d) => s + (d.judgment==='good'?100:d.judgment==='ok'?60:20), 0) / week.length);
+
+  // 약점 식별
+  let weakest = null;
+  let weakestScore = 200;
+  for (const [s, sc] of Object.entries(streetScores)) {
+    if (sc !== null && sc < weakestScore) { weakestScore = sc; weakest = s; }
+  }
+
+  // 추세 — 이번 주 vs 전 주
+  const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+  const prevWeek = all.filter(d => d.ts >= twoWeeksAgo && d.ts < weekAgo);
+  let trend = null;
+  if (prevWeek.length >= 10) {
+    const prevOverall = Math.round(prevWeek.reduce((s,d) => s + (d.judgment==='good'?100:d.judgment==='ok'?60:20), 0) / prevWeek.length);
+    trend = overall - prevOverall;
+  }
+
+  // 학습 권장
+  const tips = {
+    preflop: { title: '프리플랍 — 포지션별 오픈 차트', body: 'UTG는 상위 14%, BTN은 45%까지 오픈. GTO 핸드 매트릭스 메뉴에서 13×13 차트 복습.' },
+    flop: { title: '플랍 — C-bet 사이징', body: '드라이 보드 (A72레인보우) → C-bet 33%, 빈도 ↑. 웻 보드 (T98sui) → 66~75% 폴라 사이즈, 빈도 ↓.' },
+    turn: { title: '턴 — 베럴 또는 체크?', body: '플랍 C-bet 후 턴은 결정적. 페어/드로우 있으면 베럴 컨티뉴, 에어/약한 페어는 체크-콜 또는 자이브업.' },
+    river: { title: '리버 — 폴라라이즈드 결정', body: '리버는 너트 or 블러프. 미디엄 핸드는 거의 안 베팅. 사이징도 75%+ 폴라 추천.' }
+  };
+
+  return {
+    insufficient: false,
+    total: week.length,
+    overall,
+    streetScores,
+    weakest,
+    weakestScore,
+    trend,
+    tip: weakest ? tips[weakest] : null,
+    streetCounts: byStreet
+  };
+}
+
+function openWeeklyReport() {
+  const r = getWeeklyReport();
+  let html;
+  if (r.insufficient) {
+    html = `<div style="text-align:center;padding:20px;">
+      <div style="font-size:36px;margin-bottom:10px;">📊</div>
+      <h3>주간 약점 리포트</h3>
+      <div style="font-size:13px;color:var(--text-dim);margin:14px 0;line-height:1.7;">
+        최근 7일 데이터 부족<br>
+        현재 ${r.total}개 결정 · ${r.need}개 이상 필요
+      </div>
+      <button onclick="closeModal()">닫기</button>
+    </div>`;
+  } else {
+    const trendBadge = r.trend === null ? '<span style="color:#888;font-size:11px;">전주 비교 데이터 없음</span>'
+      : r.trend >= 0 ? `<span style="color:#5db95d;font-size:11px;">▲ +${r.trend} (전주 대비)</span>`
+      : `<span style="color:#ff6464;font-size:11px;">▼ ${r.trend} (전주 대비)</span>`;
+    const grade = r.overall >= 80 ? 'A' : r.overall >= 65 ? 'B' : r.overall >= 50 ? 'C' : r.overall >= 35 ? 'D' : 'F';
+    const gradeColor = r.overall >= 65 ? 'var(--gold-bright)' : r.overall >= 50 ? '#f5c849' : '#ff6464';
+
+    const streetBar = (label, score, count) => {
+      if (score === null) return `<div style="display:flex;justify-content:space-between;padding:6px 0;color:#666;"><span>${label}</span><span>—</span></div>`;
+      const w = Math.max(2, score);
+      const c = score >= 70 ? '#5db95d' : score >= 50 ? '#f5c849' : '#ff6464';
+      return `<div style="padding:6px 0;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+          <span>${label} <span style="color:#888;font-size:10px;">(${count.total}회)</span></span>
+          <b style="color:${c};">${score}점</b>
+        </div>
+        <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
+          <div style="height:100%;width:${w}%;background:${c};"></div>
+        </div>
+      </div>`;
+    };
+
+    html = `<div style="padding:8px;">
+      <h3>📊 주간 약점 리포트</h3>
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:14px;">최근 7일 · ${r.total}개 결정 분석</div>
+
+      <div style="text-align:center;background:var(--bg-card-2);border:1px solid var(--border-light);border-radius:10px;padding:18px;margin-bottom:14px;">
+        <div style="font-size:11px;color:var(--text-dim);letter-spacing:2px;">OVERALL SCORE</div>
+        <div style="font-size:42px;font-weight:800;color:${gradeColor};font-family:'Press Start 2P','Galmuri11',monospace;margin:6px 0;">${r.overall}<span style="font-size:18px;">/100</span></div>
+        <div style="font-size:20px;font-weight:700;color:${gradeColor};">${grade} 등급</div>
+        <div style="margin-top:8px;">${trendBadge}</div>
+      </div>
+
+      <div style="background:var(--bg-card-2);border-radius:8px;padding:12px;margin-bottom:14px;">
+        <div style="font-size:12px;font-weight:700;color:var(--gold-bright);margin-bottom:8px;">스트릿별 점수</div>
+        ${streetBar('프리플랍', r.streetScores.preflop, r.streetCounts.preflop)}
+        ${streetBar('플랍', r.streetScores.flop, r.streetCounts.flop)}
+        ${streetBar('턴', r.streetScores.turn, r.streetCounts.turn)}
+        ${streetBar('리버', r.streetScores.river, r.streetCounts.river)}
+      </div>
+
+      ${r.tip ? `<div style="background:rgba(255,91,91,0.08);border:1px solid rgba(255,91,91,0.3);border-radius:8px;padding:12px;">
+        <div style="font-size:11px;color:var(--red);font-weight:700;margin-bottom:6px;">⚠️ 이번 주 가장 약한 영역: ${r.weakest === 'preflop' ? '프리플랍' : r.weakest === 'flop' ? '플랍' : r.weakest === 'turn' ? '턴' : '리버'} (${r.weakestScore}점)</div>
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">💡 ${r.tip.title}</div>
+        <div style="font-size:12px;color:var(--text-dim);line-height:1.6;">${r.tip.body}</div>
+      </div>` : ''}
+
+      <div style="text-align:center;margin-top:16px;"><button onclick="closeModal()">닫기</button></div>
+    </div>`;
+  }
+  showModal(html);
+}
+
 function finalizeHandStats() {
   if (!state.handTrack) return;
   const me = state.players[0];
@@ -6404,6 +6802,15 @@ function openSettings() {
           <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">핸드 중 김민준이 속으로 한 마디 (몰입감 + 학습)</div>
         </div>
         <input type="checkbox" id="mono-toggle" ${_monologueEnabled ? 'checked' : ''} onchange="toggleMonologue();">
+      </label>
+    </div>
+    <div style="padding:12px;background:var(--bg-card-2);border-radius:8px;margin-top:10px;">
+      <label style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
+        <div>
+          <div style="font-weight:700;font-size:14px;">🎓 AI 코치 모드 (v49)</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">매 액션 후 GTO와 비교한 짧은 피드백 (우상단 토스트)</div>
+        </div>
+        <input type="checkbox" id="coach-toggle" ${(typeof _coachEnabled !== 'undefined' && _coachEnabled) ? 'checked' : ''} onchange="toggleCoach();">
       </label>
     </div>
   </div>
@@ -10797,7 +11204,8 @@ function openMainMenu() {
         { icon: '📊', label: '통계 대시보드', desc: 'VPIP, PFR, 3-bet, AF 등 트래커', action: 'renderStatsDashboard()' },
         { icon: '📖', label: '최근 핸드 리뷰', desc: '마지막 30핸드 의사결정 분석', action: 'renderRecentHands()' },
         { icon: '📐', label: '의사결정 점수', desc: '스트릿별 등급 + 약점 분석', action: 'openDecisionDashboard()' },
-        { icon: '🔍', label: '약점 분석 (v37)', desc: '액션/스트릿별 자동 진단 + 학습 팁', action: 'openWeaknessAnalysis()' }
+        { icon: '🔍', label: '약점 분석 (v37)', desc: '액션/스트릿별 자동 진단 + 학습 팁', action: 'openWeaknessAnalysis()' },
+        { icon: '📊', label: '주간 약점 리포트 (v49 신규)', desc: '최근 7일 GTO 비교 + 전주 추세 + 등급', action: 'openWeeklyReport()' }
       ]
     },
     {
