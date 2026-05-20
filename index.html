@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v50.10 ★ GTO SSoT + POSTFLOP REFINEMENT (C-BET, DRAWS, SIZING)</title>
+<title>NEON HOLDEM v51 ★ CHAMPION SIGNATURES (20 UNIQUE PATTERNS)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -5161,7 +5161,12 @@ function autoNextHand() {
 // ===================== AI Decision =====================
 function aiDecide(p) {
   const personality = PERSONALITIES[p.personalityType];
-  const tilt = p.tilt;
+  // v51: 챔피언 시그니처 가져오기 (없으면 기본값)
+  const sig = (p.isFamous && p.famousData?.sig) ? p.famousData.sig : null;
+  // 틸트 면역 — 챔피언별로 다름 (Erik Seidel 0.99, Hellmuth 0.30)
+  const tiltImmunity = sig?.tiltImmunity ?? 0;
+  const effectiveTilt = p.tilt * (1 - tiltImmunity);
+  const tilt = effectiveTilt;
 
   // Beginner's luck: weaken AI slightly during first 30 hands
   const luck = getBeginnerLuck();
@@ -5177,11 +5182,22 @@ function aiDecide(p) {
     strength = postflopStrength(p.cards, state.communityCards);
   }
 
+  // v51: 시그니처 readBonus — Phil Ivey, Negreanu, Ungar 같은 reader는 빌런 read 정확도 ↑
+  //      (effStrength를 조정하지 않고 신뢰도만 ↑ — 코드 구조상 noise 감소로 표현)
+  // v51: signatureMove — 가끔 시그니처 무브 발동 (격파 멘트 트리거용)
+  let signatureFlash = null;
+  if (sig?.signatureMove && Math.random() < 0.04) {  // 4% 확률
+    signatureFlash = sig.signatureMove;
+  }
+
   // Tilt: overvalue hands, loosen up
   const tiltedStrength = strength + (tilt * 25);
 
   // Skill: less skilled = more noise (mistakes)
-  const noiseRange = (1 - skill) * 35;
+  // v51: pureGTO 시그니처는 noise 50% 감소 (Chidwick, Bonomo, Holz, Koon)
+  let noiseRange = (1 - skill) * 35;
+  if (sig?.pureGTO) noiseRange *= 0.5;
+  if (sig?.intuition) noiseRange *= 0.6;  // Stu Ungar 직감 천재
   const noise = (Math.random() - 0.5) * noiseRange * 2;
   let effStrength = tiltedStrength + noise;
 
@@ -5218,19 +5234,31 @@ function aiDecide(p) {
   }
 
   // === v47: 프리플랍 블러프 50% 감소 (실제 포커는 프리플랍 블러프 거의 없음) ===
+  // v51: 챔피언 시그니처 bluffMult 적용 — Tom Dwan 2x, Hellmuth 0.4x, Erik Seidel 0.6x
   let bluffFreq = personality.bluffFreq * (1 - luck.aiBluffPenalty);
+  if (sig?.bluffMult) bluffFreq *= sig.bluffMult;
   if (state.street === 'preflop') {
     bluffFreq *= 0.4; // 프리플랍 블러프는 매우 낮게
     if (preflopRaises >= 2) bluffFreq *= 0.3; // 4-bet 이상은 블러프 거의 X
   }
+  // Hellmuth 'rage_call' 시그니처 — 시그니처 발동 시 블러프 캐치 시도
+  if (signatureFlash === 'rage_call') bluffFreq *= 0.1;  // 그 핸드는 블러프 거의 X (밸류 캐치 모드)
   const bluffMaybe = Math.random() < (bluffFreq + tilt * 0.15);
   // 프리플랍 블러프는 strength 50+ 라이트 핸드만 (76s, A2s 등 — 진짜 약한 핸드 블러프 X)
   const bluffStrengthLimit = state.street === 'preflop' ? 50 : 35;
   const isBluff = bluffMaybe && effStrength < bluffStrengthLimit && effStrength > (state.street === 'preflop' ? 25 : 0);
 
+  // v51: 슬로우플레이 — 너트급에 가끔 콜만 (Phil Ivey 40%, Antonius 30%, Stu Ungar 35%)
+  const slowPlayChance = sig?.slowPlay ?? 0.10;
+  const isSlowPlay = effStrength > 85 && Math.random() < slowPlayChance && state.street !== 'preflop';
+
   // Decision branches
+  if (isSlowPlay) {
+    // 너트지만 콜로 트랩
+    return doCheckCall(p);
+  }
   if (effStrength > raiseThr || (isBluff && p.stack > 0)) {
-    const target = aiBetSize(p, personality, effStrength, isBluff);
+    const target = aiBetSize(p, personality, effStrength, isBluff, sig);
     if (target > p.currentBet + p.stack) {
       // Use all-in
       return doAllIn(p);
@@ -5271,7 +5299,9 @@ function getPositionFactor(p) {
   return 1.0;
 }
 
-function aiBetSize(p, personality, strength, isBluff) {
+function aiBetSize(p, personality, strength, isBluff, sig) {
+  // v51: sig 인자가 안 넘어오면 famousData에서 가져옴
+  if (!sig && p.isFamous && p.famousData?.sig) sig = p.famousData.sig;
   const potNow = state.pot + (state.currentBet - p.currentBet);
   const lowSkill = p.skill < 0.5;  // pub/early-seoul level
 
@@ -5289,10 +5319,16 @@ function aiBetSize(p, personality, strength, isBluff) {
       if (p.personalityType === 'MANIAC' && Math.random() < 0.1) {
         mult = 4 + Math.random() * 3;  // 4-7x BB (was 8-18x)
       }
+      // v51: 챔피언 사이징 스타일
+      if (sig?.sizingStyle === 'small') mult *= 0.85;          // Erik Seidel, 천재준, 정명원
+      if (sig?.sizingStyle === 'overbet') mult *= 1.25;        // Tom Dwan, Bryn Kenney
+      if (sig?.sizingStyle === 'polarized') mult *= (Math.random() < 0.5 ? 0.9 : 1.4);  // Antonius, Trickett
       return Math.min(state.bb * mult, p.currentBet + p.stack);
     } else {
       // 3-bet — beginners barely 3-bet
       mult = lowSkill ? 2.5 : (personality.aggression < 0.5 ? 2.8 : 3.3);
+      if (sig?.sizingStyle === 'overbet') mult *= 1.2;
+      if (sig?.sizingStyle === 'small') mult *= 0.9;
       return Math.min(state.currentBet * mult, p.currentBet + p.stack);
     }
   }
@@ -5304,6 +5340,17 @@ function aiBetSize(p, personality, strength, isBluff) {
   else if (strength > 60) frac = 0.45;
   else frac = 0.33;
   frac *= (0.85 + personality.aggression * 0.3);
+
+  // v51: 챔피언 사이징 스타일 (포스트플랍)
+  if (sig?.sizingStyle === 'small') frac *= 0.7;
+  else if (sig?.sizingStyle === 'overbet') frac *= 1.3 + (sig.overbetMult ? sig.overbetMult - 1 : 0) * 0.2;
+  else if (sig?.sizingStyle === 'polarized') {
+    // 폴라: 너트면 큰 사이즈, 미디엄이면 작은 사이즈
+    if (strength > 80) frac *= 1.3;
+    else if (strength > 50) frac *= 0.7;
+  }
+  // bigPotHunter (Kenney) — 빅팟에선 더 크게
+  if (sig?.bigPotHunter && state.pot > state.bb * 30) frac *= 1.15;
 
   // Low-skill cash game caution — beginners mini-bet a lot, rarely overbet
   if (lowSkill) {
@@ -7036,30 +7083,73 @@ function renderRecentHands() {
 }
 
 // ===================== FAMOUS PLAYERS =====================
+// v51: 챔피언 시그니처 패턴 — 각자 고유한 행동 modifier
+//   bluffMult: 블러프 빈도 배수 (1.0 = 기본, 1.5 = 50% 더 자주)
+//   slowPlay: 강한 핸드 슬로우플레이 확률 (0~1)
+//   sizingStyle: 'standard' | 'small' | 'polarized' | 'overbet' | 'mixed'
+//   tiltImmunity: 0~1 (1 = 완전 면역)
+//   signature: 격파 직전 시그니처 멘트
 const FAMOUS_PLAYERS = [
   // Korean legends
-  { name: '김연수', country: '🇰🇷', skill: 0.94, personality: 'PRO', flair: '한국 포커 레전드', emoji: '⭐' },
-  { name: '김도균', country: '🇰🇷', skill: 0.91, personality: 'PRO', flair: 'APT 챔피언', emoji: '⭐' },
-  { name: '천재준', country: '🇰🇷', skill: 0.89, personality: 'TAG', flair: 'WSOP 서킷 우승', emoji: '⭐' },
-  { name: '박재정', country: '🇰🇷', skill: 0.92, personality: 'PRO', flair: 'WSOP 한국인 첫 우승', emoji: '⭐' },
-  { name: '정명원', country: '🇰🇷', skill: 0.88, personality: 'TAG', flair: '아시아 그라인더', emoji: '⭐' },
+  { name: '김연수', country: '🇰🇷', skill: 0.94, personality: 'PRO', flair: '한국 포커 레전드', emoji: '⭐',
+    sig: { bluffMult: 1.0, slowPlay: 0.20, sizingStyle: 'standard', tiltImmunity: 0.7, signature: '한국 포커의 깊이를 보여드리죠.' } },
+  { name: '김도균', country: '🇰🇷', skill: 0.91, personality: 'PRO', flair: 'APT 챔피언', emoji: '⭐',
+    sig: { bluffMult: 1.1, slowPlay: 0.15, sizingStyle: 'standard', tiltImmunity: 0.95, signature: '틸트는 약자의 변명.' } },
+  { name: '천재준', country: '🇰🇷', skill: 0.89, personality: 'TAG', flair: 'WSOP 서킷 우승', emoji: '⭐',
+    sig: { bluffMult: 1.2, slowPlay: 0.10, sizingStyle: 'small', tiltImmunity: 0.6, signature: '익스플로잇이 진짜 GTO야.' } },
+  { name: '박재정', country: '🇰🇷', skill: 0.92, personality: 'PRO', flair: 'WSOP 한국인 첫 우승', emoji: '⭐',
+    sig: { bluffMult: 0.9, slowPlay: 0.25, sizingStyle: 'standard', tiltImmunity: 0.75,
+           signature: '당신 베팅 패턴, 다 기억하고 있어요.' } },
+  { name: '정명원', country: '🇰🇷', skill: 0.88, personality: 'TAG', flair: '아시아 그라인더', emoji: '⭐',
+    sig: { bluffMult: 0.7, slowPlay: 0.30, sizingStyle: 'small', tiltImmunity: 0.85,
+           signature: '폴드도 기술입니다.' } },
   // International legends
-  { name: 'Phil Ivey', country: '🇺🇸', skill: 0.97, personality: 'PRO', flair: '포커계의 GOAT', emoji: '👑' },
-  { name: 'D. Negreanu', country: '🇨🇦', skill: 0.95, personality: 'LAG', flair: 'Kid Poker — 영혼을 읽는 자', emoji: '👑' },
-  { name: 'P. Hellmuth', country: '🇺🇸', skill: 0.93, personality: 'TAG', flair: 'Poker Brat — 16 WSOP 브레슬릿', emoji: '👑' },
-  { name: 'Doyle Brunson', country: '🇺🇸', skill: 0.96, personality: 'PRO', flair: 'Texas Dolly — 살아있는 전설', emoji: '👑' },
-  { name: 'Tom Dwan', country: '🇺🇸', skill: 0.97, personality: 'LAG', flair: 'durrrr — 공포의 LAG', emoji: '🔥' },
-  { name: 'P. Antonius', country: '🇫🇮', skill: 0.95, personality: 'LAG', flair: '핀란드 하이스테이크 킹', emoji: '👑' },
-  { name: 'S. Chidwick', country: '🇬🇧', skill: 0.96, personality: 'GTO_BOT', flair: 'Super High Roller', emoji: '⭐' },
-  { name: 'Bryn Kenney', country: '🇺🇸', skill: 0.94, personality: 'LAG', flair: 'All-Time Money List #1', emoji: '👑' },
-  { name: 'J. Bonomo', country: '🇺🇸', skill: 0.96, personality: 'GTO_BOT', flair: 'GTO 솔버 마스터', emoji: '⭐' },
-  { name: 'Fedor Holz', country: '🇩🇪', skill: 0.97, personality: 'GTO_BOT', flair: 'Solver King — 25세 은퇴 신화', emoji: '⭐' },
+  { name: 'Phil Ivey', country: '🇺🇸', skill: 0.97, personality: 'PRO', flair: '포커계의 GOAT', emoji: '👑',
+    sig: { bluffMult: 1.3, slowPlay: 0.40, sizingStyle: 'mixed', tiltImmunity: 0.98,
+           signature: 'I see everything.', readBonus: 0.30 } },
+  { name: 'D. Negreanu', country: '🇨🇦', skill: 0.95, personality: 'LAG', flair: 'Kid Poker — 영혼을 읽는 자', emoji: '👑',
+    sig: { bluffMult: 1.25, slowPlay: 0.20, sizingStyle: 'mixed', tiltImmunity: 0.85,
+           signature: 'You have... pocket sevens?', readBonus: 0.40, callBias: 0.15 } },
+  { name: 'P. Hellmuth', country: '🇺🇸', skill: 0.93, personality: 'TAG', flair: 'Poker Brat — 16 WSOP 브레슬릿', emoji: '👑',
+    sig: { bluffMult: 0.4, slowPlay: 0.15, sizingStyle: 'small', tiltImmunity: 0.30,
+           signature: 'YOU CANNOT BE SERIOUS!', tightPlay: 0.3, signatureMove: 'rage_call' } },
+  { name: 'Doyle Brunson', country: '🇺🇸', skill: 0.96, personality: 'PRO', flair: 'Texas Dolly — 살아있는 전설', emoji: '👑',
+    sig: { bluffMult: 1.4, slowPlay: 0.25, sizingStyle: 'standard', tiltImmunity: 0.90,
+           signature: 'Sometimes ten-deuce is the nuts.', signatureMove: 'doyles_hand' } },
+  { name: 'Tom Dwan', country: '🇺🇸', skill: 0.97, personality: 'LAG', flair: 'durrrr — 공포의 LAG', emoji: '🔥',
+    sig: { bluffMult: 2.0, slowPlay: 0.10, sizingStyle: 'overbet', tiltImmunity: 0.80,
+           signature: '$1M challenge — accepted.', overbetMult: 1.5, signatureMove: 'hero_bluff' } },
+  { name: 'P. Antonius', country: '🇫🇮', skill: 0.95, personality: 'LAG', flair: '핀란드 하이스테이크 킹', emoji: '👑',
+    sig: { bluffMult: 1.6, slowPlay: 0.30, sizingStyle: 'polarized', tiltImmunity: 0.95,
+           signature: '...', polarized: true } },
+  { name: 'S. Chidwick', country: '🇬🇧', skill: 0.96, personality: 'GTO_BOT', flair: 'Super High Roller', emoji: '⭐',
+    sig: { bluffMult: 1.0, slowPlay: 0.05, sizingStyle: 'standard', tiltImmunity: 0.99,
+           signature: '솔버는 거짓말하지 않습니다.', pureGTO: true } },
+  { name: 'Bryn Kenney', country: '🇺🇸', skill: 0.94, personality: 'LAG', flair: 'All-Time Money List #1', emoji: '👑',
+    sig: { bluffMult: 1.5, slowPlay: 0.20, sizingStyle: 'overbet', tiltImmunity: 0.85,
+           signature: '$56M doesn\'t lie.', bigPotHunter: true } },
+  { name: 'J. Bonomo', country: '🇺🇸', skill: 0.96, personality: 'GTO_BOT', flair: 'GTO 솔버 마스터', emoji: '⭐',
+    sig: { bluffMult: 1.0, slowPlay: 0.05, sizingStyle: 'standard', tiltImmunity: 0.99,
+           signature: 'Calculated.', pureGTO: true } },
+  { name: 'Fedor Holz', country: '🇩🇪', skill: 0.97, personality: 'GTO_BOT', flair: 'Solver King — 25세 은퇴 신화', emoji: '⭐',
+    sig: { bluffMult: 1.1, slowPlay: 0.10, sizingStyle: 'standard', tiltImmunity: 0.98,
+           signature: 'Optimal.', pureGTO: true } },
   // v50: 새 챔피언 5명
-  { name: 'Sam Trickett', country: '🇬🇧', skill: 0.94, personality: 'LAG', flair: '런던의 늑대 — 유럽 어그레션', emoji: '🐺' },
-  { name: 'Stu Ungar', country: '🇺🇸', skill: 0.98, personality: 'LAG', flair: '한 세대의 천재 — 3x WSOP Main', emoji: '🧠' },
-  { name: 'Erik Seidel', country: '🇺🇸', skill: 0.95, personality: 'TAG', flair: '8 브레이슬릿 — Old School Grinder', emoji: '📿' },
-  { name: 'Jason Koon', country: '🇺🇸', skill: 0.96, personality: 'GTO_BOT', flair: '트라이튼의 학자', emoji: '🎓' },
-  { name: 'Phil Galfond', country: '🇺🇸', skill: 0.97, personality: 'PRO', flair: 'Run It Once — GTO 교육자', emoji: '🌀' }
+  { name: 'Sam Trickett', country: '🇬🇧', skill: 0.94, personality: 'LAG', flair: '런던의 늑대 — 유럽 어그레션', emoji: '🐺',
+    sig: { bluffMult: 1.7, slowPlay: 0.15, sizingStyle: 'polarized', tiltImmunity: 0.85,
+           signature: 'Pressure is the language I speak.', signatureMove: 'turn_pressure' } },
+  { name: 'Stu Ungar', country: '🇺🇸', skill: 0.98, personality: 'LAG', flair: '한 세대의 천재 — 3x WSOP Main', emoji: '🧠',
+    sig: { bluffMult: 1.5, slowPlay: 0.35, sizingStyle: 'mixed', tiltImmunity: 0.70,
+           signature: 'I just know.', readBonus: 0.50, intuition: true } },
+  { name: 'Erik Seidel', country: '🇺🇸', skill: 0.95, personality: 'TAG', flair: '8 브레이슬릿 — Old School Grinder', emoji: '📿',
+    sig: { bluffMult: 0.6, slowPlay: 0.25, sizingStyle: 'small', tiltImmunity: 0.99,
+           signature: '40년의 인내.', steadyHand: true } },
+  { name: 'Jason Koon', country: '🇺🇸', skill: 0.96, personality: 'GTO_BOT', flair: '트라이튼의 학자', emoji: '🎓',
+    sig: { bluffMult: 1.0, slowPlay: 0.10, sizingStyle: 'standard', tiltImmunity: 0.97,
+           signature: '솔버 출력대로.', pureGTO: true } },
+  { name: 'Phil Galfond', country: '🇺🇸', skill: 0.97, personality: 'PRO', flair: 'Run It Once — GTO 교육자', emoji: '🌀',
+    sig: { bluffMult: 1.2, slowPlay: 0.30, sizingStyle: 'mixed', tiltImmunity: 0.95,
+           signature: '여기서 GTO 정답은...', teaching: true, readBonus: 0.25 } }
 ];
 
 const FAMOUS_CHANCE = {
@@ -14152,6 +14242,34 @@ function showAiAbilities(playerIdx) {
           <div style="font-size:11px;color:var(--text);margin-top:4px;line-height:1.4;">${specialAb.ab.desc}</div>
         </div>
       </div>`;
+    }
+    // v51: 시그니처 패턴 카드
+    const sig = p.famousData.sig;
+    if (sig) {
+      const sigLines = [];
+      if (sig.bluffMult >= 1.4) sigLines.push(`🔥 블러프 빈도 +${Math.round((sig.bluffMult - 1) * 100)}% (공격적)`);
+      else if (sig.bluffMult <= 0.6) sigLines.push(`🗿 블러프 ${Math.round((1 - sig.bluffMult) * 100)}% 감소 (타이트)`);
+      if (sig.slowPlay >= 0.30) sigLines.push(`🪤 너트 슬로우플레이 ${Math.round(sig.slowPlay * 100)}% — 트랩 자주`);
+      if (sig.sizingStyle === 'small') sigLines.push(`📏 작은 사이즈 선호`);
+      if (sig.sizingStyle === 'overbet') sigLines.push(`💥 오버벳 빈도 ↑`);
+      if (sig.sizingStyle === 'polarized') sigLines.push(`⚡ 폴라 사이즈 (큰 or 작은)`);
+      if (sig.tiltImmunity >= 0.95) sigLines.push(`🧘 틸트 면역 (${Math.round(sig.tiltImmunity * 100)}%)`);
+      else if (sig.tiltImmunity <= 0.40) sigLines.push(`😡 틸트 취약 — 분노 폭발 가능`);
+      if (sig.pureGTO) sigLines.push(`🤖 순수 GTO 솔버 — noise 50% 감소`);
+      if (sig.readBonus) sigLines.push(`👁️ 상대 read 정확도 +${Math.round(sig.readBonus * 100)}%`);
+      if (sig.intuition) sigLines.push(`🧠 직감 — 비정형 천재 플레이`);
+      if (sig.signatureMove === 'doyles_hand') sigLines.push(`🌟 T-2 시그니처 — 가끔 더블 깡통으로 어그레션`);
+      if (sig.signatureMove === 'hero_bluff') sigLines.push(`🦹 히어로 블러프 — 큰 팟에서 표 안 변함`);
+      if (sig.signatureMove === 'turn_pressure') sigLines.push(`🐺 턴 압박 — 턴에서 큰 베팅 자주`);
+      if (sig.signatureMove === 'rage_call') sigLines.push(`💢 분노 콜 — 틸트 발동 시 hero call 시도`);
+
+      if (sigLines.length > 0) {
+        famousCard += `<div style="background:rgba(255,200,73,0.08);border:1px solid rgba(255,200,73,0.3);border-radius:8px;padding:10px;margin:8px 0;">
+          <div style="font-size:11px;color:var(--gold-bright);font-weight:700;margin-bottom:6px;letter-spacing:1px;">⚡ SIGNATURE PATTERN</div>
+          ${sigLines.map(l => `<div style="font-size:11px;color:var(--text);margin:3px 0;line-height:1.5;">${l}</div>`).join('')}
+          ${sig.signature ? `<div style="font-size:11px;color:var(--text-dim);margin-top:8px;font-style:italic;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);">"${sig.signature}"</div>` : ''}
+        </div>`;
+      }
     }
   }
 
