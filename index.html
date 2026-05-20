@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v52 ★ PERSONAL STORY ARCS (5 CHARS × 5 CHAPTERS = 25 CUTSCENES)</title>
+<title>NEON HOLDEM v53.1 ★ 4 PROTAG BUILDS + COACH PANEL TOGGLE + MOBILE UI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -1863,6 +1863,83 @@
     }
   }
 
+  /* v53: 코칭 히스토리 패널 — 게임 화면 하단 (토글 가능) */
+  .coach-history-panel {
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: linear-gradient(135deg, rgba(15,18,42,0.6), rgba(28,26,52,0.6));
+    border: 1px solid rgba(93,185,93,0.25);
+    border-radius: 8px;
+    font-size: 11px;
+    max-height: 200px;
+    overflow-y: auto;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+  }
+  .coach-history-panel:empty { display: none; }
+  .coach-history-panel.collapsed {
+    max-height: 32px;
+    overflow: hidden;
+    padding: 6px 12px;
+  }
+  .coach-history-panel .ch-header {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 10px; color: #5db95d; letter-spacing: 2px; margin-bottom: 6px;
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+  }
+  .coach-history-panel.collapsed .ch-header { margin-bottom: 0; }
+  .coach-history-panel .ch-toggle-btn {
+    background: rgba(93,185,93,0.2);
+    border: 1px solid rgba(93,185,93,0.4);
+    color: #5db95d;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 9px;
+    cursor: pointer;
+  }
+  .coach-history-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; margin: 3px 0;
+    background: rgba(255,255,255,0.03);
+    border-left: 3px solid #5db95d;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .coach-history-item:hover { background: rgba(255,255,255,0.07); }
+  .coach-history-item.verdict-good { border-left-color: #5db95d; }
+  .coach-history-item.verdict-ok   { border-left-color: #f5c849; }
+  .coach-history-item.verdict-bad  { border-left-color: #ff6464; }
+  .coach-history-item .ch-icon { font-size: 14px; }
+  .coach-history-item .ch-action { font-weight: 700; color: var(--text); }
+  .coach-history-item .ch-street { font-size: 9px; color: var(--text-dim); margin-left: auto; }
+  .coach-history-item .ch-gto { color: var(--text-dim); font-size: 10px; }
+  /* 모바일: 더 컴팩트 + 기본 접힘 */
+  @media (max-width: 600px) {
+    .coach-history-panel {
+      max-height: 160px;
+      font-size: 10px;
+      padding: 8px 10px;
+    }
+    .coach-history-panel.collapsed { max-height: 28px; }
+    .coach-history-item {
+      padding: 5px 7px;
+      gap: 6px;
+    }
+    .coach-history-item .ch-action,
+    .coach-history-item .ch-gto { font-size: 9.5px; }
+    .coach-history-item .ch-icon { font-size: 12px; }
+    .coach-history-item .ch-street { font-size: 8px; }
+    /* 모바일에선 GTO action 텍스트 줄이기 */
+    .coach-history-item .ch-gto-mobile-hide { display: none; }
+  }
+  /* 주인공 특수능력 카드 — 모바일 압축 */
+  @media (max-width: 600px) {
+    .protag-sig-card { padding: 11px !important; }
+    .protag-sig-card > div:first-child > div:first-child { font-size: 28px !important; }
+  }
+
   /* v49: 코치 버블 — 우상단 토스트 스타일 */
   .coach-bubble {
     position: fixed;
@@ -3011,6 +3088,8 @@
   </div>
 
   <div class="log-area" id="log-area"></div>
+  <!-- v53: AI 코칭 히스토리 패널 -->
+  <div class="coach-history-panel" id="coach-history-panel"></div>
 </div>
 
 <div id="modal-container"></div>
@@ -3660,7 +3739,8 @@ function enterVenue(venueId) {
     currentBet: 0, lastRaiseSize: venue.bb,
     handNumber: 0, log: [],
     winners: null, sessionPnL: 0,
-    sessionInvested: venue.buyIn
+    sessionInvested: venue.buyIn,
+    coachHistory: []  // v53: 코칭 히스토리 (세션 단위)
   };
 
   document.getElementById('lobby-screen').style.display = 'none';
@@ -4276,6 +4356,11 @@ function newHand() {
   checkSubEvents();
   // v52: 인물별 미니 아크 체크 (핸드 수/자금 조건)
   if (typeof checkPersonalArcs === 'function') checkPersonalArcs();
+  // v53: 주인공 특수능력 — 핸드 누적 + 레벨업 체크
+  if (typeof gainProtagHand === 'function') {
+    const newLv = gainProtagHand();
+    if (newLv) setTimeout(() => showProtagLevelUp(newLv), 1800);
+  }
   // === DEBT CLEARED CINEMATIC (1억 도달) ===
   if (career.bankroll >= 100000000 && !career._debtClearedShown) {
     setTimeout(() => triggerDebtClearedCinematic(), 1200);
@@ -6763,6 +6848,110 @@ function showCoachFeedback(action, preComputedGTO) {
   <div style="font-size:10px;color:rgba(255,255,255,0.55);margin-top:3px;line-height:1.3;">${gto.reason}</div>`;
 
   showCoachBubble(html, color);
+
+  // v53: 히스토리 패널에 누적
+  if (state) {
+    if (!state.coachHistory) state.coachHistory = [];
+    // 핸드/스트릿 컨텍스트 저장
+    state.coachHistory.push({
+      handNumber: state.handNumber || 0,
+      street: state.street || '',
+      myAction: action,
+      gtoAction: gto.action,
+      gtoSizing: gto.sizing || '',
+      gtoReason: gto.reason || '',
+      gtoConfidence: gto.confidence || '',
+      verdict, color,
+      myCards: me.cards ? me.cards.map(c => c.rank + c.suit).join(' ') : '',
+      ts: Date.now()
+    });
+    if (state.coachHistory.length > 50) state.coachHistory = state.coachHistory.slice(-50);
+    renderCoachHistoryPanel();
+  }
+}
+
+// v53: 히스토리 패널 렌더 — 최근 7개 표시 + 토글 가능
+let _coachPanelCollapsed = false;
+try { _coachPanelCollapsed = localStorage.getItem('holdem-coach-panel-collapsed') === '1'; } catch(e) {}
+// 모바일에선 기본 접힘
+if (typeof window !== 'undefined' && window.innerWidth <= 600 && localStorage.getItem('holdem-coach-panel-collapsed') === null) {
+  _coachPanelCollapsed = true;
+}
+
+function toggleCoachPanel() {
+  _coachPanelCollapsed = !_coachPanelCollapsed;
+  try { localStorage.setItem('holdem-coach-panel-collapsed', _coachPanelCollapsed ? '1' : '0'); } catch(e) {}
+  renderCoachHistoryPanel();
+}
+
+function renderCoachHistoryPanel() {
+  const panel = document.getElementById('coach-history-panel');
+  if (!panel) return;
+  if (!state?.coachHistory?.length) { panel.innerHTML = ''; panel.className = 'coach-history-panel'; return; }
+  panel.className = 'coach-history-panel' + (_coachPanelCollapsed ? ' collapsed' : '');
+
+  const items = state.coachHistory.slice(-7).reverse();
+  const streetMap = { preflop: '프리플랍', flop: '플랍', turn: '턴', river: '리버', showdown: '쇼다운' };
+  const verdictClass = (v) => v?.includes('정확') ? 'verdict-good' : v?.includes('무난') ? 'verdict-ok' : 'verdict-bad';
+  const itemsHTML = items.map((c, i) => {
+    const realIdx = state.coachHistory.length - 1 - i;
+    return `<div class="coach-history-item ${verdictClass(c.verdict)}" onclick="event.stopPropagation();showCoachDetail(${realIdx})">
+      <span class="ch-icon">${c.verdict?.includes('정확') ? '✓' : c.verdict?.includes('무난') ? '△' : '✗'}</span>
+      <span class="ch-action">${c.myAction}</span>
+      <span class="ch-gto"><span class="ch-gto-mobile-hide">→ GTO: </span>${c.gtoAction}</span>
+      <span class="ch-street">${streetMap[c.street] || c.street}</span>
+    </div>`;
+  }).join('');
+
+  // 정확/무난/실수 카운트
+  const counts = state.coachHistory.reduce((acc, c) => {
+    if (c.verdict?.includes('정확')) acc.good++;
+    else if (c.verdict?.includes('무난')) acc.ok++;
+    else acc.bad++;
+    return acc;
+  }, { good: 0, ok: 0, bad: 0 });
+
+  panel.innerHTML = `<div class="ch-header" onclick="toggleCoachPanel()">
+    <span>🎓 AI 코치 (${state.coachHistory.length})
+      <span style="color:#5db95d;margin-left:4px;">✓${counts.good}</span>
+      <span style="color:#f5c849;margin-left:2px;">△${counts.ok}</span>
+      <span style="color:#ff6464;margin-left:2px;">✗${counts.bad}</span>
+    </span>
+    <button class="ch-toggle-btn" onclick="event.stopPropagation();toggleCoachPanel();">${_coachPanelCollapsed ? '▼ 펴기' : '▲ 접기'}</button>
+  </div>${_coachPanelCollapsed ? '' : itemsHTML}`;
+}
+
+// v53: 코칭 항목 상세 모달
+function showCoachDetail(idx) {
+  if (!state?.coachHistory || !state.coachHistory[idx]) return;
+  const c = state.coachHistory[idx];
+  const streetMap = { preflop: '프리플랍', flop: '플랍', turn: '턴', river: '리버', showdown: '쇼다운' };
+  const html = `<div style="padding:14px;">
+    <div style="font-size:10px;color:${c.color};letter-spacing:2px;margin-bottom:4px;font-weight:700;">🎓 AI 코치 분석</div>
+    <h3 style="color:${c.color};margin:6px 0;">${c.verdict}</h3>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:14px;">핸드 #${c.handNumber} · ${streetMap[c.street] || c.street}</div>
+
+    <div style="background:var(--bg-card-2);border:1px solid var(--border-light);border-radius:8px;padding:12px;margin-bottom:10px;">
+      <div style="font-size:10px;color:var(--text-dim);letter-spacing:2px;margin-bottom:4px;">내 액션</div>
+      <div style="font-size:15px;font-weight:700;color:var(--text);">${c.myAction}</div>
+      ${c.myCards ? `<div style="font-size:11px;color:var(--text-dim);margin-top:4px;">핸드: ${c.myCards}</div>` : ''}
+    </div>
+
+    <div style="background:var(--bg-card-2);border:1px solid rgba(255,200,73,0.4);border-radius:8px;padding:12px;margin-bottom:10px;">
+      <div style="font-size:10px;color:var(--gold-bright);letter-spacing:2px;margin-bottom:4px;">GTO 추천</div>
+      <div style="font-size:15px;font-weight:700;color:var(--gold-bright);">${c.gtoAction}</div>
+      ${c.gtoSizing ? `<div style="font-size:11px;color:var(--text);margin-top:4px;">📏 사이즈: <b>${c.gtoSizing}</b></div>` : ''}
+      ${c.gtoConfidence ? `<div style="font-size:10px;color:var(--text-dim);margin-top:3px;">신뢰도: ${c.gtoConfidence === 'high' ? '높음' : c.gtoConfidence === 'medium' ? '중간' : '낮음 (mixed strategy)'}</div>` : ''}
+    </div>
+
+    <div style="background:rgba(94,168,255,0.08);border:1px solid rgba(94,168,255,0.3);border-radius:8px;padding:12px;">
+      <div style="font-size:10px;color:#7eb7ff;letter-spacing:2px;margin-bottom:4px;">💡 이유</div>
+      <div style="font-size:13px;color:var(--text);line-height:1.6;">${c.gtoReason}</div>
+    </div>
+
+    <div style="text-align:center;margin-top:16px;"><button onclick="closeModal()">닫기</button></div>
+  </div>`;
+  showModal(html);
 }
 
 function showCoachBubble(html, accentColor = '#5db95d') {
@@ -14192,10 +14381,30 @@ function gainXP(stat, amount, reason) {
   saveCareer();
 }
 
+// v53: 효과 누적 — 코어 슬롯 + 보조 슬롯 2개 + 주인공 특수능력
 function getActiveEffects() {
-  const active = career.specialAbilities?.active;
-  if (!active || !SPECIAL_ABILITIES[active]) return {};
-  return SPECIAL_ABILITIES[active].effects || {};
+  const acc = {};  // 누적된 effects
+  const slots = [
+    career.specialAbilities?.active,        // 기존 active = 코어 슬롯
+    career.specialAbilities?.activeSub      // v53: 보조 슬롯
+  ];
+  for (const key of slots) {
+    if (!key || !SPECIAL_ABILITIES[key]) continue;
+    const e = SPECIAL_ABILITIES[key].effects || {};
+    for (const [k, v] of Object.entries(e)) {
+      if (typeof v === 'number') acc[k] = (acc[k] || 0) + v;
+      else acc[k] = v;  // boolean flags
+    }
+  }
+  // v53.1: 주인공 특수능력 — 4종 중 선택된 효과 자동 적용
+  if (typeof getProtagBonus === 'function') {
+    const pb = getProtagBonus();
+    for (const [k, v] of Object.entries(pb)) {
+      if (typeof v === 'number') acc[k] = (acc[k] || 0) + v;
+      else acc[k] = v;
+    }
+  }
+  return acc;
 }
 
 function getEffectiveAbility(stat) {
@@ -14204,6 +14413,203 @@ function getEffectiveAbility(stat) {
   const eff = getActiveEffects();
   const bonus = (eff[stat] || 0) + (eff.all || 0);
   return base + bonus;
+}
+
+// v53.1: 주인공 특수능력 4종 — 사용자가 골라 갈아끼우는 RPG 빌드
+const PROTAG_SIG_LIST = {
+  evolving: {
+    id: 'evolving',
+    name: '진화하는 학습',
+    icon: '🧬',
+    tagline: '시간 = 강해짐',
+    desc: '핸드 50개마다 LV+1 (만렙 10).<br>레벨당 <b>모든 능력 영구 +1</b>.',
+    maxLv: 10, handsPerLv: 50,
+    pros: '꾸준한 보상, 모든 빌드와 시너지',
+    cons: '초반엔 효과 적음, 시간 투자 필요'
+  },
+  memory_book: {
+    id: 'memory_book',
+    name: '기억의 책',
+    icon: '📚',
+    tagline: '격파 = 강해짐',
+    desc: '격파한 챔피언 1명당 <b>모든 능력 +1</b>.<br>20명 전부 격파 시 모든 능력 +20.',
+    pros: '격파 진행 시 폭발적 성장',
+    cons: '초보엔 효과 0, 격파 어려움'
+  },
+  pattern_learn: {
+    id: 'pattern_learn',
+    name: '패턴 학습',
+    icon: '🔄',
+    tagline: '관찰 = 강해짐',
+    desc: '100핸드마다 <b>통찰력 +2</b>.<br>1000핸드 = 통찰력 +20 (영구).',
+    pros: '읽기 능력 특화 (HUD 빨리 공개)',
+    cons: '한 가지 능력만 증가'
+  },
+  iron_mental: {
+    id: 'iron_mental',
+    name: '강철 멘탈',
+    icon: '🛡️',
+    tagline: '버티기 특화',
+    desc: '<b>멘탈 영구 +20</b>, 틸트 회복 2배.<br>큰 손실 후에도 완벽 플레이.',
+    pros: '즉시 효과, 손실 흡수 강함',
+    cons: '공격적 빌드와 시너지 약함'
+  }
+};
+
+function getProtagSigInfo() {
+  ensureProtagSig();
+  return PROTAG_SIG_LIST[career.protagSig.id] || PROTAG_SIG_LIST.evolving;
+}
+
+// 현재 선택된 특수능력의 효과 (모든 능력 +X 등) 계산
+function getProtagBonus() {
+  ensureProtagSig();
+  const id = career.protagSig.id;
+  if (id === 'evolving') {
+    return { all: career.protagSig.lv - 1 };
+  }
+  if (id === 'memory_book') {
+    const collected = (career.specialAbilities?.collected || []).length;
+    return { all: collected };
+  }
+  if (id === 'pattern_learn') {
+    const insight = Math.floor((career.handsPlayed || 0) / 100) * 2;
+    return { insight: insight };
+  }
+  if (id === 'iron_mental') {
+    return { mental: 20, tiltRecovery: 2 };
+  }
+  return {};
+}
+
+function ensureProtagSig() {
+  if (!career.protagSig) {
+    career.protagSig = {
+      id: 'evolving',   // 기본 — 진화하는 학습
+      lv: 1,            // 1~10 (evolving 전용)
+      handsForNext: 50,
+      totalHands: 0
+    };
+  }
+  // 마이그레이션: 옛 데이터에 id 없으면 evolving으로 설정
+  if (!career.protagSig.id) career.protagSig.id = 'evolving';
+}
+
+// 4개 특수능력 선택 모달
+function openProtagSigPicker() {
+  ensureProtagSig();
+  const curId = career.protagSig.id;
+  const cards = Object.values(PROTAG_SIG_LIST).map(sig => {
+    const isCurrent = sig.id === curId;
+    return `<div onclick="${isCurrent ? 'closeModal()' : `selectProtagSig('${sig.id}')`}"
+      class="protag-sig-card ${isCurrent ? 'is-current' : ''}"
+      style="background:${isCurrent ? 'rgba(255,200,73,0.15)' : 'var(--bg-card-2)'};
+             border:2px solid ${isCurrent ? 'var(--gold-bright)' : 'var(--border)'};
+             border-radius:10px;padding:14px;margin-bottom:10px;cursor:pointer;
+             transition:all 0.2s;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+        <div style="font-size:36px;">${sig.icon}</div>
+        <div style="flex:1;">
+          <div style="font-weight:800;font-size:14px;color:${isCurrent ? 'var(--gold-bright)' : 'var(--text)'};">
+            ${sig.name} ${isCurrent ? '<span style="font-size:10px;background:var(--gold-bright);color:#000;padding:1px 6px;border-radius:3px;margin-left:6px;">선택중</span>' : ''}
+          </div>
+          <div style="font-size:11px;color:var(--text-dim);font-style:italic;margin-top:2px;">"${sig.tagline}"</div>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--text);line-height:1.6;margin-bottom:8px;">${sig.desc}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;">
+        <div style="background:rgba(93,185,93,0.1);border-left:2px solid #5db95d;padding:4px 6px;border-radius:3px;">
+          <div style="color:#5db95d;font-weight:700;">+ 장점</div>
+          <div style="color:var(--text);margin-top:2px;">${sig.pros}</div>
+        </div>
+        <div style="background:rgba(255,100,100,0.1);border-left:2px solid #ff6464;padding:4px 6px;border-radius:3px;">
+          <div style="color:#ff6464;font-weight:700;">− 단점</div>
+          <div style="color:var(--text);margin-top:2px;">${sig.cons}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const html = `<div style="padding:10px;">
+    <h3>🧬 주인공 특수능력 선택</h3>
+    <div style="font-size:12px;color:var(--text-dim);margin-bottom:14px;line-height:1.5;">
+      4개 중 1개 선택. 언제든 변경 가능.<br>
+      <b>플레이 스타일에 맞춰 빌드를 골라보세요.</b>
+    </div>
+    ${cards}
+    <div style="text-align:center;margin-top:8px;"><button onclick="closeModal();openAbilityMenu();">취소</button></div>
+  </div>`;
+  showModal(html);
+}
+
+// 사용자가 특수능력 변경 — 즉시 적용 + 시네마틱
+function selectProtagSig(id) {
+  ensureProtagSig();
+  if (!PROTAG_SIG_LIST[id]) return;
+  if (career.protagSig.id === id) {
+    closeModal();
+    return;
+  }
+  career.protagSig.id = id;
+  // evolving이 아닌 다른 능력으로 변경 시 lv는 보존 (다시 evolving으로 돌아오면 유지)
+  saveCareer();
+  // 변경 컨펌 시네마틱
+  const sig = PROTAG_SIG_LIST[id];
+  const html = `<div style="text-align:center;padding:22px 18px;">
+    <div style="font-size:11px;color:var(--gold-bright);letter-spacing:4px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:12px;">★ EVOLUTION SWITCHED ★</div>
+    <div style="font-size:72px;margin:6px 0;filter:drop-shadow(0 0 18px rgba(255,200,73,0.6));">${sig.icon}</div>
+    <h2 style="color:var(--gold-bright);font-size:17px;margin:8px 0;letter-spacing:1px;">${sig.name}</h2>
+    <div style="font-size:11px;color:var(--text-dim);font-style:italic;">"${sig.tagline}"</div>
+    <div style="background:linear-gradient(135deg,rgba(255,200,73,0.15),rgba(255,200,73,0.05));border:1px solid rgba(255,200,73,0.4);border-radius:8px;padding:12px;margin:14px 0;font-size:12px;line-height:1.6;color:var(--text);">${sig.desc}</div>
+    <button class="btn-primary" onclick="closeModal();openAbilityMenu();" style="margin-top:10px;padding:11px 28px;">계속 →</button>
+  </div>`;
+  showModal(html);
+  if (typeof sfxFanfare === 'function') { try { sfxFanfare(); } catch(e){} }
+  if (typeof triggerSparkles === 'function') triggerSparkles(15);
+}
+
+// 주인공 특수능력 레벨업 모달
+function showProtagLevelUp(newLv) {
+  if (document.getElementById('modal-container').innerHTML !== '') {
+    setTimeout(() => showProtagLevelUp(newLv), 2500);
+    return;
+  }
+  const html = `<div style="text-align:center;padding:24px 18px;">
+    <div style="font-size:11px;color:var(--gold-bright);letter-spacing:4px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:14px;">★ EVOLUTION ★</div>
+    <div style="font-size:80px;margin:6px 0;filter:drop-shadow(0 0 20px rgba(255,200,73,0.7));">${PROTAG_SIG_INFO.icon}</div>
+    <h2 style="color:var(--gold-bright);font-size:18px;margin:8px 0;letter-spacing:1.5px;font-family:'Press Start 2P','Galmuri11',monospace;">${PROTAG_SIG_INFO.name}</h2>
+    <div style="font-size:24px;font-weight:800;color:var(--gold-bright);margin:14px 0;">LV ${newLv - 1} → LV <span style="font-size:32px;">${newLv}</span></div>
+    <div style="background:linear-gradient(135deg, rgba(255,200,73,0.18), rgba(255,200,73,0.06));border:1.5px solid rgba(255,200,73,0.5);border-radius:10px;padding:14px;margin:14px 0;">
+      <div style="font-size:10px;color:var(--gold-bright);letter-spacing:2px;margin-bottom:6px;">EFFECT</div>
+      <div style="font-size:14px;color:var(--text);">✨ 모든 능력 +${newLv - 1} (영구)</div>
+    </div>
+    <div style="font-size:11px;color:var(--text-dim);margin-top:14px;line-height:1.6;">
+      ${newLv >= 10 ? '🏆 만렙 도달 — 진화 완료' : `다음 레벨업까지 50핸드`}
+    </div>
+    <button class="btn-primary" onclick="closeModal()" style="margin-top:18px;padding:12px 30px;font-size:13px;font-weight:700;animation:event-cta-pulse 1.8s ease-in-out infinite;">계속 →</button>
+  </div>`;
+  showModal(html);
+  if (typeof sfxFanfare === 'function') { try { sfxFanfare(); } catch(e){} }
+  if (typeof triggerSparkles === 'function') triggerSparkles(25);
+  if (typeof duckBGM === 'function') duckBGM(5000);
+}
+
+function gainProtagHand() {
+  ensureProtagSig();
+  const ps = career.protagSig;
+  // v53.1: evolving 능력 선택 시에만 LV업 진행
+  if (ps.id !== 'evolving') return null;
+  if (ps.lv >= 10) return null;  // 만렙
+  ps.totalHands++;
+  ps.handsForNext--;
+  if (ps.handsForNext <= 0) {
+    ps.lv++;
+    ps.handsForNext = 50;
+    saveCareer();
+    return ps.lv;
+  }
+  saveCareer();
+  return null;
 }
 
 // AI pseudo-abilities based on skill + personality
@@ -14389,8 +14795,11 @@ function absorbAbility(key) {
 }
 
 function equipSpecial(key) {
+  // 같은 능력이 보조에 있었으면 보조 비움 (중복 방지)
+  if (career.specialAbilities.activeSub === key) career.specialAbilities.activeSub = null;
   career.specialAbilities.active = key;
   saveCareer();
+  closeModal();
   openAbilityMenu();
 }
 
@@ -14398,6 +14807,43 @@ function unequipSpecial() {
   career.specialAbilities.active = null;
   saveCareer();
   openAbilityMenu();
+}
+
+// v53: 보조 슬롯 장착/해제
+function equipSpecialSub(key) {
+  if (career.specialAbilities.active === key) career.specialAbilities.active = null;
+  career.specialAbilities.activeSub = key;
+  saveCareer();
+  closeModal();
+  openAbilityMenu();
+}
+
+function unequipSpecialSub() {
+  career.specialAbilities.activeSub = null;
+  saveCareer();
+  openAbilityMenu();
+}
+
+// v53: 슬롯 선택 모달 — 컬렉션에서 클릭 시 어느 슬롯에 장착할지
+function pickSpecialSlot(key) {
+  const ab = SPECIAL_ABILITIES[key];
+  if (!ab) return;
+  const color = getRarityColor(ab.rarity);
+  const html = `<div style="padding:14px;text-align:center;">
+    <div style="font-size:48px;margin:6px 0;">${ab.icon}</div>
+    <h3 style="color:${color};font-size:15px;">${ab.name}</h3>
+    <div style="font-size:11px;color:var(--text-dim);margin:6px 0 14px 0;">어느 슬롯에 장착할까요?</div>
+    <div style="display:flex;gap:10px;justify-content:center;">
+      <button onclick="equipSpecial('${key}')" style="flex:1;padding:14px;background:rgba(255,200,73,0.15);border:2px solid var(--gold-bright);color:var(--gold-bright);font-weight:700;">
+        ⚡ 코어 슬롯<br><span style="font-size:10px;font-weight:400;">메인 효과 (큰 보너스)</span>
+      </button>
+      <button onclick="equipSpecialSub('${key}')" style="flex:1;padding:14px;background:rgba(94,168,255,0.15);border:2px solid #5ea8ff;color:#5ea8ff;font-weight:700;">
+        🔹 보조 슬롯<br><span style="font-size:10px;font-weight:400;">서브 효과 (시너지)</span>
+      </button>
+    </div>
+    <div style="text-align:center;margin-top:14px;"><button onclick="closeModal()">취소</button></div>
+  </div>`;
+  showModal(html);
 }
 
 // === Ability menu UI ===
@@ -14818,9 +15264,13 @@ function renderAbilityRadar(abilityData, size = 280, maxLv = 30, label = '') {
 
 function openAbilityMenu() {
   ensureAbilities();
+  ensureProtagSig();
   const abilities = career.pokerAbilities;
   const activeKey = career.specialAbilities.active;
   const activeAb = activeKey ? SPECIAL_ABILITIES[activeKey] : null;
+  // v53: 보조 슬롯
+  const activeSubKey = career.specialAbilities.activeSub;
+  const activeSubAb = activeSubKey ? SPECIAL_ABILITIES[activeSubKey] : null;
   const eff = getActiveEffects();
 
   // 8 ability bars — each row clickable to show detail tutorial
@@ -14855,39 +15305,99 @@ function openAbilityMenu() {
     </div>`;
   }
 
-  // Active special slot
-  let activeSlotHtml = '';
-  if (activeAb) {
-    const color = getRarityColor(activeAb.rarity);
-    activeSlotHtml = `<div style="background:${color}22;border:2px solid ${color};border-radius:10px;padding:14px;margin:10px 0;">
-      <div style="display:flex;align-items:center;gap:12px;">
-        <div style="font-size:36px;">${activeAb.icon}</div>
-        <div style="flex:1;">
-          <div style="font-weight:700;font-size:14px;color:${color};">${activeAb.name}</div>
-          <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-top:2px;">${activeAb.rarity} · ${activeAb.owner}</div>
-          <div style="font-size:12px;color:var(--text);margin-top:6px;line-height:1.5;">${activeAb.desc}</div>
-        </div>
-        <button onclick="unequipSpecial()" style="padding:6px 12px;font-size:11px;">해제</button>
-      </div>
-    </div>`;
-  } else {
-    activeSlotHtml = `<div style="border:2px dashed var(--border-light);border-radius:10px;padding:18px;margin:10px 0;text-align:center;color:var(--text-dim);font-size:13px;">
-      장착된 특수 능력 없음<br><span style="font-size:11px;">컬렉션에서 능력을 장착하세요</span>
-    </div>`;
-  }
+  // v53.1: 주인공 특수능력 — 4종 중 선택 가능, 현재 선택된 거 위에 표시
+  const ps = career.protagSig;
+  const curSig = getProtagSigInfo();
+  const pb = getProtagBonus();
+  // 현재 효과 요약
+  const effectSummary = (() => {
+    if (curSig.id === 'evolving') {
+      return ps.lv > 1 ? `✨ 모든 능력 +${ps.lv - 1}` : '효과 없음 (LV1)';
+    }
+    if (curSig.id === 'memory_book') {
+      const c = (career.specialAbilities?.collected || []).length;
+      return c > 0 ? `📚 모든 능력 +${c} (${c}명 격파)` : '효과 없음 (격파 0)';
+    }
+    if (curSig.id === 'pattern_learn') {
+      return (pb.insight || 0) > 0 ? `👁️ 통찰력 +${pb.insight}` : '효과 없음 (100핸드 필요)';
+    }
+    if (curSig.id === 'iron_mental') {
+      return `🛡️ 멘탈 +20, 틸트 회복 2배`;
+    }
+    return '';
+  })();
 
-  // Collection grid (15 total)
+  // evolving 전용 progress bar
+  const evolvingProgress = (curSig.id === 'evolving')
+    ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+         <span style="font-family:'Press Start 2P','Galmuri11',monospace;color:var(--gold-bright);">LV ${ps.lv}<span style="font-size:10px;">/${curSig.maxLv}</span></span>
+         <span style="font-size:11px;color:var(--text);">${effectSummary}</span>
+       </div>
+       <div style="background:rgba(255,255,255,0.08);height:6px;border-radius:3px;overflow:hidden;margin-top:6px;">
+         <div style="background:linear-gradient(90deg,#5ea8ff,var(--gold-bright));height:100%;width:${((50 - ps.handsForNext) / 50) * 100}%;"></div>
+       </div>
+       <div style="font-size:10px;color:var(--text-dim);margin-top:4px;">${ps.lv >= 10 ? '🏆 만렙' : `다음 LV까지 ${ps.handsForNext}핸드`} · 누적 ${ps.totalHands}핸드</div>`
+    : `<div style="margin-top:8px;font-size:13px;color:var(--text);">${effectSummary}</div>`;
+
+  const protagSlotHtml = `<div style="background:linear-gradient(135deg, rgba(255,200,73,0.18), rgba(255,200,73,0.04));border:2px solid rgba(255,200,73,0.5);border-radius:10px;padding:14px;margin:10px 0;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="font-size:38px;">${curSig.icon}</div>
+      <div style="flex:1;">
+        <div style="font-weight:800;font-size:14px;color:var(--gold-bright);">${curSig.name}</div>
+        <div style="font-size:10px;color:var(--gold-bright);letter-spacing:1px;margin-top:2px;">★ 주인공 고유 — "${curSig.tagline}"</div>
+        ${evolvingProgress}
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text-dim);margin-top:8px;line-height:1.5;border-top:1px solid rgba(255,255,255,0.08);padding-top:8px;">${curSig.desc}</div>
+    <button onclick="openProtagSigPicker()" style="width:100%;margin-top:10px;padding:8px;font-size:11px;background:rgba(255,200,73,0.1);border:1px solid rgba(255,200,73,0.4);color:var(--gold-bright);">🔄 다른 능력으로 변경</button>
+  </div>`;
+
+  // 코어 슬롯 (기존 active)
+  const slotHTML = (ab, slotLabel, unequipFn) => {
+    if (ab) {
+      const color = getRarityColor(ab.rarity);
+      return `<div style="background:${color}22;border:2px solid ${color};border-radius:10px;padding:14px;margin:10px 0;">
+        <div style="font-size:10px;color:${color};letter-spacing:2px;margin-bottom:6px;font-weight:700;">${slotLabel}</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="font-size:36px;">${ab.icon}</div>
+          <div style="flex:1;">
+            <div style="font-weight:700;font-size:14px;color:${color};">${ab.name}</div>
+            <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-top:2px;">${ab.rarity} · ${ab.owner}</div>
+            <div style="font-size:12px;color:var(--text);margin-top:6px;line-height:1.5;">${ab.desc}</div>
+          </div>
+          <button onclick="${unequipFn}" style="padding:6px 12px;font-size:11px;">해제</button>
+        </div>
+      </div>`;
+    }
+    return `<div style="border:2px dashed var(--border-light);border-radius:10px;padding:14px;margin:10px 0;text-align:center;color:var(--text-dim);">
+      <div style="font-size:10px;letter-spacing:2px;margin-bottom:6px;color:var(--gold-soft);">${slotLabel}</div>
+      <div style="font-size:13px;">빈 슬롯</div>
+      <div style="font-size:11px;margin-top:3px;">컬렉션에서 능력 장착</div>
+    </div>`;
+  };
+  const activeSlotHtml = slotHTML(activeAb, '⚡ 코어 슬롯 (메인 효과)', 'unequipSpecial()');
+  const activeSubSlotHtml = slotHTML(activeSubAb, '🔹 보조 슬롯 (서브 효과)', 'unequipSpecialSub()');
+
+  // Collection grid (20 total) — v53: 코어/보조 슬롯 어디든 장착 가능
   let collectionHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:8px;">';
   for (const [key, ab] of Object.entries(SPECIAL_ABILITIES)) {
     const owned = career.specialAbilities.collected.includes(key);
-    const isActive = activeKey === key;
+    const isCore = activeKey === key;
+    const isSub = activeSubKey === key;
+    const isEquipped = isCore || isSub;
     const color = getRarityColor(ab.rarity);
     if (owned) {
-      collectionHtml += `<div onclick="${isActive ? '' : `equipSpecial('${key}')`}" style="background:${color}22;border:2px solid ${color};border-radius:8px;padding:10px;cursor:${isActive ? 'default' : 'pointer'};opacity:${isActive ? 0.7 : 1};text-align:center;">
+      const clickHandler = isEquipped ? '' : `pickSpecialSlot('${key}')`;
+      const equipBadge = isCore
+        ? '<div style="font-size:9px;color:var(--green);margin-top:4px;font-weight:700;">✓ 코어</div>'
+        : isSub
+        ? '<div style="font-size:9px;color:#5ea8ff;margin-top:4px;font-weight:700;">✓ 보조</div>'
+        : '<div style="font-size:9px;color:var(--gold-soft);margin-top:4px;">클릭하여 장착</div>';
+      collectionHtml += `<div onclick="${clickHandler}" style="background:${color}22;border:2px solid ${color};border-radius:8px;padding:10px;cursor:${isEquipped ? 'default' : 'pointer'};opacity:${isEquipped ? 0.85 : 1};text-align:center;">
         <div style="font-size:28px;">${ab.icon}</div>
         <div style="font-weight:700;font-size:11px;color:${color};margin-top:4px;">${ab.name}</div>
         <div style="font-size:9px;color:var(--text-dim);margin-top:2px;">${ab.owner}</div>
-        ${isActive ? '<div style="font-size:9px;color:var(--green);margin-top:4px;font-weight:700;">✓ 장착중</div>' : '<div style="font-size:9px;color:var(--gold-soft);margin-top:4px;">클릭하여 장착</div>'}
+        ${equipBadge}
       </div>`;
     } else {
       collectionHtml += `<div style="background:var(--bg-card-2);border:2px dashed var(--border);border-radius:8px;padding:10px;text-align:center;filter:grayscale(1) brightness(0.5);">
@@ -14903,8 +15413,12 @@ function openAbilityMenu() {
   const html = `<h3>🎮 포커 능력 시스템</h3>
   <p style="font-size:12px;color:var(--text-dim);">싱글플레이 도중 액션과 결과로 능력 XP 누적. 유명 플레이어 격파 시 그들의 시그니처 능력 흡수 가능. <b style="color:var(--gold-bright);">각 능력 카드 클릭 시 상세 설명 →</b></p>
 
-  <h4 style="color:var(--gold-bright);margin-top:14px;">★ 활성 특수 능력</h4>
+  <h4 style="color:var(--gold-bright);margin-top:14px;">🧬 주인공 고유 능력</h4>
+  ${protagSlotHtml}
+
+  <h4 style="color:var(--gold-bright);margin-top:14px;">★ 활성 특수 능력 (2 슬롯)</h4>
   ${activeSlotHtml}
+  ${activeSubSlotHtml}
 
   <h4 style="color:var(--gold-bright);margin-top:14px;">📊 8 기본 능력</h4>
   <div style="background:radial-gradient(ellipse at center, rgba(255,217,61,0.05) 0%, transparent 70%);padding:8px;border-radius:10px;margin-bottom:10px;">
