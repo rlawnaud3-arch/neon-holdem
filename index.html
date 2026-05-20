@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v50.6 ★ 5 ORIGINAL BGM TRACKS (LOBBY / PUB / GANGNAM / MACAU / VEGAS)</title>
+<title>NEON HOLDEM v50.8 ★ 7 TRACKS — WSOP POKER CALCULUS (FOCUS MODE)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -3634,6 +3634,10 @@ function enterVenue(venueId) {
     const curDay = (typeof getCurrentDay === 'function') ? getCurrentDay() : (career.day || 1);
     triggerDayTransitionCinematic(venueId, curDay);
   }
+  // v50.7: 베뉴 진입 시 BGM 트랙 해금 체크 (시네마틱 끝나고 보상 모달 띄움)
+  if (typeof checkBGMUnlock === 'function') {
+    setTimeout(() => checkBGMUnlock(venueId), 2200);
+  }
 
   const you = {
     name: career.playerName || '나', isHuman: true,
@@ -7221,14 +7225,109 @@ function toggleBGM() {
 }
 
 // === BGM Tracks ===
-// v50.6: 오리지널 MP3 5곡
+// v50.7: 오리지널 MP3 6곡 + 해금 시스템
+//   unlockVenue: 해당 베뉴 첫 진입 시 해금
+//   reward: 해금 시 즉시 부여되는 능력 (레벨 +1)
 const BGM_TRACK_LIST = [
-  { id: 'lobby-neon',    icon: '🌃', name: '네온 홀덤 (메인 테마)', desc: '게임 오리지널 송 — 사이버 네온 무드', external: 'audio/lobby-neon.mp3' },
-  { id: 'pub-subway',    icon: '🚇', name: 'Subway Last Train',   desc: '동네 펍 — 막차 직전의 묘한 정적',   external: 'audio/pub-subway.mp3' },
-  { id: 'seoul-gangnam', icon: '🥃', name: 'Gangnam Whiskey',     desc: '강남 — 위스키 한 잔과 텍사스 홀덤', external: 'audio/seoul-gangnam.mp3' },
-  { id: 'macau-vip',     icon: '🎺', name: '마카오 VIP Room',     desc: '카지노 라운지 — 차이니즈 무드',     external: 'audio/macau-vip.mp3' },
-  { id: 'vegas-whiskey', icon: '🥂', name: 'Whiskey Dealbreakers', desc: '베가스/WSOP — 딜이 깨지는 순간의 긴장', external: 'audio/vegas-whiskey.mp3' }
+  { id: 'lobby-neon',    icon: '🌃', name: '네온 홀덤 (메인 테마)', desc: '게임 오리지널 송 — 사이버 네온 무드',
+    external: 'audio/lobby-neon.mp3',
+    unlocked: true,  // 기본 해금
+    reward: null },
+  { id: 'pub-subway',    icon: '🚇', name: 'Subway Last Train',   desc: '동네 펍 — 막차 직전의 묘한 정적',
+    external: 'audio/pub-subway.mp3',
+    unlockVenue: 'pub',
+    reward: { stat: 'patience', label: '⏳ 인내심 +1 LV' } },
+  { id: 'seoul-gangnam', icon: '🥃', name: 'Gangnam Whiskey',     desc: '강남 — 위스키 한 잔과 텍사스 홀덤',
+    external: 'audio/seoul-gangnam.mp3',
+    unlockVenue: 'seoul',
+    reward: { stat: 'insight', label: '👁️ 통찰력 +1 LV' } },
+  { id: 'macau-vip',     icon: '🎺', name: '마카오 VIP Room',     desc: '카지노 라운지 — 차이니즈 무드',
+    external: 'audio/macau-vip.mp3',
+    unlockVenue: 'macau',
+    reward: { stat: 'pokerFace', label: '😐 포커페이스 +1 LV' } },
+  { id: 'vegas-whiskey', icon: '🥂', name: 'Whiskey Dealbreakers', desc: '베가스 — 딜이 깨지는 순간의 긴장',
+    external: 'audio/vegas-whiskey.mp3',
+    unlockVenue: 'vegas',
+    reward: { stat: 'pressure', label: '🔥 압박 +1 LV' } },
+  { id: 'wsop-calculus', icon: '🧮', name: 'Poker Calculus',     desc: 'WSOP — 집중용, 계산하는 머리 속 정적',
+    external: 'audio/wsop-calculus.mp3',
+    unlockVenue: 'wsop',
+    reward: { stat: 'math', label: '📐 수학 +1 LV' } },
+  { id: 'triton-final',  icon: '💎', name: 'Triton Final Table',  desc: '하이스테이크 결승 — 솔버 수준의 정적',
+    external: 'audio/triton-final.mp3',
+    unlockVenue: 'triton',
+    reward: { stat: 'exploit', label: '🎯 익스플로잇 +1 LV' } }
 ];
+
+// v50.7: 해금 시스템 — 트랙 ID가 unlockedTracks에 있는지로 판단
+function isTrackUnlocked(trackId) {
+  const track = BGM_TRACK_LIST.find(t => t.id === trackId);
+  if (!track) return false;
+  if (track.unlocked) return true;  // 기본 해금 (lobby-neon)
+  if (!career.unlockedTracks) career.unlockedTracks = [];
+  return career.unlockedTracks.includes(trackId);
+}
+
+// 베뉴 진입 시 해당 트랙 해금 체크 + 보상 부여
+function checkBGMUnlock(venueId) {
+  if (!career.unlockedTracks) career.unlockedTracks = [];
+  const track = BGM_TRACK_LIST.find(t => t.unlockVenue === venueId);
+  if (!track) return;
+  if (career.unlockedTracks.includes(track.id)) return;  // 이미 해금됨
+
+  // 신규 해금
+  career.unlockedTracks.push(track.id);
+  // 보상: 능력 레벨 +1
+  let rewardText = '';
+  if (track.reward && track.reward.stat) {
+    ensureAbilities();
+    const a = career.pokerAbilities[track.reward.stat];
+    if (a) {
+      a.lv = Math.min(100, a.lv + 1);
+      a.xp = 0;
+      rewardText = track.reward.label;
+    }
+  }
+  saveCareer();
+
+  // 해금 시네마틱 모달
+  showBGMUnlockModal(track, rewardText);
+}
+
+// 해금 모달 — 화려하게
+function showBGMUnlockModal(track, rewardText) {
+  const html = `<div style="text-align:center;padding:24px 18px;">
+    <div style="font-size:11px;color:var(--gold-bright);letter-spacing:4px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:14px;">★ BGM UNLOCKED ★</div>
+    <div style="font-size:80px;margin-bottom:8px;filter:drop-shadow(0 0 18px rgba(255,200,73,0.6));">${track.icon}</div>
+    <h2 style="color:var(--gold-bright);font-size:18px;margin:8px 0;letter-spacing:1.5px;font-family:'Press Start 2P','Galmuri11',monospace;">${track.name}</h2>
+    <div style="font-size:12px;color:var(--text-dim);margin:6px 0 18px 0;font-style:italic;">${track.desc}</div>
+    ${rewardText ? `<div style="background:linear-gradient(135deg, rgba(255,200,73,0.18), rgba(255,200,73,0.06));border:1.5px solid rgba(255,200,73,0.5);border-radius:10px;padding:14px;margin:14px 0;">
+      <div style="font-size:10px;color:var(--gold-bright);letter-spacing:2px;margin-bottom:6px;">REWARD</div>
+      <div style="font-size:16px;font-weight:800;color:var(--gold-bright);">${rewardText}</div>
+    </div>` : ''}
+    <div style="font-size:11px;color:var(--text-dim);margin-top:12px;line-height:1.6;">
+      🎵 이제부터 BGM 메뉴에서 자유롭게 선택 가능
+    </div>
+    <button class="btn-primary" onclick="closeModal()" style="margin-top:18px;padding:12px 30px;font-size:13px;font-weight:700;animation:event-cta-pulse 1.8s ease-in-out infinite;">계속 →</button>
+  </div>`;
+  showModal(html);
+  if (typeof sfxFanfare === 'function') { try { sfxFanfare(); } catch (e) {} }
+  if (typeof triggerSparkles === 'function') triggerSparkles(20);
+}
+
+// 마이그레이션: 이미 방문한 베뉴는 자동 해금 (기존 유저용)
+function migrateBGMUnlocksFromVisited() {
+  if (!career.unlockedTracks) career.unlockedTracks = [];
+  career._visitedVenues = career._visitedVenues || [];
+  for (const venueId of career._visitedVenues) {
+    const track = BGM_TRACK_LIST.find(t => t.unlockVenue === venueId);
+    if (track && !career.unlockedTracks.includes(track.id)) {
+      career.unlockedTracks.push(track.id);
+      // 마이그레이션은 보상 X (이미 진행된 베뉴)
+    }
+  }
+  saveCareer();
+}
 // v50.5: 기본 트랙 — 로비 네온 (합성 트랙 제거됨)
 let currentTrack = 'lobby-neon';
 try {
@@ -7340,16 +7439,28 @@ function openBGMSettings() {
       : `<span style="font-size:10px;color:var(--text-dim);">베뉴 입장 시 자동 전환 중</span>`
     }
   </div>
-  ${BGM_TRACK_LIST.map(t => `
-    <div onclick="pickBGMTrackManually('${t.id}')"
-         style="display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer;border:2px solid ${currentTrack === t.id ? 'var(--gold-bright)' : 'var(--border)'};margin:8px 0;border-radius:8px;background:${currentTrack === t.id ? 'rgba(255,217,61,0.08)' : 'transparent'};transition:all 0.15s;">
+  ${BGM_TRACK_LIST.map(t => {
+    const unlocked = (typeof isTrackUnlocked === 'function') ? isTrackUnlocked(t.id) : true;
+    const isCurrent = currentTrack === t.id;
+    if (!unlocked) {
+      const venueName = (VENUES.find(v => v.id === t.unlockVenue) || {}).name || t.unlockVenue;
+      return `<div style="display:flex;align-items:center;gap:12px;padding:14px;border:2px dashed rgba(255,255,255,0.18);margin:8px 0;border-radius:8px;background:rgba(255,255,255,0.02);opacity:0.65;">
+        <div style="font-size:28px;filter:grayscale(1);">🔒</div>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:14px;color:var(--text-dim);">??? <span style="font-size:10px;color:var(--text-dim);">(잠김)</span></div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${venueName} 첫 진입 시 해금 + ${t.reward?.label || '능력 보상'}</div>
+        </div>
+      </div>`;
+    }
+    return `<div onclick="pickBGMTrackManually('${t.id}')"
+         style="display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer;border:2px solid ${isCurrent ? 'var(--gold-bright)' : 'var(--border)'};margin:8px 0;border-radius:8px;background:${isCurrent ? 'rgba(255,217,61,0.08)' : 'transparent'};transition:all 0.15s;">
       <div style="font-size:28px;">${t.icon}</div>
       <div style="flex:1;">
-        <div style="font-weight:700;font-size:14px;color:${currentTrack === t.id ? 'var(--gold-bright)' : 'var(--text)'};">${t.name} ${currentTrack === t.id ? '✓' : ''}</div>
+        <div style="font-weight:700;font-size:14px;color:${isCurrent ? 'var(--gold-bright)' : 'var(--text)'};">${t.name} ${isCurrent ? '✓' : ''}</div>
         <div style="font-size:12px;color:var(--text-dim);margin-top:2px;">${t.desc}</div>
       </div>
-    </div>
-  `).join('')}
+    </div>`;
+  }).join('')}
   <div style="text-align:center;margin-top:14px;"><button onclick="closeModal()">닫기</button></div>`;
   showModal(html);
 }
@@ -12727,16 +12838,16 @@ function computePersonalityRead(p) {
 }
 
 // ===================== VENUE-SPECIFIC BGM MAPPING =====================
-// v50.6: 베뉴별 전용 MP3 매핑 (5곡 모두 활용)
+// v50.8: 베뉴별 전용 MP3 매핑 (7곡) — WSOP 전용 Poker Calculus 추가
 const VENUE_BGM = {
   lobby:  'lobby-neon',     // 🌃 메인 테마
-  pub:    'pub-subway',     // 🚇 동네 펍 — Subway Last Train
-  seoul:  'seoul-gangnam',  // 🥃 강남 — Gangnam Whiskey
-  macau:  'macau-vip',      // 🎺 마카오 — VIP Room
-  vegas:  'vegas-whiskey',  // 🥂 벨라지오 — Whiskey Dealbreakers
-  wsop:   'vegas-whiskey',  // 🥂 WSOP — Whiskey Dealbreakers (동일 톤)
-  london: 'lobby-neon',     // 🌃 런던 — 메인 테마 (전용 곡 추가 시 교체)
-  triton: 'lobby-neon'      // 🌃 트라이튼 — 메인 테마 (전용 곡 추가 시 교체)
+  pub:    'pub-subway',     // 🚇 동네 펍
+  seoul:  'seoul-gangnam',  // 🥃 강남
+  macau:  'macau-vip',      // 🎺 마카오
+  vegas:  'vegas-whiskey',  // 🥂 벨라지오
+  wsop:   'wsop-calculus',  // 🧮 WSOP — 집중용
+  london: 'vegas-whiskey',  // 🥂 런던 (잠정 — 전용 곡 추가 시 교체)
+  triton: 'triton-final'    // 💎 트라이튼
 };
 
 // v50.4: 사용자가 수동으로 트랙 선택했으면 자동 전환 안 함
@@ -12744,7 +12855,11 @@ let _bgmManualOverride = false;
 try { _bgmManualOverride = localStorage.getItem('holdem-bgm-manual') === '1'; } catch (e) {}
 
 function autoSwitchVenueBGM(venueId) {
-  const targetTrack = VENUE_BGM[venueId] || 'funky';
+  let targetTrack = VENUE_BGM[venueId] || 'lobby-neon';
+  // v50.7: 해금 안 된 트랙이면 로비 테마로 폴백
+  if (typeof isTrackUnlocked === 'function' && !isTrackUnlocked(targetTrack)) {
+    targetTrack = 'lobby-neon';
+  }
   if (currentTrack === targetTrack) return;
   if (!bgmEnabled) return;  // user has BGM off
   if (_bgmManualOverride) return;  // v50.4: 수동 선택 보존
@@ -14997,6 +15112,8 @@ function updateCloudStatus(errMsg) {
 
 // ===================== Init =====================
 loadCareer();
+// v50.7: BGM 해금 마이그레이션 (기존 유저는 방문한 베뉴 트랙 자동 해금)
+if (typeof migrateBGMUnlocksFromVisited === 'function') migrateBGMUnlocksFromVisited();
 renderLobby();
 initFirebase();
 // v50.4: 앱 시작 시 로비 테마송 매핑 (실제 재생은 첫 클릭 후 — 브라우저 자동재생 정책)
