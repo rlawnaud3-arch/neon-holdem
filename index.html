@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v51 ★ CHAMPION SIGNATURES (20 UNIQUE PATTERNS)</title>
+<title>NEON HOLDEM v52 ★ PERSONAL STORY ARCS (5 CHARS × 5 CHAPTERS = 25 CUTSCENES)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -3638,6 +3638,10 @@ function enterVenue(venueId) {
   if (typeof checkBGMUnlock === 'function') {
     setTimeout(() => checkBGMUnlock(venueId), 2200);
   }
+  // v52: 인물별 미니 아크 — 베뉴 진입 시 트리거 체크
+  if (typeof checkPersonalArcs === 'function') {
+    setTimeout(() => checkPersonalArcs(), 4500);
+  }
 
   const you = {
     name: career.playerName || '나', isHuman: true,
@@ -4270,6 +4274,8 @@ function newHand() {
   checkTrophyProgress();
   // Check sub-events (after hand count updates)
   checkSubEvents();
+  // v52: 인물별 미니 아크 체크 (핸드 수/자금 조건)
+  if (typeof checkPersonalArcs === 'function') checkPersonalArcs();
   // === DEBT CLEARED CINEMATIC (1억 도달) ===
   if (career.bankroll >= 100000000 && !career._debtClearedShown) {
     setTimeout(() => triggerDebtClearedCinematic(), 1200);
@@ -5188,6 +5194,58 @@ function aiDecide(p) {
   let signatureFlash = null;
   if (sig?.signatureMove && Math.random() < 0.04) {  // 4% 확률
     signatureFlash = sig.signatureMove;
+  }
+  // v51.1: 시그니처 멘트 — 챔피언이 가끔 채팅 버블로 시그니처 라인 던짐
+  //         발동 조건: (a) 시그니처 무브 발동 시 무조건, (b) 일반적으로 3% 확률
+  const shouldTriggerSigLine = sig?.signature && (signatureFlash || Math.random() < 0.03);
+  if (shouldTriggerSigLine) {
+    // 시그니처 무브별 전용 라인 (있으면)
+    const moveLines = {
+      doyles_hand: ['Sometimes ten-deuce is the nuts.', 'T-2... my favorite.', '깡통도 너트가 될 수 있어.'],
+      hero_bluff: ['$1M challenge — accepted.', 'Let\'s gamble.', '나는 못 보는 게 없어.'],
+      turn_pressure: ['Pressure is the language I speak.', 'You feel that?', '턴이 결정적이지.'],
+      rage_call: ['YOU CANNOT BE SERIOUS!', 'I\'m the greatest!', '내가 진다고? 말도 안 돼!']
+    };
+    // 챔피언 이름별 멀티 라인 풀
+    const championLinesPool = {
+      'Phil Ivey': ['I see everything.', 'You\'re not telling the truth.', '...', 'Showtime.'],
+      'D. Negreanu': ['You have... pocket sevens?', 'I know what you have.', 'Trust the gut.', 'Reading souls.'],
+      'P. Hellmuth': ['I\'m the greatest!', 'YOU CANNOT BE SERIOUS!', 'Unbelievable!', 'Only I can play this hand.'],
+      'Doyle Brunson': ['Texas style.', 'Old school.', 'Sometimes ten-deuce is the nuts.', 'Been here since \'67.'],
+      'Tom Dwan': ['Let\'s gamble.', 'durrrr challenge.', 'Big pot incoming.', 'I\'m never folding.'],
+      'P. Antonius': ['...', '*silent stare*', '...'],
+      'S. Chidwick': ['솔버 정답.', 'Calculated.', 'Optimal frequency.'],
+      'Bryn Kenney': ['$56M doesn\'t lie.', 'Big game hunter.', 'All-time money list.'],
+      'J. Bonomo': ['Calculated.', 'EV+ confirmed.', 'Solver-approved.'],
+      'Fedor Holz': ['Optimal.', 'Solver King.', 'Calculated risk.'],
+      'Sam Trickett': ['Pressure is the language I speak.', 'London style.', 'Feel the heat.'],
+      'Stu Ungar': ['I just know.', 'Intuition never lies.', '*reads your soul*'],
+      'Erik Seidel': ['40년의 인내.', 'Patience pays.', 'Old school.'],
+      'Jason Koon': ['솔버 출력대로.', 'Triton standard.', 'GTO mode.'],
+      'Phil Galfond': ['여기서 GTO 정답은...', 'Run it once.', '여기 텔이 보이는데?'],
+      '김연수': ['한국 포커의 깊이.', '내공이 다릅니다.', '한 수 보여드릴게요.'],
+      '김도균': ['틸트는 약자의 변명.', 'APT 챔피언입니다.', '멘탈은 흔들리지 않아.'],
+      '천재준': ['익스플로잇이 진짜 GTO야.', '당신 누수 다 보여요.', '레인지가 너무 넓네.'],
+      '박재정': ['당신 베팅 패턴, 다 기억하고 있어요.', '두 번째 만나면 안 헷갈려.', '메모리.'],
+      '정명원': ['폴드도 기술입니다.', '한국 그라인더 스타일.', '아시아 톤.']
+    };
+    let line;
+    if (signatureFlash && moveLines[signatureFlash]) {
+      const arr = moveLines[signatureFlash];
+      line = arr[Math.floor(Math.random() * arr.length)];
+    } else {
+      const pool = championLinesPool[p.famousData.name];
+      if (pool && Math.random() < 0.7) {
+        line = pool[Math.floor(Math.random() * pool.length)];
+      } else {
+        line = sig.signature;
+      }
+    }
+    const myIdx = state.players.indexOf(p);
+    if (myIdx >= 0 && typeof showChatBubble === 'function') {
+      // 0.5초 지연 — AI 차례 시작 직후에 버블 표시
+      setTimeout(() => showChatBubble(myIdx, line), 500 + Math.random() * 400);
+    }
   }
 
   // Tilt: overvalue hands, loosen up
@@ -10042,6 +10100,211 @@ const STORY_CHARS = {
   // === 동반자 캐릭터 (v46) ===
   seoa:      { name: '윤서아', role: '럭셔리 동반자', emoji: '💋', relationship: '동반자' }
 };
+
+// === v52: 인물별 미니 아크 (5명 × 5컷 = 25 감정선 컷씬) ===
+//   cond: 트리거 조건 — { bankroll?, handsTotal?, venueHands?, atVenue?, beatChampion? }
+//   reward: 컷씬 종료 시 보상 (xp / cash)
+const PERSONAL_ARCS = {
+  // 1. 어머니 (mother) — 가족 사랑선
+  mother: [
+    { id: 'mother_1', title: '엄마의 첫 전화', char: 'mother',
+      cond: { handsTotal: 5 },
+      text: '카톡 알림 — "엄마"<br><br>"민준아... 너 진짜 괜찮은 거니?<br>회사도 그만뒀다며?<br>엄마는 너 어디서 뭐 하는지 알아야 잠이 와..."<br><br><i>차마 도박이라고는 말 못 했다.</i>',
+      reward: { xp: { mental: 30 } } },
+    { id: 'mother_2', title: '김치찌개 택배', char: 'mother',
+      cond: { venueHands: { pub: 30 } },
+      text: '집에서 택배가 왔다.<br><br>"엄마가 만든 김치찌개랑 반찬.<br>밥은 챙겨 먹고 있니?<br>야위어 보이더라..."<br><br><i>혼자 사는 자취방에 앉아 한 그릇 먹었다.<br>오랜만에 따뜻한 밥이었다.</i>',
+      reward: { xp: { mental: 50, patience: 30 } } },
+    { id: 'mother_3', title: '엄마의 자랑', char: 'mother',
+      cond: { bankroll: 50000000 },
+      text: '엄마: "민준아, 일은 잘 풀리는 거야?<br>옆집 박씨 아줌마가 너 이야기 묻길래...<br><br>그래도 일은 안정적인 거지?"<br><br><i>5천만원 회복했다.<br>아직 도박이라고는 못 했다.<br>"네 엄마. 잘 풀리고 있어요."</i>',
+      reward: { xp: { mental: 80 } } },
+    { id: 'mother_4', title: '아빠의 부고', char: 'mother',
+      cond: { bankroll: 500000000 },
+      text: '엄마: "민준아... 아빠가 어제 새벽에...<br>장례식 하루만 와줄 수 있어?<br><br>도박이든 뭐든, 엄마는 너만 있으면 돼."<br><br><i>마카오 호텔방에서 무너졌다.<br>5억 자금이 의미가 없어졌다.<br>한국행 비행기를 끊었다.</i>',
+      reward: { xp: { all: 30 } } },
+    { id: 'mother_5', title: '엄마의 인정', char: 'mother',
+      cond: { atVenue: 'triton' },
+      text: '트라이튼 도착 전, 엄마와 마지막 통화.<br><br>엄마: "민준아... 너 진짜 멋있다.<br>아빠도 하늘에서 보고 있을 거야.<br><br>이젠 너 길 가라. 엄마는 너 믿어."<br><br><i>전화를 끊고 한참 울었다.<br>그리고 카지노에 들어갔다.</i>',
+      reward: { xp: { all: 50 }, cash: 5000000 } }
+  ],
+
+  // 2. 박준영 (joonyoung) — 우정선
+  joonyoung: [
+    { id: 'joonyoung_1', title: '안주는 친구가', char: 'joonyoung', charVariant: 'msg',
+      cond: { handsTotal: 10 },
+      text: '박준영(KPMG): "야 새끼야.<br>너 그 코인 사건 이후로 연락 안 받더라?<br><br>오늘 술 한잔하자. 내가 살게."<br><br><i>친구가 먼저 손 내밀어줬다.<br>처음으로 도박 이야기를 꺼냈다.</i>',
+      reward: { xp: { mental: 40 } } },
+    { id: 'joonyoung_2', title: 'KPMG 복귀 제안', char: 'joonyoung',
+      cond: { venueHands: { seoul: 100 } },
+      text: '박준영: "야, 우리 부서에 한 자리 비었다.<br>너 다시 와볼래?<br>3년 차 연봉부터 시작할 수 있어."<br><br><i>안전한 길이 손짓했다.<br>그러나 이미 답은 정해져 있었다.<br>"고맙다. 근데 난 내 길을 가볼게."</i>',
+      reward: { xp: { mental: 60, patience: 40 } } },
+    { id: 'joonyoung_3', title: '결혼식 청첩장', char: 'joonyoung', charVariant: 'msg',
+      cond: { bankroll: 200000000 },
+      text: '박준영: "야 너 내년에 한국 잠깐 들어올 수 있냐?<br>나 결혼한다 ㅋㅋㅋ<br><br>네가 신랑 친구 자리 부탁할게.<br>너 아니면 부탁할 사람이 없어."<br><br><i>20년 친구의 결혼식.<br>꼭 가야겠다.</i>',
+      reward: { xp: { mental: 80 } } },
+    { id: 'joonyoung_4', title: '뉴스에 나왔어', char: 'joonyoung', charVariant: 'msg',
+      cond: { beatChampion: 'jaejeong' },
+      text: '박준영: "야 너 한국 뉴스 나왔어!<br>\"KPMG 출신 김민준, WSOP에서 박재정 격파\"<br><br>너 진짜 멋있다 새끼야.<br>나 회사에서 자랑 중이다 ㅋㅋ"<br><br><i>친구의 자랑이 가장 기뻤다.</i>',
+      reward: { xp: { all: 25 } } },
+    { id: 'joonyoung_5', title: '둘이 있는 마지막 술자리', char: 'joonyoung', charVariant: 'cry',
+      cond: { atVenue: 'triton' },
+      text: '한국 휴가 마지막 날, 박준영과 단둘이.<br><br>박준영: "야 민준아...<br>너 트라이튼 가는 거 진짜야?<br><br>거긴 진짜 끝판왕이라며. 살아 돌아와."<br><br>김민준: "응. 그리고 우승하고 올게."<br><br><i>친구는 처음으로 울었다.</i>',
+      reward: { xp: { mental: 100, pressure: 50 } } }
+  ],
+
+  // 3. 윤서아 (seoa) — 동반자 아크
+  seoa: [
+    // seoa_1은 이미 SPECIAL_HAND_EVENTS의 first_meeting으로 존재 — 여기선 스킵
+    { id: 'seoa_2', title: '윤서아의 호기심', char: 'seoa',
+      cond: { venueHands: { macau: 100 } },
+      text: '윤서아: "당신... 진짜 도박꾼이 아니네요.<br>학자 같아요.<br><br>매 핸드 계산하는 표정 — 매력적이에요."<br><br>김민준: "...고맙습니다."<br><br><i>그녀의 시선이 따뜻하다.</i>',
+      reward: { xp: { mental: 50, pokerFace: 30 } } },
+    { id: 'seoa_3', title: '베가스 동행 제안', char: 'seoa',
+      cond: { atVenue: 'vegas' },
+      text: '벨라지오 입구.<br>윤서아가 캐리어를 들고 서 있다.<br><br>윤서아: "베가스도 같이 가요.<br>저는 어차피 자유로워요.<br><br>당신 곁에 있고 싶어요."<br><br><i>이제 혼자가 아니다.</i>',
+      reward: { xp: { mental: 80 } } },
+    { id: 'seoa_4', title: '진짜 멋있어요', char: 'seoa',
+      cond: { venueHands: { wsop: 50 } },
+      text: 'WSOP 휴식 시간.<br>윤서아가 옆에 앉아 와인 한 잔.<br><br>윤서아: "내가 본 사람 중 가장 차분해요.<br>큰돈 앞에서 그렇게 멀쩡한 사람 — 처음이에요.<br><br>당신, 진짜 멋있어."<br><br><i>최고의 칭찬이었다.</i>',
+      reward: { xp: { mental: 100, insight: 50 } } },
+    { id: 'seoa_5', title: '결승전 옆자리', char: 'seoa',
+      cond: { atVenue: 'triton' },
+      text: '트라이튼 결승 전날 밤.<br>윤서아가 손을 잡았다.<br><br>윤서아: "나, 당신 결승전 보고 싶어요.<br>객석 옆자리에 있을게요.<br><br>이긴다고 믿어요."<br><br><i>그녀의 손이 따뜻했다.<br>이긴다.</i>',
+      reward: { xp: { all: 30 } } }
+  ],
+
+  // 4. 신철호 (chulho) — 거울/경고선
+  chulho: [
+    { id: 'chulho_1', title: '옛 코인 동료의 경고', char: 'chulho',
+      cond: { handsTotal: 20 },
+      text: '신철호: "야 민준아... 또 도박이냐?<br>너 코인으로 8천 잃었잖아.<br><br>이번엔 다른 거라고? 다 같은 거야.<br>제발 정신 차려."<br><br><i>오랜 친구의 진심 어린 충고.<br>그러나 이미 카드는 잡았다.</i>',
+      reward: { xp: { mental: 30, patience: 30 } } },
+    { id: 'chulho_2', title: '술 취한 메시지', char: 'chulho',
+      cond: { bankroll: 80000000 },
+      text: '새벽 3시. 신철호의 카톡.<br><br>"야 나 또 망했어 ㅋㅋ<br>이번엔 NFT였는데...<br>내가 너처럼 살아봤어. 끝이 안 좋더라.<br><br>너는 다르길..."<br><br><i>답장은 못 했다.</i>',
+      reward: { xp: { mental: 50 } } },
+    { id: 'chulho_3', title: '마카오의 재회', char: 'chulho',
+      cond: { venueHands: { macau: 50 } },
+      text: '마카오 호텔 로비.<br>익숙한 얼굴 — 신철호.<br>그런데 찌든 모습.<br><br>신철호: "어... 민준아.<br>너 진짜 잘 풀렸네...<br>나는... 나는 왜 이러냐."<br><br><i>거울을 본 것 같았다.</i>',
+      reward: { xp: { mental: 70, insight: 40 } } },
+    { id: 'chulho_4', title: '돈 좀 빌려줘', char: 'chulho',
+      cond: { atVenue: 'vegas' },
+      text: '신철호: "민준아... 진짜 미안한데...<br>2천만 원만 빌려줄 수 있냐?<br><br>비행기값도 없어. 한국 못 돌아가."<br><br><i>망설였다. 그러나 친구였다.<br>송금했다. 돌려받을 거란 기대 없이.</i>',
+      reward: { xp: { mental: 80 }, cash: -20000000 } },
+    { id: 'chulho_5', title: '마지막 통화', char: 'chulho',
+      cond: { atVenue: 'triton' },
+      text: '신철호: "민준아... 나는 못 따라왔어.<br>트라이튼은 너만 가는 곳이야.<br><br>네가 우승하면 나도 살아진다.<br>꼭 이겨."<br><br><i>전화기 너머의 친구는 진심이었다.<br>이긴다.</i>',
+      reward: { xp: { mental: 100, pressure: 50 } } }
+  ],
+
+  // 5. 박재정 (jaejeong) — 멘토선
+  jaejeong: [
+    { id: 'jaejeong_1', title: '한국 후배 처음 만난다', char: 'jaejeong',
+      cond: { venueHands: { macau: 20 } },
+      text: '마카오 베네시안.<br>박재정 — WSOP 한국인 첫 우승자.<br><br>박재정: "한국에서 후배 처음 만난다.<br>편하게 형이라고 불러.<br><br>같이 공부해보자."<br><br><i>진짜 멘토를 만났다.</i>',
+      reward: { xp: { insight: 60, math: 40 } } },
+    { id: 'jaejeong_2', title: 'GTO만 따라가지 마', char: 'jaejeong',
+      cond: { venueHands: { macau: 200 } },
+      text: '박재정: "민준아, GTO만 따라가지 마.<br>적응이 진짜 GTO야.<br><br>펍에선 펍 게임을, 트라이튼에선 트라이튼 게임을.<br>유연함이 실력이다."<br><br><i>가르침을 받았다.</i>',
+      reward: { xp: { exploit: 80, insight: 50 } } },
+    { id: 'jaejeong_3', title: '내가 본 한국 최고', char: 'jaejeong',
+      cond: { venueHands: { vegas: 50 } },
+      text: '벨라지오 휴식 시간.<br>박재정이 어깨를 두드린다.<br><br>박재정: "야, 너 이제 나 다 따라왔다.<br>아니, 어떤 부분은 더 잘해.<br><br>한국 포커계의 미래야."<br><br><i>가슴이 뜨거워졌다.</i>',
+      reward: { xp: { all: 25 } } },
+    { id: 'jaejeong_4', title: '제자가 스승을 넘다', char: 'jaejeong',
+      cond: { beatChampion: 'jaejeong' },
+      text: '박재정 격파 직후.<br>그가 카드를 보여주며 미소.<br><br>박재정: "너 진짜다.<br>이제 한국 포커의 다음 세대는 너야.<br><br>WSOP 메인 이벤트에서 만나자.<br>이번엔 내가 응원할게."<br><br><i>제자가 스승을 넘었다.</i>',
+      reward: { xp: { all: 50 } } },
+    { id: 'jaejeong_5', title: '내가 못한 거 너가 해줘', char: 'jaejeong',
+      cond: { atVenue: 'triton' },
+      text: '트라이튼 결승 직전.<br>박재정이 한국에서 전화.<br><br>박재정: "민준아... 내가 못한 거 너가 해줘.<br>한국 사람이 트라이튼 우승한다.<br><br>그게 우리 세대의 꿈이었어.<br>꼭 이겨라."<br><br><i>형의 꿈을 안고 카드를 잡는다.</i>',
+      reward: { xp: { all: 60 }, cash: 10000000 } }
+  ]
+};
+
+// 매 핸드 끝/베뉴 진입 시 아크 트리거 체크
+function checkPersonalArcs() {
+  if (!career) return;
+  career._arcsFired = career._arcsFired || {};
+  ensureCareer();
+  for (const [charKey, chapters] of Object.entries(PERSONAL_ARCS)) {
+    for (const ch of chapters) {
+      if (career._arcsFired[ch.id]) continue;
+      // 조건 평가
+      const cond = ch.cond || {};
+      let ok = true;
+      if (cond.handsTotal && (career.handsPlayed || 0) < cond.handsTotal) ok = false;
+      if (cond.bankroll && career.bankroll < cond.bankroll) ok = false;
+      if (cond.atVenue && state?.venue?.id !== cond.atVenue) ok = false;
+      if (cond.venueHands) {
+        for (const [vid, count] of Object.entries(cond.venueHands)) {
+          const vh = career.venueStats?.[vid]?.hands || 0;
+          if (vh < count) ok = false;
+        }
+      }
+      if (cond.beatChampion) {
+        const beaten = (career.specialAbilities?.collected || []).includes(cond.beatChampion);
+        if (!beaten) ok = false;
+      }
+      if (!ok) continue;
+      // 발동
+      career._arcsFired[ch.id] = Date.now();
+      // 보상 적용
+      if (ch.reward) {
+        if (ch.reward.cash) career.bankroll += ch.reward.cash;
+        if (ch.reward.xp) {
+          ensureAbilities();
+          for (const [stat, xp] of Object.entries(ch.reward.xp)) {
+            if (stat === 'all') {
+              for (const k of Object.keys(ABILITY_DEFS)) gainXP(k, xp, '인물 아크');
+            } else gainXP(stat, xp, '인물 아크');
+          }
+        }
+      }
+      saveCareer();
+      // 모달 표시 — 1초 지연 (다른 모달 안 충돌)
+      setTimeout(() => showArcChapter(ch, charKey), 1200);
+      return;  // 한 핸드에 하나만 발동
+    }
+  }
+}
+
+function showArcChapter(ch, charKey) {
+  // 다른 모달이 열려있으면 다음 핸드로 미룸
+  if (document.getElementById('modal-container').innerHTML !== '') {
+    setTimeout(() => showArcChapter(ch, charKey), 3000);
+    return;
+  }
+  const charInfo = STORY_CHARS[charKey] || {};
+  const charVisual = (typeof getCharImageBigHTML === 'function')
+    ? getCharImageBigHTML(charKey, 180, ch.charVariant || '')
+    : `<div style="font-size:80px;">${charInfo.emoji || '✨'}</div>`;
+
+  const rewardHTML = ch.reward
+    ? `<div style="font-size:11px;color:var(--gold-bright);margin-top:10px;">
+        ${ch.reward.cash ? `💰 ${ch.reward.cash > 0 ? '+' : ''}$${ch.reward.cash.toLocaleString()}` : ''}
+        ${ch.reward.xp ? Object.entries(ch.reward.xp).map(([s,v]) => s === 'all' ? ` · 모든 능력 +${v}` : ` · ${ABILITY_DEFS[s]?.icon || ''} +${v}`).join('') : ''}
+      </div>`
+    : '';
+
+  const html = `<div style="text-align:center;padding:22px 16px;">
+    <div style="font-size:11px;color:var(--pink);letter-spacing:4px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:14px;">★ STORY ★</div>
+    <h2 style="color:var(--gold-bright);font-size:17px;margin:8px 0 14px 0;letter-spacing:1.5px;font-family:'Press Start 2P','Galmuri11',monospace;">${ch.title}</h2>
+    ${charVisual}
+    <div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-card-2);border:1px solid var(--pink);padding:4px 10px;border-radius:14px;margin:10px 0;">
+      <span style="font-size:11px;color:var(--pink);font-weight:700;">${charInfo.name || charKey}</span>
+      <span style="font-size:10px;color:var(--text-dim);">· ${charInfo.relationship || ''}</span>
+    </div>
+    <div style="font-size:13px;line-height:1.95;color:var(--text);margin:14px 0;text-align:left;padding:0 6px;">${ch.text}</div>
+    ${rewardHTML}
+    <button class="btn-primary" onclick="closeModal()" style="margin-top:16px;padding:12px 30px;font-size:13px;font-weight:700;">계속 →</button>
+  </div>`;
+  showModal(html);
+  if (typeof triggerSparkles === 'function') triggerSparkles(10);
+  // BGM 살짝 덕킹 — 감정 강조
+  if (typeof duckBGM === 'function') duckBGM(7000);
+}
 
 // === 캐릭터 이미지 시스템 (v33 — PNG 통일 + variant 지원) ===
 // 파일명 규칙: char-{id}.png 또는 char-{id}-{variant}.png
