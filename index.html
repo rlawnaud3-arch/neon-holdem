@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v50.8 ★ 7 TRACKS — WSOP POKER CALCULUS (FOCUS MODE)</title>
+<title>NEON HOLDEM v50.10 ★ GTO SSoT + POSTFLOP REFINEMENT (C-BET, DRAWS, SIZING)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -6200,42 +6200,15 @@ function recordDecision(p, action, amount) {
   recordDecisionForHistory(decision);
 }
 
+// v50.9: getRecommendation은 gtoRecommend에 위임 (SSoT — 단일 진실 소스)
+//        핸드 리뷰 / judgment / 코치가 모두 같은 GTO 차트 공유
 function getRecommendation(p, strength, toCall, potOdds) {
-  if (state.street === 'preflop') {
-    const raises = state.handTrack.preflopRaises;
-    if (raises === 0) {
-      // No raises yet (limped pot or you're first)
-      if (strength >= 65) return {action: '오픈 레이즈', reason: `강한 핸드 (강도 ${Math.round(strength)})`};
-      if (strength >= 45) return {action: '오픈/체크', reason: '평균 핸드, 포지션 고려'};
-      return {action: '폴드/체크', reason: '약한 핸드'};
-    } else if (raises === 1) {
-      // Facing open raise
-      if (strength >= 80) return {action: '쓰리벳', reason: `프리미엄 핸드 (강도 ${Math.round(strength)})`};
-      if (strength >= 60) return {action: '콜', reason: '플레이어블 핸드'};
-      return {action: '폴드', reason: '레이즈에 약함'};
-    } else if (raises === 2) {
-      // Facing 3-bet
-      if (strength >= 88) return {action: '포벳/올인', reason: `프리미엄 (강도 ${Math.round(strength)})`};
-      if (strength >= 75) return {action: '콜', reason: '3-bet에 콜할 수 있는 핸드'};
-      return {action: '폴드', reason: '3-bet에 폴드 권장'};
-    } else {
-      if (strength >= 92) return {action: '콜/올인', reason: '4-bet에도 강한 핸드'};
-      return {action: '폴드', reason: '4-bet+ 액션은 너트만'};
-    }
+  if (typeof gtoRecommend === 'function') {
+    const gto = gtoRecommend(p);
+    if (gto) return { action: gto.action, reason: gto.reason };
   }
-  // Postflop
-  if (toCall === 0) {
-    if (strength >= 75) return {action: '베팅 (밸류)', reason: `강한 핸드 (강도 ${Math.round(strength)})`};
-    if (strength >= 55) return {action: '베팅 (밸류/프로텍션)', reason: '미디엄 강도, 보호 필요'};
-    if (strength >= 35) return {action: '체크', reason: '약한 핸드, 컨트롤'};
-    return {action: '체크/폴드', reason: '드로우 없는 약한 핸드'};
-  } else {
-    if (strength >= 85) return {action: '레이즈', reason: `너트급 (강도 ${Math.round(strength)})`};
-    if (strength >= 60) return {action: '콜', reason: '강한 핸드, 콜링'};
-    if (strength >= 40 && potOdds < 0.3) return {action: '콜', reason: `좋은 팟 오즈 (${(potOdds*100).toFixed(0)}%)`};
-    if (potOdds < 0.15 && strength >= 25) return {action: '콜', reason: '아주 좋은 팟 오즈'};
-    return {action: '폴드', reason: `핸드 약함, 팟 오즈 ${(potOdds*100).toFixed(0)}%`};
-  }
+  // Fallback (gtoRecommend 못 부르는 엣지 케이스만 — 거의 발생 안 함)
+  return { action: '체크', reason: '판단 보류' };
 }
 
 function judgeDecision(action, rec, strength, toCall, potOdds) {
@@ -6300,6 +6273,157 @@ function getPositionLabel(p) {
 
 // GTO 추천 — strength + position + raises 컨텍스트 종합
 // 반환: { action, sizing, reason, confidence }
+// v50.9: 핸드 → string 변환 (예: ['Ah','Js'] → 'AJs', ['As','Js'] → 'AJs', ['Ah','Jc'] → 'AJo', ['Tc','Td'] → 'TT')
+function handToKey(cards) {
+  if (!cards || cards.length < 2) return '';
+  const RANK_ORDER = '23456789TJQKA';
+  const rankChar = (c) => {
+    if (c.rank === '10') return 'T';
+    return c.rank;  // 'A', 'K', 'Q', 'J', '2'-'9'
+  };
+  const r1 = rankChar(cards[0]);
+  const r2 = rankChar(cards[1]);
+  if (r1 === r2) return r1 + r2;  // pair (e.g. 'TT', 'AA')
+  // sort high → low
+  const v1 = RANK_ORDER.indexOf(r1);
+  const v2 = RANK_ORDER.indexOf(r2);
+  const high = v1 > v2 ? r1 : r2;
+  const low  = v1 > v2 ? r2 : r1;
+  const suited = cards[0].suit === cards[1].suit;
+  return high + low + (suited ? 's' : 'o');
+}
+
+// v50.9: 9-handed 캐쉬게임 GTO 오픈 레인지 (표준 차트)
+const GTO_OPEN_RANGES = {
+  UTG: new Set([
+    '22','33','44','55','66','77','88','99','TT','JJ','QQ','KK','AA',
+    'AKs','AQs','AJs','ATs','A9s','A8s','A7s','A6s','A5s','A4s','A3s','A2s',
+    'AKo','AQo','AJo',
+    'KQs','KJs','KTs','K9s',
+    'KQo','KJo',
+    'QJs','QTs','Q9s',
+    'JTs','J9s',
+    'T9s'
+  ]),
+  UTG1: new Set([
+    '22','33','44','55','66','77','88','99','TT','JJ','QQ','KK','AA',
+    'AKs','AQs','AJs','ATs','A9s','A8s','A7s','A6s','A5s','A4s','A3s','A2s',
+    'AKo','AQo','AJo','ATo',
+    'KQs','KJs','KTs','K9s','K8s',
+    'KQo','KJo',
+    'QJs','QTs','Q9s','Q8s',
+    'JTs','J9s','J8s',
+    'T9s','T8s',
+    '98s','87s'
+  ]),
+  MP: new Set([
+    '22','33','44','55','66','77','88','99','TT','JJ','QQ','KK','AA',
+    'AKs','AQs','AJs','ATs','A9s','A8s','A7s','A6s','A5s','A4s','A3s','A2s',
+    'AKo','AQo','AJo','ATo',
+    'KQs','KJs','KTs','K9s','K8s',
+    'KQo','KJo','KTo',
+    'QJs','QTs','Q9s','Q8s',
+    'QJo','QTo',
+    'JTs','J9s','J8s',
+    'JTo',
+    'T9s','T8s',
+    '98s','87s','76s'
+  ]),
+  MP1: new Set([
+    '22','33','44','55','66','77','88','99','TT','JJ','QQ','KK','AA',
+    'AKs','AQs','AJs','ATs','A9s','A8s','A7s','A6s','A5s','A4s','A3s','A2s',
+    'AKo','AQo','AJo','ATo','A9o',
+    'KQs','KJs','KTs','K9s','K8s','K7s',
+    'KQo','KJo','KTo',
+    'QJs','QTs','Q9s','Q8s',
+    'QJo','QTo',
+    'JTs','J9s','J8s',
+    'JTo',
+    'T9s','T8s','T7s',
+    '98s','97s','87s','86s','76s','65s'
+  ]),
+  HJ: new Set([
+    '22','33','44','55','66','77','88','99','TT','JJ','QQ','KK','AA',
+    'AKs','AQs','AJs','ATs','A9s','A8s','A7s','A6s','A5s','A4s','A3s','A2s',
+    'AKo','AQo','AJo','ATo','A9o',
+    'KQs','KJs','KTs','K9s','K8s','K7s','K6s','K5s',
+    'KQo','KJo','KTo','K9o',
+    'QJs','QTs','Q9s','Q8s','Q7s',
+    'QJo','QTo','Q9o',
+    'JTs','J9s','J8s','J7s',
+    'JTo','J9o',
+    'T9s','T8s','T7s',
+    '98s','97s','87s','86s','76s','75s','65s','54s'
+  ]),
+  CO: new Set([
+    '22','33','44','55','66','77','88','99','TT','JJ','QQ','KK','AA',
+    'AKs','AQs','AJs','ATs','A9s','A8s','A7s','A6s','A5s','A4s','A3s','A2s',
+    'AKo','AQo','AJo','ATo','A9o','A8o','A7o',
+    'KQs','KJs','KTs','K9s','K8s','K7s','K6s','K5s','K4s','K3s','K2s',
+    'KQo','KJo','KTo','K9o','K8o',
+    'QJs','QTs','Q9s','Q8s','Q7s','Q6s','Q5s',
+    'QJo','QTo','Q9o','Q8o',
+    'JTs','J9s','J8s','J7s','J6s',
+    'JTo','J9o','J8o',
+    'T9s','T8s','T7s','T6s',
+    'T9o','T8o',
+    '98s','97s','96s','98o',
+    '87s','86s','85s',
+    '76s','75s','74s',
+    '65s','64s','54s','53s'
+  ]),
+  BTN: new Set([
+    '22','33','44','55','66','77','88','99','TT','JJ','QQ','KK','AA',
+    'AKs','AQs','AJs','ATs','A9s','A8s','A7s','A6s','A5s','A4s','A3s','A2s',
+    'AKo','AQo','AJo','ATo','A9o','A8o','A7o','A6o','A5o','A4o','A3o','A2o',
+    'KQs','KJs','KTs','K9s','K8s','K7s','K6s','K5s','K4s','K3s','K2s',
+    'KQo','KJo','KTo','K9o','K8o','K7o','K6o','K5o',
+    'QJs','QTs','Q9s','Q8s','Q7s','Q6s','Q5s','Q4s','Q3s','Q2s',
+    'QJo','QTo','Q9o','Q8o','Q7o',
+    'JTs','J9s','J8s','J7s','J6s','J5s','J4s',
+    'JTo','J9o','J8o','J7o',
+    'T9s','T8s','T7s','T6s','T5s',
+    'T9o','T8o','T7o',
+    '98s','97s','96s','95s',
+    '98o','97o',
+    '87s','86s','85s','84s',
+    '87o',
+    '76s','75s','74s','73s',
+    '65s','64s','63s',
+    '54s','53s','52s',
+    '43s','42s','32s'
+  ]),
+  SB: new Set([
+    '22','33','44','55','66','77','88','99','TT','JJ','QQ','KK','AA',
+    'AKs','AQs','AJs','ATs','A9s','A8s','A7s','A6s','A5s','A4s','A3s','A2s',
+    'AKo','AQo','AJo','ATo','A9o','A8o','A7o','A6o','A5o','A4o','A3o','A2o',
+    'KQs','KJs','KTs','K9s','K8s','K7s','K6s','K5s','K4s','K3s','K2s',
+    'KQo','KJo','KTo','K9o','K8o','K7o','K6o','K5o',
+    'QJs','QTs','Q9s','Q8s','Q7s','Q6s','Q5s','Q4s','Q3s','Q2s',
+    'QJo','QTo','Q9o','Q8o','Q7o',
+    'JTs','J9s','J8s','J7s','J6s','J5s',
+    'JTo','J9o','J8o',
+    'T9s','T8s','T7s','T6s',
+    'T9o','T8o',
+    '98s','97s','96s',
+    '87s','86s','85s',
+    '76s','75s','65s','54s'
+  ])
+};
+
+// 3-bet 레인지 — 오픈에 맞서 (대략적 GTO IP/OOP 통합)
+const GTO_3BET_RANGES = {
+  UTG:  new Set(['AA','KK','QQ','AKs','AKo']),  // UTG가 UTG 오픈에 3-bet
+  UTG1: new Set(['AA','KK','QQ','JJ','AKs','AKo','AQs']),
+  MP:   new Set(['AA','KK','QQ','JJ','AKs','AKo','AQs','AQo','A5s','A4s']),  // 블러프 추가
+  MP1:  new Set(['AA','KK','QQ','JJ','TT','AKs','AKo','AQs','AQo','AJs','A5s','A4s']),
+  HJ:   new Set(['AA','KK','QQ','JJ','TT','AKs','AKo','AQs','AQo','AJs','KQs','A5s','A4s','A3s']),
+  CO:   new Set(['AA','KK','QQ','JJ','TT','99','AKs','AKo','AQs','AQo','AJs','AJo','KQs','A5s','A4s','A3s','A2s']),
+  BTN:  new Set(['AA','KK','QQ','JJ','TT','99','88','AKs','AKo','AQs','AQo','AJs','AJo','ATs','KQs','KJs','A5s','A4s','A3s','A2s','76s','65s','54s']),
+  SB:   new Set(['AA','KK','QQ','JJ','TT','99','AKs','AKo','AQs','AQo','AJs','AJo','KQs','KJs','A5s','A4s','A3s']),
+  BB:   new Set(['AA','KK','QQ','JJ','TT','99','88','AKs','AKo','AQs','AQo','AJs','AJo','KQs','A5s','A4s','A3s','A2s'])
+};
+
 function gtoRecommend(p) {
   if (!p || !state || !p.cards || p.cards.length < 2) return null;
   const street = state.street;
@@ -6309,79 +6433,155 @@ function gtoRecommend(p) {
   const potOdds = toCall > 0 ? toCall / (state.pot + toCall) : 0;
 
   if (street === 'preflop') {
-    const strength = preflopStrength(p.cards);
-    const range = GTO_POSITION_RANGES[pos] || GTO_POSITION_RANGES.MP;
+    const handKey = handToKey(p.cards);
+    const openRange = GTO_OPEN_RANGES[pos] || GTO_OPEN_RANGES.MP;
+    const threeBetRange = GTO_3BET_RANGES[pos] || GTO_3BET_RANGES.MP;
 
     if (raises === 0) {
-      // 오픈/체크 결정
-      // strength가 (100 - range.open)보다 크면 오픈 — 예: BTN open 45%면 strength >= 55면 오픈
-      const threshold = 100 - range.open;
-      if (strength >= threshold) {
-        return { action: '오픈 레이즈', sizing: '2.5BB', reason: `${pos} 오픈 ${range.open}% 레인지 포함`, confidence: 'high' };
+      // 오픈/체크 결정 — 명시 차트 기준
+      if (openRange.has(handKey)) {
+        return { action: '오픈 레이즈', sizing: '2.5BB', reason: `${pos} 오픈 레인지에 ${handKey} 포함`, confidence: 'high' };
       }
-      return { action: '폴드', sizing: null, reason: `${pos} 오픈 레인지 밖 (강도 ${Math.round(strength)} < ${threshold})`, confidence: 'high' };
+      return { action: '폴드', sizing: null, reason: `${pos} 오픈 레인지 밖 (${handKey})`, confidence: 'high' };
     }
     if (raises === 1) {
-      // 콜/3-bet/폴드
-      const threeBetThr = 100 - range.threeBet;
-      if (strength >= threeBetThr) {
-        return { action: '3-bet', sizing: '9BB (IP) / 11BB (OOP)', reason: `${pos} 3-bet 레인지 ${range.threeBet}% 포함`, confidence: 'high' };
+      // 오픈에 맞서 — 3-bet / 콜 / 폴드
+      if (threeBetRange.has(handKey)) {
+        return { action: '3-bet', sizing: '9BB (IP) / 11BB (OOP)', reason: `${pos} 3-bet 레인지에 ${handKey} 포함`, confidence: 'high' };
       }
-      // 콜 레인지 — open + 10~15% 더 (suited connectors 등)
-      const callThr = 100 - range.open - 8;
-      if (strength >= callThr && pos !== 'UTG') {
-        return { action: '콜', sizing: null, reason: `${pos} 플랫콜 레인지 (suited/connector)`, confidence: 'medium' };
+      // 플랫콜 레인지 = 오픈 레인지 - 3-bet 레인지 (UTG는 콜 거의 없음)
+      if (openRange.has(handKey) && pos !== 'UTG' && pos !== 'UTG1') {
+        return { action: '콜', sizing: null, reason: `${pos} 플랫콜 레인지 (${handKey})`, confidence: 'medium' };
       }
-      return { action: '폴드', sizing: null, reason: `오픈에 약함 (강도 ${Math.round(strength)})`, confidence: 'high' };
+      return { action: '폴드', sizing: null, reason: `오픈에 약함 (${handKey} — ${pos} 콜/3벳 레인지 밖)`, confidence: 'high' };
     }
     if (raises === 2) {
-      // 3-bet 직면 → 4-bet/콜/폴드
-      if (strength >= 92) return { action: '4-bet', sizing: '24BB', reason: 'AA-KK 4-bet 레인지', confidence: 'high' };
-      if (strength >= 85) return { action: '콜', sizing: null, reason: 'QQ-JJ, AK 콜 디펜스', confidence: 'medium' };
-      return { action: '폴드', sizing: null, reason: '3-bet에 폴드 권장', confidence: 'high' };
+      // 3-bet 직면 → 4-bet / 콜 / 폴드
+      const fourBetSet = new Set(['AA','KK','QQ','AKs','AKo','A5s','A4s']);  // value + 블러프 콤보
+      const callSet = new Set(['QQ','JJ','TT','AKs','AKo','AQs','AQo','AJs','KQs']);
+      if (fourBetSet.has(handKey)) return { action: '4-bet', sizing: '24BB', reason: `4-bet 레인지 (${handKey})`, confidence: 'high' };
+      if (callSet.has(handKey)) return { action: '콜', sizing: null, reason: `3-bet 디펜스 콜 (${handKey})`, confidence: 'medium' };
+      return { action: '폴드', sizing: null, reason: `3-bet에 폴드 (${handKey})`, confidence: 'high' };
     }
-    // 4-bet+
-    if (strength >= 95) return { action: '콜/5-bet 올인', sizing: 'All-in', reason: 'AA-KK only', confidence: 'high' };
-    return { action: '폴드', sizing: null, reason: '4-bet+ 액션은 너트만', confidence: 'high' };
+    // 4-bet+ — 5-bet 올인은 AA/KK + AK 블러프 일부
+    const fiveBetSet = new Set(['AA','KK','AKs','AKo']);
+    if (fiveBetSet.has(handKey)) return { action: '콜/5-bet 올인', sizing: 'All-in', reason: `프리미엄 (${handKey})`, confidence: 'high' };
+    return { action: '폴드', sizing: null, reason: `4-bet+은 너트만 (${handKey} 폴드)`, confidence: 'high' };
   }
 
-  // === Postflop ===
+  // === Postflop GTO (v50.10) ===
+  // 입력 신호: strength, street, IP/OOP, 이전 액션(PFR/콜러), 보드 텍스처, 사이즈, draws
   const strength = postflopStrength(p.cards, state.communityCards);
-  const pot = state.pot;
-  const isIP = state.handTrack?.preflopAggressorIdx === state.players.indexOf(p);
-  // c-bet sizing
+  const myIdx = state.players.indexOf(p);
+  const wasPFR = state.handTrack?.preflopAggressorIdx === myIdx;
   const board = state.communityCards;
   const boardTexture = analyzeBoardTexture(board);
+  const streetName = street;  // 'flop' / 'turn' / 'river'
+  // 베팅 사이즈 분석 — 콜 가격 / 팟 비율
+  const betSizePct = (toCall > 0 && state.pot > 0) ? Math.round((toCall / state.pot) * 100) : 0;
 
+  // 드로우 인지 — 페어 안 됐는데 컴비 보너스가 있으면 드로우 (대략)
+  const hasDraw = (() => {
+    if (!board || board.length < 3 || !p.cards) return false;
+    // 플러시 드로우: 4장 같은 수트
+    const suits = [...p.cards, ...board].map(c => c.suit);
+    const suitCounts = {};
+    suits.forEach(s => suitCounts[s] = (suitCounts[s]||0)+1);
+    if (Math.max(...Object.values(suitCounts)) === 4) return 'flush';
+    // 오픈엔디드: 4장 연속 (대략 추정)
+    const ranks = [...p.cards, ...board].map(c => c.value).sort((a,b)=>a-b);
+    for (let i = 0; i <= ranks.length - 4; i++) {
+      if (ranks[i+3] - ranks[i] === 3) return 'oesd';
+    }
+    return false;
+  })();
+
+  // === BET 결정 (체크 액션 옵션이 있는 경우) ===
   if (toCall === 0) {
-    // 베팅 결정
-    if (strength >= 80) {
-      const size = boardTexture === 'wet' ? '75% 팟' : '50% 팟';
-      return { action: '베팅 (밸류)', sizing: size, reason: `너트급 — ${boardTexture === 'wet' ? '웻 보드, 폴라' : '드라이, 머지드'}`, confidence: 'high' };
+    // 너트급 — 사이즈 강하게
+    if (strength >= 88) {
+      const size = boardTexture === 'wet' ? '75% 팟 (폴라)' : '60% 팟 (밸류 빌드)';
+      return { action: '베팅 (밸류)', sizing: size, reason: `${streetName} 너트급 — ${boardTexture === 'wet' ? '웻 보드, 폴라' : '드라이, 밸류 빌드'}`, confidence: 'high' };
     }
-    if (strength >= 55) {
-      const size = boardTexture === 'wet' ? '66% 팟' : '33% 팟';
-      return { action: '베팅 (밸류/프로텍션)', sizing: size, reason: `미디엄 — ${boardTexture} 보드 사이징`, confidence: 'medium' };
+    // 톱페어급 + PFR이면 C-bet (플랍에서)
+    if (strength >= 65) {
+      if (wasPFR && streetName === 'flop') {
+        const size = boardTexture === 'dry' ? '33% 팟 (스몰 C-bet)' : '66% 팟 (보호용)';
+        return { action: 'C-벳 (밸류)', sizing: size, reason: `PFR 플랍 C-bet — ${boardTexture} 보드`, confidence: 'high' };
+      }
+      return { action: '베팅 (밸류)', sizing: boardTexture === 'wet' ? '66% 팟' : '50% 팟', reason: `${streetName} 강한 핸드 밸류`, confidence: 'high' };
     }
-    if (strength >= 30) {
-      return { action: '체크', sizing: null, reason: '약함, 컨트롤', confidence: 'medium' };
+    // 미디엄 강도 — IP에선 자주 베팅, OOP면 체크 자주
+    if (strength >= 45) {
+      if (wasPFR && streetName === 'flop' && boardTexture === 'dry') {
+        return { action: 'C-벳 (블러프/약밸류)', sizing: '33% 팟', reason: 'PFR + 드라이 보드 → 작은 C-bet 빈도 ↑', confidence: 'medium' };
+      }
+      return { action: '체크', sizing: null, reason: `미디엄 핸드 — 컨트롤 ${streetName}`, confidence: 'medium' };
     }
-    return { action: '체크 (혹은 블러프)', sizing: '33% 팟', reason: '에어 — 블러프 빈도 30%', confidence: 'low' };
+    // 드로우 — 세미블러프
+    if (hasDraw) {
+      const drawType = hasDraw === 'flush' ? '플러시 드로우' : '오픈엔디드';
+      return { action: '베팅 (세미블러프)', sizing: '50% 팟', reason: `${drawType} — fold equity + 백업 에쿼티`, confidence: 'medium' };
+    }
+    // 에어 — 폴라 블러프 또는 체크 컨트롤
+    if (wasPFR && streetName === 'flop' && boardTexture === 'dry') {
+      return { action: 'C-벳 (블러프)', sizing: '33% 팟', reason: `드라이 보드 + PFR — 블러프 빈도 65%`, confidence: 'medium' };
+    }
+    return { action: '체크', sizing: null, reason: '에어 — 무료 카드 받기', confidence: 'high' };
   }
-  // 콜 vs 폴드 vs 레이즈
-  if (strength >= 88) {
-    return { action: '레이즈', sizing: '2.5x', reason: `너트급 — 밸류 레이즈`, confidence: 'high' };
+
+  // === FACING BET — 콜 / 폴드 / 레이즈 ===
+
+  // 너트급 — 사이즈 따라 레이즈/콜
+  if (strength >= 90) {
+    // 리버 너트면 밸류 레이즈, 플랍 너트면 자주 콜로 트랩
+    if (streetName === 'river' || betSizePct >= 75) {
+      return { action: '레이즈 (밸류)', sizing: '2.2x', reason: `너트급 vs ${betSizePct}% 팟 베팅 — 밸류 레이즈`, confidence: 'high' };
+    }
+    return { action: '콜 (트랩)', sizing: null, reason: '너트급 슬로우플레이 — 액션 부르기', confidence: 'high' };
   }
-  if (strength >= 65) {
-    return { action: '콜', sizing: null, reason: '강한 핸드 콜링', confidence: 'high' };
+
+  // 강한 핸드 (탑페어 톱키커+) — 콜 디펜드, 큰 베팅엔 폴드 고려
+  if (strength >= 70) {
+    if (betSizePct >= 100) {
+      // 오버벳에 약함
+      return { action: '콜 (어렵)', sizing: null, reason: `오버벳 ${betSizePct}% — 폴라 레인지, 콜은 아슬아슬`, confidence: 'low' };
+    }
+    return { action: '콜', sizing: null, reason: `탑페어급 — ${betSizePct}% 팟에 콜 디펜드`, confidence: 'high' };
   }
-  if (strength >= 35 && potOdds < 0.3) {
-    return { action: '콜', sizing: null, reason: `좋은 팟 오즈 ${(potOdds*100).toFixed(0)}%`, confidence: 'medium' };
+
+  // 미디엄 (미들페어 / 위크페어) — 팟 오즈로 판단
+  if (strength >= 40) {
+    if (potOdds < 0.25) {
+      return { action: '콜', sizing: null, reason: `미들페어 + 좋은 팟 오즈 ${(potOdds*100).toFixed(0)}%`, confidence: 'medium' };
+    }
+    if (betSizePct >= 75) {
+      return { action: '폴드', sizing: null, reason: `미들페어 vs 큰 베팅 ${betSizePct}% — 거의 콜 못함`, confidence: 'medium' };
+    }
+    return { action: '콜', sizing: null, reason: '미들페어 — 작은 사이즈 디펜드', confidence: 'medium' };
   }
+
+  // 드로우 — 팟 오즈 + 임플라이드
+  if (hasDraw) {
+    const drawType = hasDraw === 'flush' ? '플러시 드로우 (9 outs)' : '오픈엔디드 (8 outs)';
+    const eqNeed = hasDraw === 'flush' ? 0.20 : 0.18;  // 대략 9/47, 8/47
+    if (potOdds <= eqNeed * 1.5) {
+      return { action: '콜 (드로우)', sizing: null, reason: `${drawType} — 팟 오즈 ${(potOdds*100).toFixed(0)}% + 임플라이드`, confidence: 'medium' };
+    }
+    // 베팅이 너무 크면 세미블러프 레이즈도 옵션
+    if (betSizePct <= 50) {
+      return { action: '레이즈 (세미블러프)', sizing: '2.5x', reason: `${drawType} + fold equity`, confidence: 'low' };
+    }
+    return { action: '폴드', sizing: null, reason: `드로우인데 팟 오즈 부족 (${(potOdds*100).toFixed(0)}%)`, confidence: 'medium' };
+  }
+
+  // 위크페어 이하 + 거의 공짜 콜
   if (potOdds < 0.12 && strength >= 20) {
-    return { action: '콜', sizing: null, reason: '거의 공짜 콜', confidence: 'medium' };
+    return { action: '콜', sizing: null, reason: `거의 공짜 콜 ${(potOdds*100).toFixed(0)}% (Hero call 트라이)`, confidence: 'low' };
   }
-  return { action: '폴드', sizing: null, reason: `핸드 약함 (강도 ${Math.round(strength)}), 팟 오즈 ${(potOdds*100).toFixed(0)}%`, confidence: 'high' };
+
+  // 폴드
+  return { action: '폴드', sizing: null, reason: `핸드 약함 (강도 ${Math.round(strength)}) vs ${betSizePct}% 팟 베팅`, confidence: 'high' };
 }
 
 function analyzeBoardTexture(board) {
