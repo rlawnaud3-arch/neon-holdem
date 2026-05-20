@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v53.1 ★ 4 PROTAG BUILDS + COACH PANEL TOGGLE + MOBILE UI</title>
+<title>NEON HOLDEM v53.2 ★ BUILD COOLDOWN + RECOMMENDED CHAMPION SYNERGIES</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -14416,6 +14416,8 @@ function getEffectiveAbility(stat) {
 }
 
 // v53.1: 주인공 특수능력 4종 — 사용자가 골라 갈아끼우는 RPG 빌드
+// v53.2: 빌드별 추천 챔피언 시너지 + 변경 쿨다운 50핸드
+const PROTAG_CHANGE_COOLDOWN = 50;  // 변경 후 50핸드 동안 잠금
 const PROTAG_SIG_LIST = {
   evolving: {
     id: 'evolving',
@@ -14425,7 +14427,12 @@ const PROTAG_SIG_LIST = {
     desc: '핸드 50개마다 LV+1 (만렙 10).<br>레벨당 <b>모든 능력 영구 +1</b>.',
     maxLv: 10, handsPerLv: 50,
     pros: '꾸준한 보상, 모든 빌드와 시너지',
-    cons: '초반엔 효과 적음, 시간 투자 필요'
+    cons: '초반엔 효과 적음, 시간 투자 필요',
+    recommendations: {
+      core: ['ivey', 'brunson', 'yeonsu'],
+      sub: ['negreanu', 'galfond', 'ungar'],
+      reason: '모든 능력에 균형 보너스 — Ivey/Brunson 통찰력 강화 + Galfond 학습 명료도'
+    }
   },
   memory_book: {
     id: 'memory_book',
@@ -14434,7 +14441,12 @@ const PROTAG_SIG_LIST = {
     tagline: '격파 = 강해짐',
     desc: '격파한 챔피언 1명당 <b>모든 능력 +1</b>.<br>20명 전부 격파 시 모든 능력 +20.',
     pros: '격파 진행 시 폭발적 성장',
-    cons: '초보엔 효과 0, 격파 어려움'
+    cons: '초보엔 효과 0, 격파 어려움',
+    recommendations: {
+      core: ['dwan', 'trickett', 'kenney'],
+      sub: ['hellmuth', 'brunson', 'jaejun'],
+      reason: '격파 자체를 더 잘하도록 — Dwan 블러프 +30, Trickett 압박 +25로 어그로 빌드'
+    }
   },
   pattern_learn: {
     id: 'pattern_learn',
@@ -14443,7 +14455,12 @@ const PROTAG_SIG_LIST = {
     tagline: '관찰 = 강해짐',
     desc: '100핸드마다 <b>통찰력 +2</b>.<br>1000핸드 = 통찰력 +20 (영구).',
     pros: '읽기 능력 특화 (HUD 빨리 공개)',
-    cons: '한 가지 능력만 증가'
+    cons: '한 가지 능력만 증가',
+    recommendations: {
+      core: ['ivey', 'negreanu', 'ungar'],
+      sub: ['brunson', 'jaejeong', 'galfond'],
+      reason: '통찰력 최대 + earlyRead — Ivey/Negreanu/Ungar read 트리플 콤보로 거의 모든 핸드 분석'
+    }
   },
   iron_mental: {
     id: 'iron_mental',
@@ -14452,7 +14469,12 @@ const PROTAG_SIG_LIST = {
     tagline: '버티기 특화',
     desc: '<b>멘탈 영구 +20</b>, 틸트 회복 2배.<br>큰 손실 후에도 완벽 플레이.',
     pros: '즉시 효과, 손실 흡수 강함',
-    cons: '공격적 빌드와 시너지 약함'
+    cons: '공격적 빌드와 시너지 약함',
+    recommendations: {
+      core: ['dokyun', 'seidel', 'myungwon'],
+      sub: ['antonius', 'koon', 'chidwick'],
+      reason: '멘탈 80+ + 인내심 50+ + 틸트 면역 — Antonius/Koon GTO 빌드와 결합해 거의 무너지지 않음'
+    }
   }
 };
 
@@ -14488,24 +14510,53 @@ function ensureProtagSig() {
       id: 'evolving',   // 기본 — 진화하는 학습
       lv: 1,            // 1~10 (evolving 전용)
       handsForNext: 50,
-      totalHands: 0
+      totalHands: 0,
+      lastChangedAtHand: 0  // v53.2: 마지막 변경 시점
     };
   }
-  // 마이그레이션: 옛 데이터에 id 없으면 evolving으로 설정
+  // 마이그레이션
   if (!career.protagSig.id) career.protagSig.id = 'evolving';
+  if (career.protagSig.lastChangedAtHand === undefined) career.protagSig.lastChangedAtHand = 0;
+}
+
+// v53.2: 쿨다운 체크 — 변경 가능 여부 + 남은 핸드
+function getProtagChangeCooldown() {
+  ensureProtagSig();
+  const handsSince = (career.handsPlayed || 0) - career.protagSig.lastChangedAtHand;
+  const remaining = Math.max(0, PROTAG_CHANGE_COOLDOWN - handsSince);
+  return { remaining, canChange: remaining === 0 };
 }
 
 // 4개 특수능력 선택 모달
 function openProtagSigPicker() {
   ensureProtagSig();
   const curId = career.protagSig.id;
+  const cd = getProtagChangeCooldown();
+  const collected = career.specialAbilities?.collected || [];
+
+  const recBadge = (chKey) => {
+    const ab = SPECIAL_ABILITIES[chKey];
+    if (!ab) return '';
+    const owned = collected.includes(chKey);
+    const color = getRarityColor(ab.rarity);
+    return `<div style="display:inline-flex;align-items:center;gap:4px;padding:3px 6px;border:1px solid ${color}77;border-radius:3px;background:${color}15;margin:2px;font-size:10px;${owned ? '' : 'opacity:0.5;'}">
+      <span>${ab.icon}</span>
+      <span style="color:${color};font-weight:600;">${ab.owner}</span>
+      ${owned ? '<span style="color:#5db95d;font-size:9px;">✓</span>' : '<span style="color:var(--text-dim);font-size:9px;">미보유</span>'}
+    </div>`;
+  };
+
   const cards = Object.values(PROTAG_SIG_LIST).map(sig => {
     const isCurrent = sig.id === curId;
-    return `<div onclick="${isCurrent ? 'closeModal()' : `selectProtagSig('${sig.id}')`}"
+    const canClick = isCurrent || cd.canChange;
+    const clickHandler = isCurrent ? 'closeModal()' : (canClick ? `selectProtagSig('${sig.id}')` : `alert('쿨다운 중 — ${cd.remaining}핸드 후 변경 가능')`);
+    const rec = sig.recommendations || {};
+    return `<div onclick="${clickHandler}"
       class="protag-sig-card ${isCurrent ? 'is-current' : ''}"
       style="background:${isCurrent ? 'rgba(255,200,73,0.15)' : 'var(--bg-card-2)'};
              border:2px solid ${isCurrent ? 'var(--gold-bright)' : 'var(--border)'};
-             border-radius:10px;padding:14px;margin-bottom:10px;cursor:pointer;
+             border-radius:10px;padding:14px;margin-bottom:10px;cursor:${canClick ? 'pointer' : 'not-allowed'};
+             ${canClick ? '' : 'opacity:0.55;'}
              transition:all 0.2s;">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
         <div style="font-size:36px;">${sig.icon}</div>
@@ -14517,7 +14568,7 @@ function openProtagSigPicker() {
         </div>
       </div>
       <div style="font-size:12px;color:var(--text);line-height:1.6;margin-bottom:8px;">${sig.desc}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;margin-bottom:8px;">
         <div style="background:rgba(93,185,93,0.1);border-left:2px solid #5db95d;padding:4px 6px;border-radius:3px;">
           <div style="color:#5db95d;font-weight:700;">+ 장점</div>
           <div style="color:var(--text);margin-top:2px;">${sig.pros}</div>
@@ -14527,15 +14578,28 @@ function openProtagSigPicker() {
           <div style="color:var(--text);margin-top:2px;">${sig.cons}</div>
         </div>
       </div>
+      ${rec.core ? `<div style="background:rgba(94,168,255,0.08);border:1px solid rgba(94,168,255,0.3);border-radius:6px;padding:8px;">
+        <div style="font-size:10px;color:#7eb7ff;letter-spacing:1.5px;font-weight:700;margin-bottom:5px;">💡 추천 시너지</div>
+        <div style="font-size:10px;color:var(--text-dim);margin-bottom:4px;">⚡ 코어 슬롯:</div>
+        <div>${rec.core.map(recBadge).join('')}</div>
+        <div style="font-size:10px;color:var(--text-dim);margin:6px 0 4px 0;">🔹 보조 슬롯:</div>
+        <div>${rec.sub.map(recBadge).join('')}</div>
+        <div style="font-size:10px;color:var(--text);margin-top:6px;font-style:italic;line-height:1.5;">${rec.reason}</div>
+      </div>` : ''}
     </div>`;
   }).join('');
+
+  const cdMsg = !cd.canChange
+    ? `<div style="background:rgba(255,100,100,0.1);border:1px solid rgba(255,100,100,0.3);border-radius:6px;padding:8px 10px;margin-bottom:12px;font-size:11px;color:#ff6464;text-align:center;">⏳ 변경 쿨다운: <b>${cd.remaining}핸드 남음</b> (현재 빌드 유지 중)</div>`
+    : '';
 
   const html = `<div style="padding:10px;">
     <h3>🧬 주인공 특수능력 선택</h3>
     <div style="font-size:12px;color:var(--text-dim);margin-bottom:14px;line-height:1.5;">
-      4개 중 1개 선택. 언제든 변경 가능.<br>
-      <b>플레이 스타일에 맞춰 빌드를 골라보세요.</b>
+      4개 중 1개 선택. <b>변경은 50핸드마다 1회</b>.<br>
+      플레이 스타일에 맞춰 빌드와 추천 챔피언을 매칭하세요.
     </div>
+    ${cdMsg}
     ${cards}
     <div style="text-align:center;margin-top:8px;"><button onclick="closeModal();openAbilityMenu();">취소</button></div>
   </div>`;
@@ -14550,8 +14614,23 @@ function selectProtagSig(id) {
     closeModal();
     return;
   }
+  // v53.2: 쿨다운 체크
+  const cd = getProtagChangeCooldown();
+  if (!cd.canChange) {
+    showModal(`<div style="text-align:center;padding:20px;">
+      <div style="font-size:48px;margin-bottom:10px;">⏳</div>
+      <h3>변경 쿨다운 중</h3>
+      <div style="font-size:13px;color:var(--text-dim);margin:14px 0;line-height:1.7;">
+        능력 변경은 <b>50핸드마다 1회</b> 가능합니다.<br>
+        남은 핸드: <b style="color:var(--gold-bright);font-size:18px;">${cd.remaining}핸드</b><br>
+        <span style="font-size:11px;">미니맥스 방지 — 빌드는 신중하게.</span>
+      </div>
+      <button onclick="closeModal()">확인</button>
+    </div>`);
+    return;
+  }
   career.protagSig.id = id;
-  // evolving이 아닌 다른 능력으로 변경 시 lv는 보존 (다시 evolving으로 돌아오면 유지)
+  career.protagSig.lastChangedAtHand = career.handsPlayed || 0;  // v53.2: 쿨다운 시작
   saveCareer();
   // 변경 컨펌 시네마틱
   const sig = PROTAG_SIG_LIST[id];
@@ -15349,8 +15428,46 @@ function openAbilityMenu() {
       </div>
     </div>
     <div style="font-size:11px;color:var(--text-dim);margin-top:8px;line-height:1.5;border-top:1px solid rgba(255,255,255,0.08);padding-top:8px;">${curSig.desc}</div>
-    <button onclick="openProtagSigPicker()" style="width:100%;margin-top:10px;padding:8px;font-size:11px;background:rgba(255,200,73,0.1);border:1px solid rgba(255,200,73,0.4);color:var(--gold-bright);">🔄 다른 능력으로 변경</button>
+    <button onclick="openProtagSigPicker()" style="width:100%;margin-top:10px;padding:8px;font-size:11px;background:rgba(255,200,73,0.1);border:1px solid rgba(255,200,73,0.4);color:var(--gold-bright);">🔄 다른 능력으로 변경 ${(()=>{const cd=getProtagChangeCooldown();return cd.canChange ? '(쿨다운 OK)' : `(${cd.remaining}핸드 후)`;})()}</button>
   </div>`;
+
+  // v53.2: 현재 빌드의 추천 챔피언 — 미니 섹션 (능력 메뉴에 직접 표시)
+  const rec = curSig.recommendations || {};
+  const collected = career.specialAbilities?.collected || [];
+  const recCard = (chKey, slotType) => {
+    const ab = SPECIAL_ABILITIES[chKey];
+    if (!ab) return '';
+    const owned = collected.includes(chKey);
+    const isCore = activeKey === chKey;
+    const isSub = activeSubKey === chKey;
+    const isEquipped = isCore || isSub;
+    const color = getRarityColor(ab.rarity);
+    const statusBadge = isCore ? `<span style="font-size:9px;color:#5db95d;font-weight:700;">코어 장착중</span>` :
+                       isSub ? `<span style="font-size:9px;color:#5ea8ff;font-weight:700;">보조 장착중</span>` :
+                       !owned ? `<span style="font-size:9px;color:var(--text-dim);">미보유 (격파 필요)</span>` :
+                       `<button onclick="pickSpecialSlot('${chKey}')" style="font-size:10px;padding:2px 8px;background:${color}33;border:1px solid ${color};color:${color};">장착</button>`;
+    return `<div style="background:${color}15;border:1px solid ${color}55;border-radius:6px;padding:8px;margin:4px;display:inline-flex;align-items:center;gap:6px;min-width:140px;${owned ? '' : 'opacity:0.5;'}">
+      <div style="font-size:20px;">${ab.icon}</div>
+      <div style="flex:1;">
+        <div style="font-size:11px;color:${color};font-weight:700;">${ab.owner}</div>
+        <div style="font-size:9px;color:var(--text-dim);">${slotType}</div>
+        <div style="margin-top:3px;">${statusBadge}</div>
+      </div>
+    </div>`;
+  };
+  const recHtml = rec.core ? `
+    <div style="background:rgba(94,168,255,0.06);border:1px solid rgba(94,168,255,0.25);border-radius:8px;padding:10px;margin:10px 0;">
+      <div style="font-size:11px;color:#7eb7ff;font-weight:700;letter-spacing:1.5px;margin-bottom:6px;">💡 ${curSig.name} 추천 시너지</div>
+      <div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;line-height:1.5;">${rec.reason}</div>
+      <div style="margin-bottom:6px;">
+        <div style="font-size:10px;color:#7eb7ff;margin-bottom:3px;">⚡ 코어 슬롯 추천:</div>
+        <div style="display:flex;flex-wrap:wrap;">${rec.core.map(k => recCard(k, '코어 추천')).join('')}</div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:#5ea8ff;margin-bottom:3px;">🔹 보조 슬롯 추천:</div>
+        <div style="display:flex;flex-wrap:wrap;">${rec.sub.map(k => recCard(k, '보조 추천')).join('')}</div>
+      </div>
+    </div>` : '';
 
   // 코어 슬롯 (기존 active)
   const slotHTML = (ab, slotLabel, unequipFn) => {
@@ -15415,6 +15532,7 @@ function openAbilityMenu() {
 
   <h4 style="color:var(--gold-bright);margin-top:14px;">🧬 주인공 고유 능력</h4>
   ${protagSlotHtml}
+  ${recHtml}
 
   <h4 style="color:var(--gold-bright);margin-top:14px;">★ 활성 특수 능력 (2 슬롯)</h4>
   ${activeSlotHtml}
