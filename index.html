@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v55 ★ ID+PIN CLOUD LOGIN (CROSS-DEVICE SYNC)</title>
+<title>NEON HOLDEM v55.2 ★ STORY ARCS AT LOBBY (IMMERSION) + BUG REFUND COMPENSATION</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -3464,6 +3464,7 @@ function migrateCareer() {
   career.venueStats = obj(career.venueStats);
   career.subEventFlags = obj(career.subEventFlags);
   career._arcsFired = obj(career._arcsFired);             // v52 인물 아크
+  career.arcChoices = obj(career.arcChoices);             // v55.1 분기 선택 기록
   career._specialHandFired = obj(career._specialHandFired);
   career._loansTaken = num(career._loansTaken, 0);        // v54 안전망
 
@@ -3501,6 +3502,26 @@ function migrateCareer() {
   // v55: 클라우드 로그인 필드 — 문자열 아니면 null
   if (typeof career.cloudId !== 'string' || !career.cloudId) career.cloudId = null;
   if (typeof career._pinHash !== 'string' || !career._pinHash) career._pinHash = null;
+
+  // v55.2: 신철호 $20M 버그 일회성 보상 — 영향받은 세이브 복구
+  //   영향 판정: chulho_4 아크 발동했거나 / 안전망 대출 받았거나 / 자금 비정상 낮음
+  career._pendingArcs = arr(career._pendingArcs);
+  if (!career._bugCompV552) {
+    const hitChulho = career._arcsFired && career._arcsFired['chulho_4'];
+    const tookLoan = (career._loansTaken || 0) > 0;
+    // 베가스 이상 도달(자금 흔적)했는데 지금 자금이 바닥이면 = 버그 피해 추정
+    const reachedVegas = (career._visitedVenues || []).includes('vegas') ||
+                         (career.venueStats?.vegas?.hands || 0) > 0;
+    if (hitChulho || tookLoan || (reachedVegas && career.bankroll < 50000)) {
+      career._bugCompV552 = true;
+      career._bugCompApplied = true;  // 로드 후 안내 모달 트리거용
+      // 진행 단계에 맞춰 복구 — 베가스+ 도달자면 $200,000, 아니면 최소 $20,000 보장
+      const floor = reachedVegas ? 200000 : 20000;
+      if (career.bankroll < floor) career.bankroll = floor;
+    } else {
+      career._bugCompV552 = true;  // 미영향자도 플래그만 세팅 (중복 방지)
+    }
+  }
 
   // 데이/이름
   career.day = num(career.day, 1);
@@ -3751,6 +3772,25 @@ function renderLobby() {
   } else if (career.bankroll < SAFETY_NET_FLOOR && document.getElementById('modal-container').innerHTML === '') {
     // v54: 자금 바닥 — 친구 대출 안전망 (하드 게임오버 방지)
     if (typeof checkBankruptcySafetyNet === 'function') checkBankruptcySafetyNet();
+  } else if (career._bugCompApplied && document.getElementById('modal-container').innerHTML === '') {
+    // v55.2: 버그 보상 안내 (일회성)
+    career._bugCompApplied = false;
+    saveCareer();
+    showModal(`<div style="text-align:center;padding:22px 16px;">
+      <div style="font-size:48px;margin-bottom:8px;">🙏</div>
+      <h3 style="color:var(--gold-bright);">버그 보상</h3>
+      <div style="font-size:13px;color:var(--text);line-height:1.8;margin:14px 0;">
+        '돈 좀 빌려줘' 이벤트에서 자금이 비정상적으로 빠지는 버그가 있었습니다.<br><br>
+        해당 버그를 수정했고, 영향받은 진행을 <b style="color:var(--gold-bright);">정상 수준으로 복구</b>했습니다.<br><br>
+        현재 자금: <b style="color:var(--gold-bright);">$${career.bankroll.toLocaleString()}</b>
+      </div>
+      <div style="font-size:11px;color:var(--text-dim);">불편을 드려 죄송합니다 — 다시 즐겨주세요!</div>
+      <button class="btn-primary" onclick="closeModal()" style="margin-top:16px;padding:12px 30px;">확인</button>
+    </div>`);
+  } else {
+    // v55.2: 로비 진입 — 게임 중 쌓인 스토리 아크를 여기서 차분히 표시
+    if (typeof queuePersonalArcs === 'function') queuePersonalArcs();  // 로비 시점 조건도 캐치
+    if (typeof flushPendingArcs === 'function') setTimeout(flushPendingArcs, 600);
   }
 }
 
@@ -4458,8 +4498,9 @@ function newHand() {
   checkTrophyProgress();
   // Check sub-events (after hand count updates)
   checkSubEvents();
-  // v52: 인물별 미니 아크 체크 (핸드 수/자금 조건)
-  if (typeof checkPersonalArcs === 'function') checkPersonalArcs();
+  // v55.2: 인물 아크는 게임 중엔 발동 안 함 — 로비/베뉴 전환 시에만 (몰입 보호)
+  //         조건 충족분은 _pendingArcs에 큐잉만 (재평가 없이 로비에서 표시)
+  if (typeof queuePersonalArcs === 'function') queuePersonalArcs();
   // v53: 주인공 특수능력 — 핸드 누적 + 레벨업 체크
   if (typeof gainProtagHand === 'function') {
     const newLv = gainProtagHand();
@@ -4662,7 +4703,8 @@ function checkBankruptcySafetyNet() {
 function acceptFriendLoan() {
   ensureCareer();
   career._loansTaken = (career._loansTaken || 0) + 1;
-  career.bankroll += SAFETY_NET_GRANT;
+  // v55.1: 마이너스 구덩이 탈출 보장 — 음수든 0이든 무조건 SAFETY_NET_GRANT로 복구
+  career.bankroll = Math.max(career.bankroll + SAFETY_NET_GRANT, SAFETY_NET_GRANT);
   saveCareer();
   closeModal();
   if (typeof renderLobby === 'function') renderLobby();
@@ -6463,6 +6505,10 @@ function closeModal() {
   // v48: 이벤트 freeze 해제
   const screenEl = document.getElementById('game-screen');
   if (screenEl) screenEl.classList.remove('event-freeze');
+  // v55.2: 로비에서 대기 중인 스토리 아크가 더 있으면 이어서 표시
+  if (!state && career && career._pendingArcs && career._pendingArcs.length > 0) {
+    setTimeout(() => { if (typeof flushPendingArcs === 'function') flushPendingArcs(); }, 500);
+  }
   // If hand has ended and we're at the table, schedule next hand
   if (state && (state.street === 'showdown' || state.street === 'handover')) {
     setTimeout(() => {
@@ -10558,8 +10604,17 @@ const PERSONAL_ARCS = {
       reward: { xp: { mental: 70, insight: 40 } } },
     { id: 'chulho_4', title: '돈 좀 빌려줘', char: 'chulho',
       cond: { atVenue: 'vegas' },
-      text: '신철호: "민준아... 진짜 미안한데...<br>2천만 원만 빌려줄 수 있냐?<br><br>비행기값도 없어. 한국 못 돌아가."<br><br><i>망설였다. 그러나 친구였다.<br>송금했다. 돌려받을 거란 기대 없이.</i>',
-      reward: { xp: { mental: 80 }, cash: -20000000 } },
+      text: '신철호: "민준아... 진짜 미안한데...<br>$20,000만 빌려줄 수 있냐?<br><br>비행기값도 없어. 한국 못 돌아가."<br><br><i>선택의 순간이다.</i>',
+      choices: [
+        { label: '🤝 "받아. 친구잖아." (-$20,000)', route: 'lend',
+          outcome: {
+            text: '말없이 송금했다.<br>돌려받을 거란 기대는 없었다.<br><br>신철호: "민준아... 고맙다. 진짜.<br>이 은혜 꼭 갚을게."<br><br><i>친구를 택했다. 멘탈이 단단해진다.</i>',
+            reward: { xp: { mental: 100 }, cash: -20000 }, flag: 'lend' } },
+        { label: '😞 "미안... 나도 여유가 없어."', route: 'decline',
+          outcome: {
+            text: '차마 못 빌려줬다.<br>신철호는 씁쓸하게 웃었다.<br><br>"...괜찮아. 이해해.<br>너도 살아야지."<br><br><i>죄책감이 남았지만, 냉정함을 배웠다.</i>',
+            reward: { xp: { patience: 60, mental: 30 } }, flag: 'decline' } }
+      ] },
     { id: 'chulho_5', title: '마지막 통화', char: 'chulho',
       cond: { atVenue: 'triton' },
       text: '신철호: "민준아... 나는 못 따라왔어.<br>트라이튼은 너만 가는 곳이야.<br><br>네가 우승하면 나도 살아진다.<br>꼭 이겨."<br><br><i>전화기 너머의 친구는 진심이었다.<br>이긴다.</i>',
@@ -10591,15 +10646,16 @@ const PERSONAL_ARCS = {
   ]
 };
 
-// 매 핸드 끝/베뉴 진입 시 아크 트리거 체크
-function checkPersonalArcs() {
+// v55.2: 아크 조건 평가 — 충족 시 큐에 담기만 (게임 중엔 모달 X, 몰입 보호)
+function queuePersonalArcs() {
   if (!career) return;
   career._arcsFired = career._arcsFired || {};
+  career._pendingArcs = career._pendingArcs || [];
   ensureCareer();
   for (const [charKey, chapters] of Object.entries(PERSONAL_ARCS)) {
     for (const ch of chapters) {
       if (career._arcsFired[ch.id]) continue;
-      // 조건 평가
+      if (career._pendingArcs.some(p => p.id === ch.id)) continue;  // 이미 큐에 있음
       const cond = ch.cond || {};
       let ok = true;
       if (cond.handsTotal && (career.handsPlayed || 0) < cond.handsTotal) ok = false;
@@ -10615,36 +10671,51 @@ function checkPersonalArcs() {
         const beaten = (career.specialAbilities?.collected || []).includes(cond.beatChampion);
         if (!beaten) ok = false;
       }
-      // v53.3: 분기 루트 조건 — 윤서아 동행/독립 선택에 따라
       if (cond.route && career.seoaRoute !== cond.route) ok = false;
       if (!ok) continue;
-      // v53.3: 선택지가 있는 분기 컷이면 보상 적용 안 하고 선택 모달만 (선택 후 처리)
-      if (ch.choices) {
-        career._arcsFired[ch.id] = Date.now();
-        saveCareer();
-        setTimeout(() => showArcChapter(ch, charKey), 1200);
-        return;
-      }
-      // 발동
+      // 큐에 담기 (조건 충족 시점에 평가됨 — atVenue도 이때 캡처)
       career._arcsFired[ch.id] = Date.now();
-      // 보상 적용
-      if (ch.reward) {
-        if (ch.reward.cash) career.bankroll += ch.reward.cash;
-        if (ch.reward.xp) {
-          ensureAbilities();
-          for (const [stat, xp] of Object.entries(ch.reward.xp)) {
-            if (stat === 'all') {
-              for (const k of Object.keys(ABILITY_DEFS)) gainXP(k, xp, '인물 아크');
-            } else gainXP(stat, xp, '인물 아크');
-          }
-        }
-      }
+      career._pendingArcs.push({ id: ch.id, charKey });
       saveCareer();
-      // 모달 표시 — 1초 지연 (다른 모달 안 충돌)
-      setTimeout(() => showArcChapter(ch, charKey), 1200);
-      return;  // 한 핸드에 하나만 발동
     }
   }
+}
+
+// 하위호환 — 옛 호출 흔적이 있으면 큐잉으로 위임
+function checkPersonalArcs() { queuePersonalArcs(); }
+
+// v55.2: 로비 진입 시 큐에 쌓인 아크를 순차 표시 (몰입 — 게임 흐름 안 끊김)
+function flushPendingArcs() {
+  if (!career || !career._pendingArcs || career._pendingArcs.length === 0) return;
+  // 모달이 떠 있으면 잠시 후 재시도
+  if (document.getElementById('modal-container').innerHTML !== '') {
+    setTimeout(flushPendingArcs, 1500);
+    return;
+  }
+  const next = career._pendingArcs.shift();
+  saveCareer();
+  // 챕터 데이터 찾기
+  let foundCh = null, foundKey = null;
+  for (const [charKey, chapters] of Object.entries(PERSONAL_ARCS)) {
+    const c = chapters.find(x => x.id === next.id);
+    if (c) { foundCh = c; foundKey = charKey; break; }
+  }
+  if (!foundCh) { flushPendingArcs(); return; }  // 못 찾으면 다음으로
+
+  // 선택지 컷이 아니면 보상 적용 (선택 컷은 resolveArcChoice에서)
+  if (!foundCh.choices && foundCh.reward) {
+    if (foundCh.reward.cash) career.bankroll = Math.max(0, career.bankroll + foundCh.reward.cash);
+    if (foundCh.reward.xp) {
+      ensureAbilities();
+      for (const [stat, xp] of Object.entries(foundCh.reward.xp)) {
+        if (stat === 'all') { for (const k of Object.keys(ABILITY_DEFS)) gainXP(k, xp, '인물 아크'); }
+        else gainXP(stat, xp, '인물 아크');
+      }
+    }
+    saveCareer();
+  }
+  showArcChapter(foundCh, foundKey);
+  // 다음 아크는 현재 모달 닫힌 후 (closeModal 이후 flushPendingArcs 재호출됨)
 }
 
 function showArcChapter(ch, charKey) {
@@ -10704,18 +10775,23 @@ function resolveArcChoice(idx) {
   if (!choice) { closeModal(); return; }
   const outcome = choice.outcome || {};
 
-  // 루트 저장 (윤서아: career.seoaRoute = 'together' | 'solo')
-  if (choice.route) career.seoaRoute = choice.route;
+  // v55.1: 캐릭터별 루트 — 윤서아만 seoaRoute, 나머지는 arcChoices에 분리 (덮어쓰기 방지)
+  if (choice.route) {
+    if (charKey === 'seoa') career.seoaRoute = choice.route;
+    career.arcChoices = career.arcChoices || {};
+    career.arcChoices[ch.id] = choice.route;
+  }
 
   // 보상 적용
   if (outcome.reward) {
-    if (outcome.reward.cash) career.bankroll += outcome.reward.cash;
+    // v55.1: cash 차감 시 자금 음수 방지 (바닥 0)
+    if (outcome.reward.cash) career.bankroll = Math.max(0, career.bankroll + outcome.reward.cash);
     if (outcome.reward.xp) {
       ensureAbilities();
       for (const [stat, xp] of Object.entries(outcome.reward.xp)) {
         if (stat === 'all') {
-          for (const k of Object.keys(ABILITY_DEFS)) gainXP(k, xp, '윤서아 분기');
-        } else gainXP(stat, xp, '윤서아 분기');
+          for (const k of Object.keys(ABILITY_DEFS)) gainXP(k, xp, '스토리 분기');
+        } else gainXP(stat, xp, '스토리 분기');
       }
     }
   }
