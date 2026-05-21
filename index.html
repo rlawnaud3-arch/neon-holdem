@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v53.2 ★ BUILD COOLDOWN + RECOMMENDED CHAMPION SYNERGIES</title>
+<title>NEON HOLDEM v54 ★ STABILIZATION — ENGINE TESTED + SAFETY NET + SAVE MIGRATION + ONBOARDING</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -3395,24 +3395,115 @@ let storageAvailable = (() => {
   } catch (e) { return false; }
 })();
 
+// v54: 세이브 버전 — 마이그레이션 추적
+const SAVE_VERSION = 54;
+
 function loadCareer() {
   try {
     // Try slot-based first, fall back to legacy key
     const saved = localStorage.getItem('holdem-career-slot-' + currentSlot) ||
                   localStorage.getItem('holdem-career');
     if (saved) {
-      const parsed = JSON.parse(saved);
-      career = Object.assign(career, parsed);
-      if (!career.stats) career.stats = {
-        totalTrackedHands: 0, vpipHands: 0, pfrHands: 0,
-        threeBetOpps: 0, threeBets: 0, fourBetOpps: 0, fourBets: 0,
-        cbetOpps: 0, cbets: 0, bets: 0, raises: 0, calls: 0, checks: 0, folds: 0,
-        wtsdHands: 0, wsdHands: 0, totalBBWon: 0, handsWon: 0, handsLost: 0,
-        biggestPotWon: 0, biggestPotLost: 0, venueHistory: {}
-      };
-      if (!career.recentHands) career.recentHands = [];
+      let parsed;
+      try {
+        parsed = JSON.parse(saved);
+      } catch (parseErr) {
+        // v54: 깨진 JSON — 백업 시도 후 실패 시 기본값 유지
+        console.error('Save corrupted, trying legacy backup', parseErr);
+        const backup = localStorage.getItem('holdem-career');
+        try { parsed = backup ? JSON.parse(backup) : null; } catch (e2) { parsed = null; }
+      }
+      if (parsed && typeof parsed === 'object') {
+        career = Object.assign(career, parsed);
+      }
     }
-  } catch (e) {}
+  } catch (e) {
+    console.error('loadCareer failed', e);
+  }
+  // v54: 항상 마이그레이션 실행 (신규 세이브든 옛 세이브든 모든 필드 보장)
+  migrateCareer();
+}
+
+// v54: 종합 마이그레이션 — 모든 필드 안전 기본값 + 타입 검증
+function migrateCareer() {
+  const num = (v, def) => (typeof v === 'number' && isFinite(v)) ? v : def;
+  const arr = (v) => Array.isArray(v) ? v : [];
+  const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+
+  // 핵심 숫자 필드 — NaN/undefined 방어
+  career.bankroll = num(career.bankroll, 500);
+  career.handsPlayed = num(career.handsPlayed, 0);
+  career.biggestWin = num(career.biggestWin, 0);
+  career.biggestLoss = num(career.biggestLoss, 0);
+  // 자금이 음수면 0으로 (안전망이 0 미만에서 작동)
+  if (career.bankroll < 0) career.bankroll = 0;
+
+  // stats — 누락 키 채우기
+  const statDefaults = {
+    totalTrackedHands: 0, vpipHands: 0, pfrHands: 0,
+    threeBetOpps: 0, threeBets: 0, fourBetOpps: 0, fourBets: 0,
+    cbetOpps: 0, cbets: 0, bets: 0, raises: 0, calls: 0, checks: 0, folds: 0,
+    wtsdHands: 0, wsdHands: 0, totalBBWon: 0, handsWon: 0, handsLost: 0,
+    biggestPotWon: 0, biggestPotLost: 0
+  };
+  career.stats = obj(career.stats);
+  for (const [k, def] of Object.entries(statDefaults)) career.stats[k] = num(career.stats[k], def);
+  career.stats.venueHistory = obj(career.stats.venueHistory);
+
+  // 배열 필드
+  career.recentHands = arr(career.recentHands);
+  career.decisionHistory = arr(career.decisionHistory);
+  career.daysCompleted = arr(career.daysCompleted);
+  career.championsMet = arr(career.championsMet);
+  career.unlockedTracks = arr(career.unlockedTracks);     // v50.7 BGM
+  career.bossesBeaten = arr(career.bossesBeaten);
+  career._visitedVenues = arr(career._visitedVenues);
+
+  // 객체 필드
+  career.trophies = obj(career.trophies);
+  career.venueStats = obj(career.venueStats);
+  career.subEventFlags = obj(career.subEventFlags);
+  career._arcsFired = obj(career._arcsFired);             // v52 인물 아크
+  career._specialHandFired = obj(career._specialHandFired);
+  career._loansTaken = num(career._loansTaken, 0);        // v54 안전망
+
+  // 능력 시스템
+  career.pokerAbilities = obj(career.pokerAbilities);
+  const ABIL_KEYS = ['insight','pokerFace','bluff','exploit','mental','patience','math','pressure'];
+  for (const k of ABIL_KEYS) {
+    if (!career.pokerAbilities[k] || typeof career.pokerAbilities[k] !== 'object') {
+      career.pokerAbilities[k] = { lv: 1, xp: 0 };
+    } else {
+      career.pokerAbilities[k].lv = num(career.pokerAbilities[k].lv, 1);
+      career.pokerAbilities[k].xp = num(career.pokerAbilities[k].xp, 0);
+    }
+  }
+  // 특수능력 슬롯 (v53: 코어 + 보조)
+  career.specialAbilities = obj(career.specialAbilities);
+  career.specialAbilities.collected = arr(career.specialAbilities.collected);
+  if (career.specialAbilities.active === undefined) career.specialAbilities.active = null;
+  if (career.specialAbilities.activeSub === undefined) career.specialAbilities.activeSub = null;
+
+  // 주인공 특수능력 (v53.1: 4종 빌드)
+  if (!career.protagSig || typeof career.protagSig !== 'object') {
+    career.protagSig = { id: 'evolving', lv: 1, handsForNext: 50, totalHands: 0, lastChangedAtHand: 0 };
+  } else {
+    career.protagSig.id = career.protagSig.id || 'evolving';
+    career.protagSig.lv = num(career.protagSig.lv, 1);
+    career.protagSig.handsForNext = num(career.protagSig.handsForNext, 50);
+    career.protagSig.totalHands = num(career.protagSig.totalHands, 0);
+    career.protagSig.lastChangedAtHand = num(career.protagSig.lastChangedAtHand, 0);
+  }
+
+  // 윤서아 루트 (v53.3) — null 허용 (미선택 상태)
+  if (career.seoaRoute !== 'together' && career.seoaRoute !== 'solo') career.seoaRoute = null;
+
+  // 데이/이름
+  career.day = num(career.day, 1);
+  if (typeof career.playerName !== 'string') career.playerName = career.playerName || null;
+
+  // 버전 스탬프
+  career._saveVersion = SAVE_VERSION;
 }
 function saveCareer() {
   career._lastSaved = Date.now();
@@ -3647,6 +3738,9 @@ function renderLobby() {
       <p style="text-align:center;color:#aaa;">홀덤펍에서 시작해 트라이튼 하이스테이크까지... 진짜 챔피언이군요.</p>
       <div style="text-align:center;margin-top:20px;"><button onclick="closeModal()">닫기</button>
       <button onclick="resetCareer();closeModal();" class="btn-primary">새 도전 시작</button></div>`);
+  } else if (career.bankroll < SAFETY_NET_FLOOR && document.getElementById('modal-container').innerHTML === '') {
+    // v54: 자금 바닥 — 친구 대출 안전망 (하드 게임오버 방지)
+    if (typeof checkBankruptcySafetyNet === 'function') checkBankruptcySafetyNet();
   }
 }
 
@@ -4361,6 +4455,8 @@ function newHand() {
     const newLv = gainProtagHand();
     if (newLv) setTimeout(() => showProtagLevelUp(newLv), 1800);
   }
+  // v54: 온보딩 점진 해금 체크
+  if (typeof checkOnboardingUnlocks === 'function') checkOnboardingUnlocks();
   // === DEBT CLEARED CINEMATIC (1억 도달) ===
   if (career.bankroll >= 100000000 && !career._debtClearedShown) {
     setTimeout(() => triggerDebtClearedCinematic(), 1200);
@@ -4506,12 +4602,61 @@ function showRebuyModal() {
         <button class="btn-danger" onclick="closeModal();leaveTable();">테이블 떠나기</button>
       </div>`;
   } else {
-    html += `<p style="color:#e74c3c;">자금이 부족해 더 이상 이 베뉴에서 플레이할 수 없습니다.</p>
+    html += `<p style="color:#e74c3c;">이 베뉴 바이인($${state.venue.buyIn.toLocaleString()})이 부족합니다.</p>
       <div style="text-align:center;margin-top:16px;">
         <button class="btn-primary" onclick="closeModal();leaveTable();">로비로 돌아가기</button>
       </div>`;
   }
   showModal(html);
+}
+
+// v54: 파산 안전망 — 자금이 펍 바이인 미만이면 친구가 빌려줌 (하드 게임오버 방지)
+const SAFETY_NET_FLOOR = 200;   // 펍 바이인
+const SAFETY_NET_GRANT = 1000;  // 빌려주는 금액
+function checkBankruptcySafetyNet() {
+  ensureCareer();
+  if (career.bankroll >= SAFETY_NET_FLOOR) return false;
+  // 자금이 바닥 — 친구 대출 제안
+  career._loansTaken = career._loansTaken || 0;
+  const loanNum = career._loansTaken + 1;
+  // 대출 횟수에 따라 친구/멘트 변경 (서사)
+  const lenders = [
+    { char: 'pubowner', name: '김 사장', line: '"민준아, 이걸로 다시 시작해.<br>대신 꼭 갚아라잉 — 농담이고, 잘 해봐."' },
+    { char: 'joonyoung', name: '박준영', line: '"야 인마, 또 깡통이냐 ㅋㅋ<br>이번이 진짜 마지막이다. 받아."' },
+    { char: 'mother', name: '어머니', line: '"민준아... 엄마가 보내줄게.<br>밥은 꼭 챙겨 먹어. 무리하지 말고."' }
+  ];
+  const lender = lenders[Math.min(loanNum - 1, lenders.length - 1)];
+  const charVisual = (typeof getCharImageBigHTML === 'function')
+    ? getCharImageBigHTML(lender.char, 150)
+    : `<div style="font-size:64px;">${STORY_CHARS[lender.char]?.emoji || '🤝'}</div>`;
+
+  const html = `<div style="text-align:center;padding:22px 16px;">
+    <div style="font-size:11px;color:var(--cyan);letter-spacing:4px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:14px;">★ 도움의 손길 ★</div>
+    <div style="font-size:44px;margin-bottom:8px;">🤝</div>
+    <h2 style="color:var(--gold-bright);font-size:16px;margin:6px 0;">완전히 빈털터리가 됐다</h2>
+    ${charVisual}
+    <div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-card-2);border:1px solid var(--cyan);padding:4px 10px;border-radius:14px;margin:10px 0;">
+      <span style="font-size:11px;color:var(--cyan);font-weight:700;">${lender.name}</span>
+    </div>
+    <div style="font-size:13px;line-height:1.9;color:var(--text);margin:12px 0;font-style:italic;">${lender.line}</div>
+    <div style="background:rgba(94,168,255,0.1);border:1px solid rgba(94,168,255,0.4);border-radius:8px;padding:12px;margin:12px 0;">
+      <div style="font-size:14px;font-weight:800;color:var(--cyan);">💰 +$${SAFETY_NET_GRANT.toLocaleString()} 지원</div>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:4px;">${loanNum}번째 도움 · 다시 일어서자</div>
+    </div>
+    <button class="btn-primary" onclick="acceptFriendLoan()" style="margin-top:8px;padding:12px 30px;font-size:13px;font-weight:700;">받고 다시 시작 →</button>
+  </div>`;
+  showModal(html);
+  return true;
+}
+
+function acceptFriendLoan() {
+  ensureCareer();
+  career._loansTaken = (career._loansTaken || 0) + 1;
+  career.bankroll += SAFETY_NET_GRANT;
+  saveCareer();
+  closeModal();
+  if (typeof renderLobby === 'function') renderLobby();
+  if (typeof sfxFanfare === 'function') { try { sfxFanfare(); } catch(e){} }
 }
 
 function rebuyMe() {
@@ -6813,6 +6958,8 @@ function toggleCoach() {
 // preComputedGTO: state mutation 전에 미리 계산된 추천 (raise/bet 같은 경우)
 function showCoachFeedback(action, preComputedGTO) {
   if (!_coachEnabled) return;
+  // v54: 온보딩 — 코치는 10핸드 후 해금
+  if (typeof isFeatureUnlocked === 'function' && !isFeatureUnlocked('coach')) return;
   const me = state?.players?.[0];
   if (!me || !me.isHuman) return;
 
@@ -10349,18 +10496,40 @@ const PERSONAL_ARCS = {
       cond: { venueHands: { macau: 100 } },
       text: '윤서아: "당신... 진짜 도박꾼이 아니네요.<br>학자 같아요.<br><br>매 핸드 계산하는 표정 — 매력적이에요."<br><br>김민준: "...고맙습니다."<br><br><i>그녀의 시선이 따뜻하다.</i>',
       reward: { xp: { mental: 50, pokerFace: 30 } } },
-    { id: 'seoa_3', title: '베가스 동행 제안', char: 'seoa',
+    // ★ 분기점 — 베가스 동행 결정
+    { id: 'seoa_3', title: '베가스, 같이 갈까요?', char: 'seoa',
       cond: { atVenue: 'vegas' },
-      text: '벨라지오 입구.<br>윤서아가 캐리어를 들고 서 있다.<br><br>윤서아: "베가스도 같이 가요.<br>저는 어차피 자유로워요.<br><br>당신 곁에 있고 싶어요."<br><br><i>이제 혼자가 아니다.</i>',
-      reward: { xp: { mental: 80 } } },
-    { id: 'seoa_4', title: '진짜 멋있어요', char: 'seoa',
-      cond: { venueHands: { wsop: 50 } },
-      text: 'WSOP 휴식 시간.<br>윤서아가 옆에 앉아 와인 한 잔.<br><br>윤서아: "내가 본 사람 중 가장 차분해요.<br>큰돈 앞에서 그렇게 멀쩡한 사람 — 처음이에요.<br><br>당신, 진짜 멋있어."<br><br><i>최고의 칭찬이었다.</i>',
+      text: '벨라지오 입구.<br>윤서아가 캐리어를 들고 서 있다.<br><br>윤서아: "베가스도 같이 가요.<br>저는 어차피 자유로워요.<br><br>당신 곁에 있고 싶어요."<br><br><i>선택의 순간이다.</i>',
+      choices: [
+        { label: '💞 "같이 가자. 옆에 있어줘."', route: 'together',
+          outcome: {
+            text: '윤서아가 환하게 웃으며 캐리어를 끌었다.<br><br>"고마워요. 후회 안 하게 할게요."<br><br><i>★ 동행 루트 — 윤서아가 곁에 있으면<br>틸트 회복이 빨라진다 (멘탈 안정).</i>',
+            reward: { xp: { mental: 120 } }, flag: 'together'
+          } },
+        { label: '🚶 "혼자 가는 게 낫겠어. 미안."', route: 'solo',
+          outcome: {
+            text: '윤서아는 잠시 멈칫하더니 미소 지었다.<br><br>"...알겠어요. 멀리서 응원할게요.<br>당신은 혼자서도 강하니까."<br><br><i>★ 독립 루트 — 홀로 가는 길.<br>고독이 집중력을 키운다 (통찰력 강화).</i>',
+            reward: { xp: { insight: 80, patience: 60 } }, flag: 'solo'
+          } }
+      ] },
+    // === 동행 루트 (together) ===
+    { id: 'seoa_4_together', title: '진짜 멋있어요', char: 'seoa',
+      cond: { venueHands: { wsop: 50 }, route: 'together' },
+      text: 'WSOP 휴식 시간.<br>윤서아가 옆에 앉아 와인 한 잔.<br><br>윤서아: "내가 본 사람 중 가장 차분해요.<br>큰돈 앞에서 그렇게 멀쩡한 사람 — 처음이에요.<br><br>당신, 진짜 멋있어."<br><br><i>곁에 있어줘서 든든하다.</i>',
       reward: { xp: { mental: 100, insight: 50 } } },
-    { id: 'seoa_5', title: '결승전 옆자리', char: 'seoa',
-      cond: { atVenue: 'triton' },
-      text: '트라이튼 결승 전날 밤.<br>윤서아가 손을 잡았다.<br><br>윤서아: "나, 당신 결승전 보고 싶어요.<br>객석 옆자리에 있을게요.<br><br>이긴다고 믿어요."<br><br><i>그녀의 손이 따뜻했다.<br>이긴다.</i>',
-      reward: { xp: { all: 30 } } }
+    { id: 'seoa_5_together', title: '결승전 옆자리', char: 'seoa',
+      cond: { atVenue: 'triton', route: 'together' },
+      text: '트라이튼 결승 전날 밤.<br>윤서아가 손을 잡았다.<br><br>윤서아: "나, 당신 결승전 옆자리에서 볼게요.<br>이긴다고 믿어요.<br><br>당신 곁이 내 자리예요."<br><br><i>그녀의 손이 따뜻했다.<br>혼자가 아니다. 이긴다.</i>',
+      reward: { xp: { all: 40 } } },
+    // === 독립 루트 (solo) ===
+    { id: 'seoa_4_solo', title: '멀리서 온 메시지', char: 'seoa', charVariant: 'wow',
+      cond: { venueHands: { wsop: 50 }, route: 'solo' },
+      text: '카톡 알림 — "윤서아"<br><br>"WSOP 잘하고 있죠?<br>뉴스에서 봤어요. 역시 당신.<br><br>혼자서도 이렇게 강하다니...<br>멋있어요. 정말로."<br><br><i>거리를 뒀지만, 마음은 닿아 있다.</i>',
+      reward: { xp: { insight: 100, mental: 50 } } },
+    { id: 'seoa_5_solo', title: '끝나면 만나요', char: 'seoa',
+      cond: { atVenue: 'triton', route: 'solo' },
+      text: '트라이튼 결승 전날, 윤서아의 전화.<br><br>윤서아: "결국 여기까지 왔네요.<br>나는 객석엔 안 갈게요. 당신 집중하게.<br><br>대신... 끝나면 만나요.<br>이기든 지든, 기다릴게요."<br><br><i>홀로 카드를 잡는다.<br>그러나 외롭지 않다.</i>',
+      reward: { xp: { all: 40 } } }
   ],
 
   // 4. 신철호 (chulho) — 거울/경고선
@@ -10436,7 +10605,16 @@ function checkPersonalArcs() {
         const beaten = (career.specialAbilities?.collected || []).includes(cond.beatChampion);
         if (!beaten) ok = false;
       }
+      // v53.3: 분기 루트 조건 — 윤서아 동행/독립 선택에 따라
+      if (cond.route && career.seoaRoute !== cond.route) ok = false;
       if (!ok) continue;
+      // v53.3: 선택지가 있는 분기 컷이면 보상 적용 안 하고 선택 모달만 (선택 후 처리)
+      if (ch.choices) {
+        career._arcsFired[ch.id] = Date.now();
+        saveCareer();
+        setTimeout(() => showArcChapter(ch, charKey), 1200);
+        return;
+      }
       // 발동
       career._arcsFired[ch.id] = Date.now();
       // 보상 적용
@@ -10477,8 +10655,21 @@ function showArcChapter(ch, charKey) {
       </div>`
     : '';
 
+  // v53.3: 선택지가 있으면 선택 버튼, 없으면 계속 버튼
+  let footerHTML;
+  if (ch.choices) {
+    // 현재 표시 중인 분기 컷 — 전역 저장 (resolveArcChoice에서 참조)
+    _currentArcChoice = { ch, charKey };
+    footerHTML = `<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;">
+      ${ch.choices.map((c, i) => `<button class="btn-primary" onclick="resolveArcChoice(${i})" style="padding:13px;font-size:13px;font-weight:700;text-align:left;line-height:1.4;">${c.label}</button>`).join('')}
+    </div>
+    <div style="font-size:10px;color:var(--text-dim);margin-top:10px;">⚠️ 이 선택은 윤서아 스토리 전개를 바꿉니다</div>`;
+  } else {
+    footerHTML = `${rewardHTML}<button class="btn-primary" onclick="closeModal()" style="margin-top:16px;padding:12px 30px;font-size:13px;font-weight:700;">계속 →</button>`;
+  }
+
   const html = `<div style="text-align:center;padding:22px 16px;">
-    <div style="font-size:11px;color:var(--pink);letter-spacing:4px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:14px;">★ STORY ★</div>
+    <div style="font-size:11px;color:var(--pink);letter-spacing:4px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:14px;">★ STORY ${ch.choices ? '· 선택' : ''} ★</div>
     <h2 style="color:var(--gold-bright);font-size:17px;margin:8px 0 14px 0;letter-spacing:1.5px;font-family:'Press Start 2P','Galmuri11',monospace;">${ch.title}</h2>
     ${charVisual}
     <div style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-card-2);border:1px solid var(--pink);padding:4px 10px;border-radius:14px;margin:10px 0;">
@@ -10486,13 +10677,61 @@ function showArcChapter(ch, charKey) {
       <span style="font-size:10px;color:var(--text-dim);">· ${charInfo.relationship || ''}</span>
     </div>
     <div style="font-size:13px;line-height:1.95;color:var(--text);margin:14px 0;text-align:left;padding:0 6px;">${ch.text}</div>
-    ${rewardHTML}
-    <button class="btn-primary" onclick="closeModal()" style="margin-top:16px;padding:12px 30px;font-size:13px;font-weight:700;">계속 →</button>
+    ${footerHTML}
   </div>`;
   showModal(html);
   if (typeof triggerSparkles === 'function') triggerSparkles(10);
   // BGM 살짝 덕킹 — 감정 강조
   if (typeof duckBGM === 'function') duckBGM(7000);
+}
+
+// v53.3: 분기 선택 처리
+let _currentArcChoice = null;
+function resolveArcChoice(idx) {
+  if (!_currentArcChoice) { closeModal(); return; }
+  const { ch, charKey } = _currentArcChoice;
+  const choice = ch.choices[idx];
+  if (!choice) { closeModal(); return; }
+  const outcome = choice.outcome || {};
+
+  // 루트 저장 (윤서아: career.seoaRoute = 'together' | 'solo')
+  if (choice.route) career.seoaRoute = choice.route;
+
+  // 보상 적용
+  if (outcome.reward) {
+    if (outcome.reward.cash) career.bankroll += outcome.reward.cash;
+    if (outcome.reward.xp) {
+      ensureAbilities();
+      for (const [stat, xp] of Object.entries(outcome.reward.xp)) {
+        if (stat === 'all') {
+          for (const k of Object.keys(ABILITY_DEFS)) gainXP(k, xp, '윤서아 분기');
+        } else gainXP(stat, xp, '윤서아 분기');
+      }
+    }
+  }
+  saveCareer();
+  _currentArcChoice = null;
+
+  // 결과 컷 모달
+  const charInfo = STORY_CHARS[charKey] || {};
+  const charVisual = (typeof getCharImageBigHTML === 'function')
+    ? getCharImageBigHTML(charKey, 160, ch.charVariant || '')
+    : `<div style="font-size:72px;">${charInfo.emoji || '✨'}</div>`;
+  const rewardHTML = outcome.reward
+    ? `<div style="font-size:11px;color:var(--gold-bright);margin-top:10px;">
+        ${outcome.reward.cash ? `💰 ${outcome.reward.cash > 0 ? '+' : ''}$${outcome.reward.cash.toLocaleString()}` : ''}
+        ${outcome.reward.xp ? Object.entries(outcome.reward.xp).map(([s,v]) => s === 'all' ? ` · 모든 능력 +${v}` : ` · ${ABILITY_DEFS[s]?.icon || ''} +${v}`).join('') : ''}
+      </div>`
+    : '';
+  const html = `<div style="text-align:center;padding:22px 16px;">
+    <div style="font-size:11px;color:var(--pink);letter-spacing:4px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:14px;">★ ${outcome.flag === 'together' ? '동행 루트' : '독립 루트'} ★</div>
+    ${charVisual}
+    <div style="font-size:13px;line-height:1.95;color:var(--text);margin:16px 0;text-align:left;padding:0 6px;">${outcome.text}</div>
+    ${rewardHTML}
+    <button class="btn-primary" onclick="closeModal()" style="margin-top:16px;padding:12px 30px;font-size:13px;font-weight:700;">계속 →</button>
+  </div>`;
+  showModal(html);
+  if (typeof triggerSparkles === 'function') triggerSparkles(12);
 }
 
 // === 캐릭터 이미지 시스템 (v33 — PNG 통일 + variant 지원) ===
@@ -13079,6 +13318,58 @@ function checkTutorial(stepKey) {
   showModal(html);
 }
 
+// ===================== v54: 온보딩 점진 해금 (기능 과잉 완화) =====================
+//   신규 유저가 15개 시스템에 익사하지 않도록 핸드 수에 따라 단계별 해금
+const ONBOARDING_UNLOCKS = [
+  { atHands: 10,  key: 'coach',     icon: '🎓', name: 'AI 코치 모드',
+    desc: '매 액션 후 GTO와 비교한 피드백 + 히스토리 패널이 켜집니다.' },
+  { atHands: 25,  key: 'abilities', icon: '🎮', name: '포커 능력 RPG',
+    desc: '8가지 능력이 액션/결과로 성장합니다. 능력 메뉴를 확인하세요.' },
+  { atHands: 50,  key: 'special',   icon: '⚡', name: '특수능력 슬롯 & 빌드',
+    desc: '챔피언 격파로 시그니처 능력을 흡수하고, 주인공 빌드를 골라 장착하세요.' },
+  { atHands: 100, key: 'advanced',  icon: '🏆', name: '챔피언 도전 · SnG · 고급 분석',
+    desc: '챔피언 도전 모드, 헤즈업 SnG, 주간 약점 리포트가 모두 열렸습니다.' }
+];
+
+function isFeatureUnlocked(key) {
+  // 기능이 아직 온보딩 단계에 막혀있는지 — 해당 atHands 이상이면 해금
+  const u = ONBOARDING_UNLOCKS.find(x => x.key === key);
+  if (!u) return true;  // 정의 안 된 기능은 항상 열림
+  return (career.handsPlayed || 0) >= u.atHands;
+}
+
+function checkOnboardingUnlocks() {
+  career._onboardUnlocked = career._onboardUnlocked || {};
+  const hp = career.handsPlayed || 0;
+  for (const u of ONBOARDING_UNLOCKS) {
+    if (hp >= u.atHands && !career._onboardUnlocked[u.key]) {
+      career._onboardUnlocked[u.key] = true;
+      saveCareer();
+      // 해금 토스트 (모달 충돌 방지 — 약간 지연)
+      setTimeout(() => showFeatureUnlock(u), 1000);
+      return; // 한 번에 하나만
+    }
+  }
+}
+
+function showFeatureUnlock(u) {
+  if (document.getElementById('modal-container').innerHTML !== '') {
+    setTimeout(() => showFeatureUnlock(u), 2500);
+    return;
+  }
+  const html = `<div style="text-align:center;padding:22px 18px;">
+    <div style="font-size:11px;color:var(--cyan);letter-spacing:4px;font-family:'Press Start 2P','Galmuri11',monospace;margin-bottom:14px;">🔓 NEW FEATURE</div>
+    <div style="font-size:64px;margin:6px 0;filter:drop-shadow(0 0 16px rgba(94,168,255,0.6));">${u.icon}</div>
+    <h2 style="color:var(--gold-bright);font-size:17px;margin:8px 0;">${u.name} 해금!</h2>
+    <div style="font-size:13px;color:var(--text);line-height:1.7;margin:14px 0;padding:0 6px;">${u.desc}</div>
+    <div style="font-size:10px;color:var(--text-dim);">${u.atHands}핸드 달성 — 천천히 익혀가세요</div>
+    <button class="btn-primary" onclick="closeModal()" style="margin-top:16px;padding:12px 30px;font-size:13px;font-weight:700;">확인 →</button>
+  </div>`;
+  showModal(html);
+  if (typeof sfxFanfare === 'function') { try { sfxFanfare(); } catch(e){} }
+  if (typeof triggerSparkles === 'function') triggerSparkles(12);
+}
+
 // ===================== DAILY CHALLENGES =====================
 const CHALLENGE_POOL = [
   { id: 'showdown_3', name: '쇼다운 3번', target: 3, type: 'showdown', reward: { chips: 100, xp: { insight: 5 } } },
@@ -14404,6 +14695,12 @@ function getActiveEffects() {
       else acc[k] = v;
     }
   }
+  // v53.3: 윤서아 루트 효과 — 동행(멘탈 안정) / 독립(집중)
+  if (career.seoaRoute === 'together') {
+    acc.mental = (acc.mental || 0) + 10;  // 곁에 있어 멘탈 안정
+  } else if (career.seoaRoute === 'solo') {
+    acc.insight = (acc.insight || 0) + 8;  // 고독이 집중력
+  }
   return acc;
 }
 
@@ -14417,7 +14714,7 @@ function getEffectiveAbility(stat) {
 
 // v53.1: 주인공 특수능력 4종 — 사용자가 골라 갈아끼우는 RPG 빌드
 // v53.2: 빌드별 추천 챔피언 시너지 + 변경 쿨다운 50핸드
-const PROTAG_CHANGE_COOLDOWN = 50;  // 변경 후 50핸드 동안 잠금
+const PROTAG_CHANGE_COOLDOWN = 30;  // 변경 후 30핸드 동안 잠금
 const PROTAG_SIG_LIST = {
   evolving: {
     id: 'evolving',
@@ -14596,7 +14893,7 @@ function openProtagSigPicker() {
   const html = `<div style="padding:10px;">
     <h3>🧬 주인공 특수능력 선택</h3>
     <div style="font-size:12px;color:var(--text-dim);margin-bottom:14px;line-height:1.5;">
-      4개 중 1개 선택. <b>변경은 50핸드마다 1회</b>.<br>
+      4개 중 1개 선택. <b>변경은 30핸드마다 1회</b>.<br>
       플레이 스타일에 맞춰 빌드와 추천 챔피언을 매칭하세요.
     </div>
     ${cdMsg}
@@ -14621,7 +14918,7 @@ function selectProtagSig(id) {
       <div style="font-size:48px;margin-bottom:10px;">⏳</div>
       <h3>변경 쿨다운 중</h3>
       <div style="font-size:13px;color:var(--text-dim);margin:14px 0;line-height:1.7;">
-        능력 변경은 <b>50핸드마다 1회</b> 가능합니다.<br>
+        능력 변경은 <b>30핸드마다 1회</b> 가능합니다.<br>
         남은 핸드: <b style="color:var(--gold-bright);font-size:18px;">${cd.remaining}핸드</b><br>
         <span style="font-size:11px;">미니맥스 방지 — 빌드는 신중하게.</span>
       </div>
