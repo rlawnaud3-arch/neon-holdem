@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v54 ★ STABILIZATION — ENGINE TESTED + SAFETY NET + SAVE MIGRATION + ONBOARDING</title>
+<title>NEON HOLDEM v55 ★ ID+PIN CLOUD LOGIN (CROSS-DEVICE SYNC)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -3498,6 +3498,10 @@ function migrateCareer() {
   // 윤서아 루트 (v53.3) — null 허용 (미선택 상태)
   if (career.seoaRoute !== 'together' && career.seoaRoute !== 'solo') career.seoaRoute = null;
 
+  // v55: 클라우드 로그인 필드 — 문자열 아니면 null
+  if (typeof career.cloudId !== 'string' || !career.cloudId) career.cloudId = null;
+  if (typeof career._pinHash !== 'string' || !career._pinHash) career._pinHash = null;
+
   // 데이/이름
   career.day = num(career.day, 1);
   if (typeof career.playerName !== 'string') career.playerName = career.playerName || null;
@@ -3505,12 +3509,18 @@ function migrateCareer() {
   // 버전 스탬프
   career._saveVersion = SAVE_VERSION;
 }
+let _cloudSyncTimer = null;
 function saveCareer() {
   career._lastSaved = Date.now();
   try {
     localStorage.setItem('holdem-career-slot-' + currentSlot, JSON.stringify(career));
     localStorage.setItem('holdem-career', JSON.stringify(career));  // legacy backup
   } catch (e) {}
+  // v55: ID 로그인 상태면 클라우드 자동 동기화 (디바운스 5초 — 과도한 쓰기 방지)
+  if (career.cloudId && typeof firebaseSyncEnabled !== 'undefined' && firebaseSyncEnabled) {
+    if (_cloudSyncTimer) clearTimeout(_cloudSyncTimer);
+    _cloudSyncTimer = setTimeout(() => { if (typeof saveToCloud === 'function') saveToCloud(true); }, 5000);
+  }
 }
 
 // Export progress as downloadable JSON file
@@ -12775,7 +12785,8 @@ function openMainMenu() {
       title: '💾 시스템', color: 'var(--text-dim)',
       items: [
         { icon: '💾', label: `슬롯 관리 (현재 ${currentSlot})`, desc: '캐리어 3개 독립 진행', action: 'openSlotPicker()' },
-        { icon: '☁️', label: '클라우드 동기화', desc: 'Firebase 연결', action: 'manualCloudSync()' },
+        { icon: '🔑', label: career.cloudId ? `클라우드 계정 (${career.cloudId})` : 'ID 로그인 / 계정 만들기', desc: career.cloudId ? '로그아웃 / 다른 기기 동기화' : 'ID+PIN으로 폰↔PC 진행 이어가기', action: 'openCloudLogin()' },
+        { icon: '☁️', label: '수동 클라우드 저장', desc: '지금 진행을 클라우드에 저장', action: 'manualCloudSync()' },
         { icon: '📁', label: 'JSON 저장/불러오기', desc: '파일로 백업', action: 'openBackupMenu()' },
         { icon: '⚙️', label: '사운드 & 설정', desc: 'BGM/SFX 볼륨, BGM 트랙', action: 'openSettings()' },
         { icon: '🎬', label: '시네마틱 미리보기', desc: '4종 컷씬 + 도시 전환 + 캐릭터 컷 즉시 확인', action: 'openCinematicPreview()' }
@@ -15730,11 +15741,11 @@ function openAbilityMenu() {
 
   // v53.2: 현재 빌드의 추천 챔피언 — 미니 섹션 (능력 메뉴에 직접 표시)
   const rec = curSig.recommendations || {};
-  const collected = career.specialAbilities?.collected || [];
+  const recCollected = career.specialAbilities?.collected || [];
   const recCard = (chKey, slotType) => {
     const ab = SPECIAL_ABILITIES[chKey];
     if (!ab) return '';
-    const owned = collected.includes(chKey);
+    const owned = recCollected.includes(chKey);
     const isCore = activeKey === chKey;
     const isSub = activeSubKey === chKey;
     const isEquipped = isCore || isSub;
@@ -16482,12 +16493,12 @@ function answerQuiz(chosen) {
 // ===================== FIREBASE CLOUD SYNC =====================
 // 👇 여기에 본인 Firebase 프로젝트 설정 입력 (Firebase Console → 프로젝트 설정 → 일반 → 내 앱)
 const FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyAkuHtZZqYH10AZ8V5C9KUmsuixJORZCjo",
+  authDomain: "neon-holdem-355ae.firebaseapp.com",
+  projectId: "neon-holdem-355ae",
+  storageBucket: "neon-holdem-355ae.firebasestorage.app",
+  messagingSenderId: "691908144404",
+  appId: "1:691908144404:web:da087751374089b5d6e601"
 };
 
 let firebaseReady = false;
@@ -16523,8 +16534,11 @@ async function initFirebase() {
       firebaseUser = user;
       firebaseReady = !!user;
       if (user) {
-        await loadFromCloud();
-        firebaseSyncEnabled = true;
+        // v55: 저장된 cloudId 있으면 자동 로그인 (PIN 재입력 없이 이어하기)
+        if (career.cloudId) {
+          firebaseSyncEnabled = true;
+          await loadFromCloud();
+        }
       }
       updateCloudStatus();
     });
@@ -16535,29 +16549,30 @@ async function initFirebase() {
   }
 }
 
+// v55: 자동 로그인 — 저장된 cloudId 있으면 부팅 시 클라우드에서 불러옴
 async function loadFromCloud() {
-  if (!firebaseUser || !firebaseDb) return;
+  if (!firebaseDb) return;
+  const cloudId = career.cloudId;
+  if (!cloudId) return;  // ID 로그인 안 했으면 익명 = 로컬만
   try {
-    const doc = await firebaseDb.collection('careers').doc(firebaseUser.uid).get();
+    const doc = await firebaseDb.collection('careers').doc(cloudId).get();
     if (doc.exists) {
       const cloudData = doc.data();
       const cloudHands = cloudData.handsPlayed || 0;
       const localHands = career.handsPlayed || 0;
-      // Use cloud version if it has more progress, otherwise keep local
       if (cloudHands >= localHands) {
+        const keepPin = career._pinHash || cloudData._pinHash;
         career = Object.assign({}, career, cloudData);
-        // Ensure nested objects exist
-        if (!career.stats || typeof career.stats !== 'object') career.stats = {};
-        if (!career.recentHands) career.recentHands = [];
+        career.cloudId = cloudId;
+        career._pinHash = keepPin;
+        if (typeof migrateCareer === 'function') migrateCareer();
         saveCareer();
         renderLobby();
-        showSaveToast('☁️ 클라우드 데이터 불러옴 (' + cloudHands + ' 핸드)');
+        showSaveToast('☁️ 클라우드 불러옴 (' + cloudHands + ' 핸드)');
       } else {
-        // Local is newer, push to cloud
         saveToCloud(true);
       }
     } else {
-      // First time - push local to cloud
       saveToCloud(true);
     }
   } catch (e) {
@@ -16566,12 +16581,14 @@ async function loadFromCloud() {
 }
 
 async function saveToCloud(silent = false) {
-  if (!firebaseUser || !firebaseDb || !firebaseSyncEnabled) return;
+  if (!firebaseDb) return;
+  const cloudId = career.cloudId;
+  if (!cloudId) return;  // ID 로그인 상태에서만 클라우드 저장
   try {
-    await firebaseDb.collection('careers').doc(firebaseUser.uid).set({
+    await firebaseDb.collection('careers').doc(cloudId).set({
       ...career,
       _lastSync: Date.now(),
-      _uid: firebaseUser.uid
+      _cloudId: cloudId
     });
     if (!silent) showSaveToast('☁️ 클라우드 저장 완료');
   } catch (e) {
@@ -16581,25 +16598,174 @@ async function saveToCloud(silent = false) {
 }
 
 function manualCloudSync() {
-  if (!firebaseReady) {
-    if (!FIREBASE_CONFIG.apiKey) {
-      alert('Firebase 설정이 필요합니다.\n\n파일을 열어 FIREBASE_CONFIG 블록에 본인의 Firebase 프로젝트 정보를 입력하세요.\n\nFirebase Console → 프로젝트 설정 → 일반 → 내 앱에서 확인 가능합니다.');
-    } else {
-      alert('Firebase 연결 중... 잠시 후 다시 시도해주세요.');
-    }
+  if (!FIREBASE_CONFIG.apiKey) {
+    alert('Firebase 설정이 필요합니다.\n\n같이 제공한 "Firebase-설정-가이드.md"를 따라 설정한 뒤 사용하세요.');
     return;
   }
+  if (!career.cloudId) {
+    alert('먼저 ID 로그인이 필요합니다.\n\n메뉴 → 🔑 "ID 로그인 / 계정 만들기"에서 계정을 만드세요.');
+    if (typeof openCloudLogin === 'function') openCloudLogin();
+    return;
+  }
+  if (!firebaseReady) { alert('Firebase 연결 중... 잠시 후 다시 시도해주세요.'); return; }
   saveToCloud(false);
+}
+
+// ===================== v55: ID + PIN 로그인 시스템 =====================
+// PIN 해시 (SHA-256) — 평문 저장 방지
+async function hashPin(pin) {
+  const enc = new TextEncoder().encode('neonholdem_salt_' + pin);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function openCloudLogin() {
+  if (!FIREBASE_CONFIG.apiKey) {
+    showModal(`<div style="text-align:center;padding:20px;">
+      <div style="font-size:44px;margin-bottom:10px;">☁️</div>
+      <h3>클라우드 로그인 — 설정 필요</h3>
+      <div style="font-size:13px;color:var(--text-dim);margin:14px 0;line-height:1.7;text-align:left;">
+        ID 로그인을 쓰려면 먼저 <b>Firebase 무료 프로젝트</b> 설정이 필요해요.<br><br>
+        제공된 <b style="color:var(--gold-bright);">Firebase-설정-가이드.md</b>를 따라 5분이면 됩니다.<br><br>
+        설정 후 <code style="background:var(--bg-card-2);padding:1px 5px;border-radius:3px;">FIREBASE_CONFIG</code>에 값을 넣고 Push하면 활성화됩니다.
+      </div>
+      <button onclick="closeModal()">확인</button>
+    </div>`);
+    return;
+  }
+  // 이미 로그인 상태
+  if (career.cloudId) {
+    showModal(`<div style="text-align:center;padding:20px;">
+      <div style="font-size:44px;margin-bottom:8px;">🔑</div>
+      <h3>클라우드 계정</h3>
+      <div style="background:var(--bg-card-2);border:1px solid var(--green);border-radius:8px;padding:14px;margin:14px 0;">
+        <div style="font-size:11px;color:var(--text-dim);">로그인 중</div>
+        <div style="font-size:18px;font-weight:800;color:var(--green);">${career.cloudId}</div>
+        <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">진행은 자동으로 클라우드에 저장됩니다</div>
+      </div>
+      <p style="font-size:12px;color:var(--text-dim);line-height:1.6;">다른 기기에서 같은 ID+PIN으로 로그인하면 진행이 이어집니다.</p>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;">
+        <button onclick="manualCloudSync()" class="btn-success">지금 저장</button>
+        <button onclick="logoutCloud()" class="btn-danger">로그아웃</button>
+        <button onclick="closeModal()">닫기</button>
+      </div>
+    </div>`);
+    return;
+  }
+  // 로그인/생성 폼
+  showCloudLoginForm('login');
+}
+
+function showCloudLoginForm(mode) {
+  const isLogin = mode === 'login';
+  const html = `<div style="padding:14px;">
+    <div style="display:flex;gap:6px;margin-bottom:16px;">
+      <button onclick="showCloudLoginForm('login')" style="flex:1;padding:10px;font-weight:700;background:${isLogin?'var(--gold-bright)':'var(--bg-card-2)'};color:${isLogin?'#000':'var(--text)'};">로그인</button>
+      <button onclick="showCloudLoginForm('create')" style="flex:1;padding:10px;font-weight:700;background:${!isLogin?'var(--gold-bright)':'var(--bg-card-2)'};color:${!isLogin?'#000':'var(--text)'};">새 계정</button>
+    </div>
+    <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.6;">
+      ${isLogin ? '기존 ID와 PIN으로 진행을 불러옵니다.' : '새 ID를 만들고 현재 진행을 클라우드에 올립니다.'}
+    </div>
+    <div style="margin-bottom:10px;">
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">ID (영문/숫자 3~20자)</div>
+      <input id="cloud-id-input" type="text" maxlength="20" placeholder="예: rlawnaud3" style="width:100%;padding:10px;font-size:14px;background:var(--bg-card-2);border:1px solid var(--border);border-radius:6px;color:var(--text);">
+    </div>
+    <div style="margin-bottom:14px;">
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">PIN (숫자 4~6자리)</div>
+      <input id="cloud-pin-input" type="password" inputmode="numeric" maxlength="6" placeholder="••••" style="width:100%;padding:10px;font-size:14px;background:var(--bg-card-2);border:1px solid var(--border);border-radius:6px;color:var(--text);">
+    </div>
+    <div id="cloud-login-msg" style="font-size:12px;color:var(--red);min-height:18px;margin-bottom:8px;"></div>
+    <button onclick="${isLogin?'doCloudLogin()':'doCloudCreate()'}" class="btn-primary" style="width:100%;padding:13px;font-weight:700;">
+      ${isLogin ? '🔑 로그인' : '✨ 계정 만들기'}
+    </button>
+    ${!isLogin ? '<div style="font-size:10px;color:var(--text-dim);margin-top:10px;text-align:center;">⚠️ PIN을 잊으면 복구 불가 — 꼭 기억하세요</div>' : ''}
+    <div style="text-align:center;margin-top:12px;"><button onclick="closeModal()">취소</button></div>
+  </div>`;
+  showModal(html);
+}
+
+function _cloudMsg(text, color) {
+  const el = document.getElementById('cloud-login-msg');
+  if (el) { el.textContent = text; el.style.color = color || 'var(--red)'; }
+}
+
+function _validateIdPin(id, pin) {
+  if (!/^[a-zA-Z0-9_]{3,20}$/.test(id)) { _cloudMsg('ID는 영문/숫자 3~20자'); return false; }
+  if (!/^[0-9]{4,6}$/.test(pin)) { _cloudMsg('PIN은 숫자 4~6자리'); return false; }
+  return true;
+}
+
+async function doCloudCreate() {
+  if (!firebaseReady) { _cloudMsg('Firebase 연결 중... 잠시 후'); return; }
+  const id = (document.getElementById('cloud-id-input').value || '').trim().toLowerCase();
+  const pin = (document.getElementById('cloud-pin-input').value || '').trim();
+  if (!_validateIdPin(id, pin)) return;
+  _cloudMsg('생성 중...', 'var(--text-dim)');
+  try {
+    const docRef = firebaseDb.collection('careers').doc(id);
+    const existing = await docRef.get();
+    if (existing.exists) { _cloudMsg('이미 존재하는 ID입니다. 로그인을 쓰세요.'); return; }
+    const pinHash = await hashPin(pin);
+    career.cloudId = id;
+    career._pinHash = pinHash;
+    saveCareer();
+    firebaseSyncEnabled = true;
+    await saveToCloud(true);
+    closeModal();
+    renderLobby();
+    showSaveToast('✨ 계정 생성 완료 — ' + id);
+  } catch (e) {
+    console.error(e); _cloudMsg('생성 실패: ' + e.message);
+  }
+}
+
+async function doCloudLogin() {
+  if (!firebaseReady) { _cloudMsg('Firebase 연결 중... 잠시 후'); return; }
+  const id = (document.getElementById('cloud-id-input').value || '').trim().toLowerCase();
+  const pin = (document.getElementById('cloud-pin-input').value || '').trim();
+  if (!_validateIdPin(id, pin)) return;
+  _cloudMsg('로그인 중...', 'var(--text-dim)');
+  try {
+    const doc = await firebaseDb.collection('careers').doc(id).get();
+    if (!doc.exists) { _cloudMsg('존재하지 않는 ID입니다.'); return; }
+    const data = doc.data();
+    const pinHash = await hashPin(pin);
+    if (data._pinHash && data._pinHash !== pinHash) { _cloudMsg('PIN이 틀렸습니다.'); return; }
+    // 로드
+    career = Object.assign({}, career, data);
+    career.cloudId = id;
+    career._pinHash = pinHash;
+    if (typeof migrateCareer === 'function') migrateCareer();
+    firebaseSyncEnabled = true;
+    saveCareer();
+    closeModal();
+    renderLobby();
+    showSaveToast('🔑 로그인 — ' + id + ' (' + (career.handsPlayed||0) + '핸드)');
+  } catch (e) {
+    console.error(e); _cloudMsg('로그인 실패: ' + e.message);
+  }
+}
+
+function logoutCloud() {
+  if (!confirm('로그아웃하시겠습니까?\n클라우드 진행은 남아있고, 이 기기는 로컬 저장으로 전환됩니다.')) return;
+  career.cloudId = null;
+  career._pinHash = null;
+  firebaseSyncEnabled = false;
+  saveCareer();
+  closeModal();
+  renderLobby();
+  showSaveToast('로그아웃 — 로컬 모드');
 }
 
 function updateCloudStatus(errMsg) {
   const el = document.getElementById('cloud-status');
   if (!el) return;
   if (!FIREBASE_CONFIG.apiKey) {
-    el.innerHTML = '<span style="color:var(--text-dim);font-size:12px;">☁️ 클라우드 동기화 비활성 (Firebase 설정 필요)</span>';
-  } else if (firebaseReady && firebaseUser) {
-    const shortUid = firebaseUser.uid.substring(0, 8);
-    el.innerHTML = `<span style="color:var(--green);font-size:12px;">☁️ 클라우드 연결됨 (UID: ${shortUid}...)</span>`;
+    el.innerHTML = '<span style="color:var(--text-dim);font-size:12px;">☁️ 클라우드 비활성 (Firebase 설정 필요)</span>';
+  } else if (career.cloudId) {
+    el.innerHTML = `<span style="color:var(--green);font-size:12px;">🔑 로그인: ${career.cloudId} (자동 동기화 ON)</span>`;
+  } else if (firebaseReady) {
+    el.innerHTML = `<span style="color:var(--text-dim);font-size:12px;">☁️ 연결됨 — ID 로그인하면 동기화 (게스트 모드)</span>`;
   } else if (errMsg) {
     el.innerHTML = `<span style="color:var(--red);font-size:12px;">⚠️ ${errMsg}</span>`;
   } else {
