@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v55.4 ★ LOCKED CHARACTER HINT MODAL + NEW CHAMPION KO VERIFIED</title>
+<title>NEON HOLDEM v55.5 ★ MOBILE UI FIX: MODAL SELECTOR BUG (.modal-content→.modal) + iOS ZOOM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -718,7 +718,7 @@
   }
 
   /* 모달 입장 애니메이션 (이미 있는 카드 팝과 비슷) */
-  .modal-content {
+  .modal {
     animation: modal-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   @keyframes modal-pop {
@@ -2885,24 +2885,26 @@
     .action-btn-amount { font-size: 10px !important; }
     .action-btn .shortcut { display: none !important; }
 
-    /* === 모달 — 풀스크린에 가까운 === */
+    /* === 모달 — 풀스크린 (v55.5: .modal-content → .modal 셀렉터 버그 수정) === */
     .modal-overlay { padding: 0 !important; }
-    .modal-content {
+    .modal {
       width: 100vw !important;
       max-width: 100vw !important;
       max-height: 100vh !important;
       height: 100vh !important;
-      padding: 14px !important;
+      padding: 16px !important;
       font-size: 13px !important;
       border-radius: 0 !important;
       overflow-y: auto;
       box-sizing: border-box;
+      -webkit-overflow-scrolling: touch;
     }
-    .modal-content h2, .modal-content h3 { font-size: 16px !important; }
-    .modal-content h4 { font-size: 13px !important; }
+    .modal::before, .modal::after { display: none !important; }  /* 풀스크린에선 ◆ 코너 숨김 */
+    .modal h2, .modal h3 { font-size: 16px !important; }
+    .modal h4 { font-size: 13px !important; }
 
-    /* 닫기 버튼 sticky top-right */
-    .modal-content > div:last-child > button[onclick*="closeModal"] {
+    /* 닫기 버튼 — 하단 고정 */
+    .modal > div:last-child > button[onclick*="closeModal"] {
       position: sticky;
       bottom: 0;
       width: 100%;
@@ -2911,10 +2913,10 @@
       margin-top: 12px;
     }
 
-    /* 인트로 스토리 슬라이드 */
-    .modal-content div[style*="font-size:72px"] { font-size: 48px !important; }
-    .modal-content div[style*="font-size:15px"] { font-size: 13px !important; line-height: 1.7 !important; }
-    .modal-content div[style*="display:flex"][style*="justify-content:center"] button {
+    /* 인트로/스토리 슬라이드 */
+    .modal div[style*="font-size:72px"] { font-size: 48px !important; }
+    .modal div[style*="font-size:15px"] { font-size: 13px !important; line-height: 1.7 !important; }
+    .modal div[style*="display:flex"][style*="justify-content:center"] button {
       min-height: 48px !important;
       padding: 12px 16px !important;
       font-size: 13px !important;
@@ -2946,6 +2948,18 @@
 
     /* 자리 클릭 hover 제거 (모바일) */
     .player-card:hover { transform: none !important; }
+
+    /* v55.5: iOS 입력 포커스 시 자동 줌 방지 — 텍스트 입력은 16px 이상 */
+    input[type="text"], input[type="password"], input[type="number"], input[type="tel"] {
+      font-size: 16px !important;
+    }
+    /* 클라우드 로그인 폼 인풋 — 풀폭 + 큰 탭 영역 */
+    #cloud-id-input, #cloud-pin-input {
+      min-height: 48px !important;
+      font-size: 16px !important;
+    }
+    /* 슬롯 선택 버튼 등 가로 2열 버튼이 너무 좁지 않게 */
+    .protag-sig-card { padding: 12px !important; }
   }
 
   /* ========== TINY MOBILE (≤380px) ========== */
