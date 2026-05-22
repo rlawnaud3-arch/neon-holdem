@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v55.3 ★ NEW CHAMPIONS IN CHARACTER CODEX (TRICKETT/UNGAR/SEIDEL/KOON/GALFOND)</title>
+<title>NEON HOLDEM v55.4 ★ LOCKED CHARACTER HINT MODAL + NEW CHAMPION KO VERIFIED</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -12062,7 +12062,9 @@ function openCharacterRelations() {
       const rightLabel = grp.venueRandom ? (c.venue || '랜덤') : `Day ${c.firstDay}`;
       const unmetHint = grp.venueRandom ? `${c.venue || '고스테이크'}에서 격파 시 공개` : `Day ${c.firstDay} 진행 시 등장`;
       const charVisualEl = met ? getCharImageHTML(c.key, 56, true) : '<div style="font-size:38px;display:flex;align-items:center;justify-content:center;width:56px;height:56px;">❓</div>';
-      html += `<div style="display:flex;gap:12px;background:${met ? 'var(--bg-card-2)' : 'var(--bg-darker)'};border:2px solid ${met ? grp.color : 'var(--border)'};border-radius:8px;padding:12px;margin:6px 0;align-items:flex-start;${met ? '' : 'opacity:0.55;filter:grayscale(0.6);'}">
+      // v55.4: 잠긴 캐릭터 클릭 시 힌트 모달
+      const clickAttr = met ? '' : `onclick="showCharHint('${c.key}', '${(c.venue || '').replace(/'/g,'')}', ${c.firstDay || 0}, ${grp.venueRandom ? 'true' : 'false'})" style="cursor:pointer;"`;
+      html += `<div ${clickAttr ? clickAttr : ''} style="display:flex;gap:12px;background:${met ? 'var(--bg-card-2)' : 'var(--bg-darker)'};border:2px solid ${met ? grp.color : 'var(--border)'};border-radius:8px;padding:12px;margin:6px 0;align-items:flex-start;${met ? '' : 'opacity:0.55;filter:grayscale(0.6);cursor:pointer;'}">
         <div style="flex-shrink:0;">${charVisualEl}</div>
         <div style="flex:1;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -12071,13 +12073,46 @@ function openCharacterRelations() {
           </div>
           <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${met ? ch.role : '아직 만나지 않음'}</div>
           ${met ? `<div style="font-size:12px;color:var(--gold-bright);margin-top:6px;font-weight:600;">관계: ${ch.relationship}</div>
-                   <div style="font-size:11px;color:var(--text);margin-top:6px;line-height:1.6;">${c.arc}</div>` : `<div style="font-size:11px;color:var(--text-dim);margin-top:6px;">${unmetHint}</div>`}
+                   <div style="font-size:11px;color:var(--text);margin-top:6px;line-height:1.6;">${c.arc}</div>` : `<div style="font-size:11px;color:var(--text-dim);margin-top:6px;">${unmetHint} <span style="color:var(--cyan);">· 탭하여 힌트 →</span></div>`}
         </div>
       </div>`;
     }
   }
   html += `<div style="text-align:center;margin-top:18px;"><button onclick="closeModal()">닫기</button></div>`;
   showModal(html);
+}
+
+// v55.4: 잠긴 캐릭터 만남 힌트 모달
+function showCharHint(charKey, venue, firstDay, isVenueRandom) {
+  const ch = STORY_CHARS[charKey];
+  if (!ch) return;
+  let how, tip;
+  if (isVenueRandom) {
+    // 베뉴 랜덤 챔피언 — 격파로 만남
+    how = `<b style="color:var(--gold-bright);">${venue || '하이스테이크'}</b> 에서 랜덤 등장`;
+    tip = '해당 베뉴에서 계속 플레이하다 보면 자리에 나타납니다.<br>그를 <b>격파(스택 0)</b>하면 도감 공개 + 시그니처 능력 흡수.';
+  } else {
+    how = `<b style="color:var(--gold-bright);">Day ${firstDay}</b> 진행 시 자동 등장`;
+    const curDay = (typeof getCurrentDay === 'function') ? getCurrentDay() : (career.day || 1);
+    const left = Math.max(0, firstDay - curDay);
+    tip = left > 0
+      ? `현재 Day ${curDay} — <b>${left}일</b> 더 진행하면 만납니다.<br>(핸드를 계속 플레이하면 Day가 올라갑니다.)`
+      : '곧 만날 수 있습니다 — 게임을 진행하세요.';
+  }
+  showModal(`<div style="text-align:center;padding:20px 16px;">
+    <div style="font-size:56px;margin-bottom:6px;opacity:0.7;">❓</div>
+    <div style="font-size:11px;color:var(--text-dim);letter-spacing:2px;">아직 만나지 않은 인물</div>
+    <h3 style="color:var(--cyan);margin:8px 0;">${ch.emoji} ???</h3>
+    <div style="background:var(--bg-card-2);border:1px solid var(--cyan);border-radius:8px;padding:14px;margin:14px 0;">
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;">만나는 방법</div>
+      <div style="font-size:14px;color:var(--text);margin-bottom:10px;">${how}</div>
+      <div style="font-size:12px;color:var(--text-dim);line-height:1.7;">${tip}</div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center;">
+      <button onclick="closeModal();openCharacterRelations();">← 도감으로</button>
+      <button class="btn-primary" onclick="closeModal()">확인</button>
+    </div>
+  </div>`);
 }
 
 // ===================== CINEMATIC PREVIEW (v34.1) =====================
