@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v55.2 ★ STORY ARCS AT LOBBY (IMMERSION) + BUG REFUND COMPENSATION</title>
+<title>NEON HOLDEM v55.3 ★ NEW CHAMPIONS IN CHARACTER CODEX (TRICKETT/UNGAR/SEIDEL/KOON/GALFOND)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -10490,7 +10490,13 @@ const STORY_CHARS = {
   reporter:  { name: '한국 기자', role: 'WSOP 취재', emoji: '🎤', relationship: '단발성' },
   oldself:   { name: '60세 김민준', role: '미래의 자기', emoji: '👴', relationship: '회상' },
   // === 동반자 캐릭터 (v46) ===
-  seoa:      { name: '윤서아', role: '럭셔리 동반자', emoji: '💋', relationship: '동반자' }
+  seoa:      { name: '윤서아', role: '럭셔리 동반자', emoji: '💋', relationship: '동반자' },
+  // === v50 새 챔피언 5명 (베뉴 랜덤 등장) ===
+  trickett:  { name: 'Sam Trickett', role: '런던의 늑대', emoji: '🐺', relationship: '유럽 강자' },
+  ungar:     { name: 'Stu Ungar', role: '한 세대의 천재', emoji: '🧠', relationship: '전설' },
+  seidel:    { name: 'Erik Seidel', role: '8 브레이슬릿', emoji: '📿', relationship: '올드스쿨 마스터' },
+  koon:      { name: 'Jason Koon', role: '트라이튼의 학자', emoji: '🎓', relationship: '현대 GTO' },
+  galfond:   { name: 'Phil Galfond', role: 'Run It Once', emoji: '🌀', relationship: 'GTO 교육자' }
 };
 
 // === v52: 인물별 미니 아크 (5명 × 5컷 = 25 감정선 컷씬) ===
@@ -12012,6 +12018,19 @@ const CHAR_GROUPS = [
     chars: [
       { key: 'seoa',      firstDay: 6,  arc: '윤서아 — 마카오에서 만난 한국 모델. 빅팟/연승/스트레이트 승리 등 특별 모먼트마다 등장.' }
     ]
+  },
+  {
+    // v55.3: 새 챔피언 5명 — Day가 아니라 베뉴에서 랜덤 등장, 격파 시 met
+    title: '🌍 월드 클래스 (베뉴 랜덤 등장)',
+    color: 'var(--red)',
+    venueRandom: true,  // firstDay 대신 격파 여부로 met 판정
+    chars: [
+      { key: 'trickett', byChampion: 'trickett', venue: '런던 GUKPT',  arc: 'Sam Trickett — 런던의 늑대. 유럽 어그레션의 정수. 압박으로 너를 시험한다.' },
+      { key: 'seidel',   byChampion: 'seidel',   venue: 'WSOP / 런던', arc: 'Erik Seidel — 8개의 브레이슬릿. 40년의 인내. 절대 흔들리지 않는다.' },
+      { key: 'koon',     byChampion: 'koon',     venue: '트라이튼',     arc: 'Jason Koon — 트라이튼의 학자. 현대 하이스테이크 솔버.' },
+      { key: 'galfond',  byChampion: 'galfond',  venue: '트라이튼',     arc: 'Phil Galfond — Run It Once 창립자. GTO 교육자. 너의 텔을 읽는다.' },
+      { key: 'ungar',    byChampion: 'ungar',    venue: 'WSOP / 트라이튼', arc: 'Stu Ungar — 한 세대에 한 번 나오는 천재. 직감만으로 모든 걸 읽는다.' }
+    ]
   }
 ];
 
@@ -12021,7 +12040,7 @@ function openCharacterRelations() {
   const playerName = career.playerName || '김민준';
 
   let html = `<h3>👥 등장인물 관계도</h3>
-  <p style="font-size:12px;color:var(--text-dim);">주인공 <b style="color:var(--gold-bright);">${playerName}</b>을 둘러싼 11명의 인물. Day 진행 시 자동으로 만남.</p>
+  <p style="font-size:12px;color:var(--text-dim);">주인공 <b style="color:var(--gold-bright);">${playerName}</b>을 둘러싼 16명의 인물. Day 진행 + 베뉴에서 만남.</p>
 
   <div style="background:linear-gradient(135deg,rgba(255,217,61,0.18),rgba(212,175,55,0.06));border:2px solid var(--gold-foil);border-radius:10px;padding:14px;margin:12px 0;text-align:center;">
     <div>${typeof getProtagonistAvatarHTML === 'function' ? getProtagonistAvatarHTML(72, true) : '<span style="font-size:54px;">🧑‍💻</span>'}</div>
@@ -12029,23 +12048,30 @@ function openCharacterRelations() {
     <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">코인 트레이더 → 포커 전설 (Day ${curDay}/10)</div>
   </div>`;
 
+  const collectedChamps = career.specialAbilities?.collected || [];
   for (const grp of CHAR_GROUPS) {
     html += `<h4 style="color:${grp.color};margin-top:18px;font-size:13px;letter-spacing:1px;">${grp.title}</h4>`;
     for (const c of grp.chars) {
       const ch = STORY_CHARS[c.key];
       if (!ch) continue;
-      const met = curDay >= c.firstDay;
+      // v55.3: 베뉴 랜덤 챔피언은 격파(흡수) 여부로 met, 나머지는 Day 기준
+      const met = grp.venueRandom
+        ? collectedChamps.includes(c.byChampion || c.key)
+        : (curDay >= c.firstDay);
+      // 우측 라벨: Day N 또는 베뉴명
+      const rightLabel = grp.venueRandom ? (c.venue || '랜덤') : `Day ${c.firstDay}`;
+      const unmetHint = grp.venueRandom ? `${c.venue || '고스테이크'}에서 격파 시 공개` : `Day ${c.firstDay} 진행 시 등장`;
       const charVisualEl = met ? getCharImageHTML(c.key, 56, true) : '<div style="font-size:38px;display:flex;align-items:center;justify-content:center;width:56px;height:56px;">❓</div>';
       html += `<div style="display:flex;gap:12px;background:${met ? 'var(--bg-card-2)' : 'var(--bg-darker)'};border:2px solid ${met ? grp.color : 'var(--border)'};border-radius:8px;padding:12px;margin:6px 0;align-items:flex-start;${met ? '' : 'opacity:0.55;filter:grayscale(0.6);'}">
         <div style="flex-shrink:0;">${charVisualEl}</div>
         <div style="flex:1;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <div style="font-weight:700;font-size:14px;color:${met ? grp.color : 'var(--text-dim)'};">${met ? ch.name : '???'}</div>
-            <div style="font-size:10px;color:var(--text-dim);">Day ${c.firstDay}</div>
+            <div style="font-size:10px;color:var(--text-dim);">${rightLabel}</div>
           </div>
           <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${met ? ch.role : '아직 만나지 않음'}</div>
           ${met ? `<div style="font-size:12px;color:var(--gold-bright);margin-top:6px;font-weight:600;">관계: ${ch.relationship}</div>
-                   <div style="font-size:11px;color:var(--text);margin-top:6px;line-height:1.6;">${c.arc}</div>` : `<div style="font-size:11px;color:var(--text-dim);margin-top:6px;">Day ${c.firstDay} 진행 시 등장</div>`}
+                   <div style="font-size:11px;color:var(--text);margin-top:6px;line-height:1.6;">${c.arc}</div>` : `<div style="font-size:11px;color:var(--text-dim);margin-top:6px;">${unmetHint}</div>`}
         </div>
       </div>`;
     }
