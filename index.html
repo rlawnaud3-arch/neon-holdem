@@ -9,7 +9,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>NEON HOLDEM v55.5 ★ MOBILE UI FIX: MODAL SELECTOR BUG (.modal-content→.modal) + iOS ZOOM</title>
+<title>NEON HOLDEM v55.6 ★ LANDSCAPE MODE OPTIMIZATION (FULL REWRITE)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=DotGothic16&display=swap" rel="stylesheet">
@@ -2532,39 +2532,105 @@
   }
 
   /* === LANDSCAPE MOBILE (가로 모드, ≤900px AND height < 500px) === */
-  @media (max-width: 900px) and (max-height: 500px) and (orientation: landscape) {
-    body { padding: 4px; }
+  /* ========== LANDSCAPE (가로모드, 높이 좁음) — v55.6 전면 최적화 ========== */
+  @media (max-height: 520px) and (orientation: landscape) {
+    body { padding: 3px !important; overflow-x: hidden; }
+
+    /* 헤더 — 1줄 초압축 */
+    .game-header {
+      grid-template-columns: 1fr auto 1fr !important;
+      padding: 3px 8px !important;
+      font-size: 10px !important;
+      border-radius: 6px !important;
+      gap: 4px !important;
+    }
+    .header-meta { flex-direction: row !important; gap: 6px !important; }
+    .venue-info { font-size: 11px !important; }
+    .pot-amount { font-size: 15px !important; }
+    .pot-label { font-size: 8px !important; }
+    .bankroll-info .bankroll-value { font-size: 12px !important; }
+    .leave-btn { min-height: 28px !important; padding: 3px 6px !important; font-size: 9px !important; }
+    #day-badge { font-size: 7px !important; }
+
+    /* 보드 — 좌(AI) | 중앙 테이블 | 우(AI), 하단 AI는 좌우로 분산 */
     .game-board {
-      grid-template-columns: 1fr 1.5fr 1fr;
-      grid-template-rows: auto auto;
-      gap: 4px;
+      grid-template-columns: 1fr 1.8fr 1fr !important;
+      grid-template-rows: auto auto !important;
+      gap: 3px !important;
+      padding: 3px !important;
     }
-    .seat-tl { grid-column: 1; grid-row: 1; }
-    .seat-tr { grid-column: 3; grid-row: 1; }
-    .seat-ml { grid-column: 1; grid-row: 2; }
-    .seat-mr { grid-column: 3; grid-row: 2; }
-    .table-center { grid-column: 2; grid-row: 1 / 3; min-height: 180px; padding: 12px 8px; }
+    .seat-tl { grid-column: 1 !important; grid-row: 1 !important; }
+    .seat-ml { grid-column: 1 !important; grid-row: 2 !important; }
+    .seat-tr { grid-column: 3 !important; grid-row: 1 !important; }
+    .seat-mr { grid-column: 3 !important; grid-row: 2 !important; }
+    .table-center {
+      grid-column: 2 !important; grid-row: 1 / 3 !important;
+      min-height: 120px !important; padding: 6px 6px !important;
+      border-radius: 16px !important;
+    }
+    /* 하단 AI 5명 → 한 줄, 매우 컴팩트 */
     .seats-bottom {
-      grid-column: 1 / -1;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 4px;
-      margin-top: 4px;
+      grid-column: 1 / -1 !important; grid-row: 2 !important;
+      grid-template-columns: repeat(5, 1fr) !important;
+      gap: 3px !important; margin-top: 2px !important;
     }
-    .game-header { padding: 4px 8px !important; font-size: 11px; }
-    .card { width: 38px; height: 54px; padding: 2px; font-size: 8px; }
-    .community-cards .card { width: 50px; height: 70px; }
-    .community-cards .card .pip-grid .pip { font-size: 10px; }
-    .pot-amount { font-size: 16px !important; }
-    .action-bar {
-      position: fixed;
+    .seats-bottom > div:nth-child(n+6) { display: none !important; }
+
+    /* 플레이어 카드 초압축 */
+    .player-card { min-height: 44px !important; padding: 3px !important; font-size: 9px !important; }
+    .player-card .player-name span:first-child { font-size: 9px !important; }
+    .player-card .player-info { font-size: 10px !important; }
+    .personality-tag { font-size: 7px !important; padding: 0 3px !important; }
+    .read-bubble { font-size: 8px !important; padding: 1px 4px !important; }
+
+    /* AI 등카드 작게 */
+    .seat-cards:not(.my-cards) .card, .player-card .card-mini { width: 18px !important; height: 25px !important; }
+
+    /* 커뮤니티 카드 — 가로폭 여유 있으니 적당히 */
+    .community-cards { gap: 4px !important; min-height: 56px !important; }
+    .community-cards .card { width: 40px !important; height: 56px !important; }
+    .table-street { font-size: 10px !important; margin-bottom: 3px !important; }
+    .table-status { font-size: 10px !important; }
+    .table-spade { display: none !important; }
+
+    /* 내 카드 — 세로 공간 절약 위해 작게 (탭 쪼기 유지) */
+    .seat-cards.my-cards { gap: 8px !important; margin-top: 4px !important; }
+    .seat-cards.my-cards .card { width: 50px !important; height: 72px !important; }
+    .card.card-peekable .peek-hint { font-size: 12px !important; padding: 3px 8px !important; }
+
+    /* 로그 + 코치 패널 — 가로모드선 세로 공간 아끼려 숨김 */
+    .log-area { display: none !important; }
+    .coach-history-panel { display: none !important; }
+
+    /* 액션 바 — 하단 고정, 한 줄 압축 */
+    .action-bar, #action-panel {
+      position: fixed !important;
       bottom: 0; left: 0; right: 0;
       z-index: 100;
+      padding: 4px 6px !important;
+      background: linear-gradient(180deg, rgba(10,8,23,0.9), rgba(10,8,23,0.99)) !important;
+      backdrop-filter: blur(10px);
+      border-top: 1px solid var(--gold-foil) !important;
     }
-    .bet-sizer { padding: 4px 8px; gap: 4px; }
-    .bet-amount-main { font-size: 14px; }
-    .action-btn { min-height: 42px; padding: 4px; }
-    .action-btn-label { font-size: 11px; }
-    .action-btn-amount { font-size: 9px; }
+    .action-bar-chat { display: none !important; }  /* 가로모드선 채팅 아이콘 숨김 (공간) */
+    .bet-sizer { padding: 3px 6px !important; gap: 3px !important; }
+    .bet-amount-main { font-size: 13px !important; }
+    .bet-amount-bb { font-size: 9px !important; }
+    .bet-slider { height: 26px !important; }
+    .bet-step-btn { min-height: 32px !important; min-width: 38px !important; }
+    .bet-step-row input[type="number"] { min-height: 32px !important; }
+    .bet-sizer .quick-bets button { min-height: 30px !important; font-size: 11px !important; }
+    .action-row { grid-template-columns: repeat(4, 1fr) !important; gap: 3px !important; }
+    .action-btn { min-height: 40px !important; padding: 3px !important; }
+    .action-btn-label { font-size: 11px !important; }
+    .action-btn-amount { font-size: 9px !important; }
+    .action-btn .shortcut { display: none !important; }
+
+    /* 게임 화면 하단 여백 — 고정 액션바에 안 가리게 */
+    #game-screen { padding-bottom: 110px !important; }
+
+    /* 가로모드 회전 안내 (옵션) */
+    .monologue-bubble { bottom: 96px !important; font-size: 11px !important; }
   }
 
   /* Responsive - smaller screens */
